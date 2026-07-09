@@ -9,7 +9,9 @@ Native macOS RSS reader draft built with SwiftUI, Swift 6, and Xcode.
 - Local toolchain checked here: Xcode 26.5, Swift 6.3.2
 - Deployment target: macOS 26.0
 - Security baseline: App Sandbox enabled with read-only user-selected file access
-- UI draft: 3-column RSS reader with sidebar feeds, article list, reader pane, inspector, native settings, toolbar actions, search, share sheet, context menus, and menu commands
+- UI: 3-column RSS reader with sidebar feeds, article list, reader pane, inspector, native settings, toolbar actions, search, share sheet, context menus, and menu commands
+- Feed loading: real RSS/Atom fetching through `URLSession` and XML parsing
+- Storage: user-selected sync folder with `NookLibrary.json`, intended for an iCloud Drive folder
 
 Apple's current Xcode page is already highlighting Xcode 27. This repo is generated and build-verified with the Xcode version installed on this machine, Xcode 26.5. If you install Xcode 27 later, open the project in Xcode and accept the recommended project setting updates.
 
@@ -47,14 +49,19 @@ make open
 
 ## 처음 수정할 곳
 
-대부분의 첫 작업은 `Nook/ContentView.swift`에서 시작하면 됩니다. 현재는 UI 검증용 목업 데이터가 들어 있고, 실제 RSS 기능은 아직 연결하지 않았습니다.
+대부분의 UI 작업은 `Nook/ContentView.swift`에서 시작하면 됩니다. Feed/article 상태와 persistence는 `Nook/ReaderStore.swift`, RSS/Atom fetching은 `Nook/RSSFeedService.swift`, sync-folder 저장은 `Nook/ReaderStorage.swift`에 있습니다.
+
+## RSS와 iCloud 폴더 저장
+
+1. 앱을 실행합니다.
+2. toolbar의 folder 버튼으로 iCloud Drive 안의 폴더를 선택합니다.
+3. 앱은 그 폴더에 `NookLibrary.json`을 만들고 feed, article, read state, starred state를 저장합니다.
+4. `+` 버튼으로 RSS 또는 Atom feed URL을 추가합니다.
 
 다음 구현 경계:
 
-- `URLSession`으로 feed URL 가져오기
-- RSS/Atom XML 파싱
-- SwiftData로 feed/article/read state 저장
 - OPML import/export
 - Background refresh와 notification
+- Feed auto-discovery from normal website URLs
 
 앱이 더 오래된 macOS도 지원해야 한다면 `Nook.xcodeproj`의 `MACOSX_DEPLOYMENT_TARGET` 값을 낮추면 됩니다. 지금은 최신 로컬 개발 환경에 맞춰 `26.0`으로 설정했습니다.

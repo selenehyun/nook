@@ -10,6 +10,10 @@
 		2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */; };
 		2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */; };
 		2D0E3A1F2D8A4A4700A00001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */; };
+		2D0E3A232D8A4A4700A00001 /* ReaderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A222D8A4A4700A00001 /* ReaderModels.swift */; };
+		2D0E3A252D8A4A4700A00001 /* ReaderStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */; };
+		2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */; };
+		2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +22,10 @@
 		2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D0E3A202D8A4A4700A00001 /* Nook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nook.entitlements; sourceTree = "<group>"; };
+		2D0E3A222D8A4A4700A00001 /* ReaderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderModels.swift; sourceTree = "<group>"; };
+		2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStorage.swift; sourceTree = "<group>"; };
+		2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSSFeedService.swift; sourceTree = "<group>"; };
+		2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +60,10 @@
 			children = (
 				2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */,
 				2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */,
+				2D0E3A222D8A4A4700A00001 /* ReaderModels.swift */,
+				2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */,
+				2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */,
+				2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */,
 				2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */,
 				2D0E3A202D8A4A4700A00001 /* Nook.entitlements */,
 			);
@@ -129,6 +141,10 @@
 			files = (
 				2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */,
 				2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */,
+				2D0E3A232D8A4A4700A00001 /* ReaderModels.swift in Sources */,
+				2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */,
+				2D0E3A252D8A4A4700A00001 /* ReaderStorage.swift in Sources */,
+				2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

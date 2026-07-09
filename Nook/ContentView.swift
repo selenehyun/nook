@@ -1,18 +1,22 @@
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var store = ReaderStore()
     @State private var isAddingFeed = false
     @State private var isInspectorPresented = true
+    @State private var isSelectingSyncFolder = false
 
     var body: some View {
         NavigationSplitView {
-            FeedSidebar(store: store)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
+            FeedSidebar(store: store) {
+                isSelectingSyncFolder = true
+            }
+            .navigationSplitViewColumnWidth(min: 220, ideal: 270, max: 340)
         } content: {
             ArticleListView(store: store)
-                .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 520)
+                .navigationSplitViewColumnWidth(min: 340, ideal: 420, max: 540)
         } detail: {
             ReaderWorkspaceView(store: store, isInspectorPresented: $isInspectorPresented)
         }
@@ -24,14 +28,23 @@ struct ContentView: View {
                 } label: {
                     Label("Add Feed", systemImage: "plus")
                 }
-                .help("Add Feed")
+                .disabled(!store.isStorageConfigured || store.isRefreshing)
+                .help(store.isStorageConfigured ? "Add Feed" : "Choose a sync folder first")
 
                 Button {
                     store.refreshAll()
                 } label: {
                     Label("Refresh All", systemImage: "arrow.clockwise")
                 }
+                .disabled(store.feeds.isEmpty || store.isRefreshing)
                 .help("Refresh All Feeds")
+
+                Button {
+                    isSelectingSyncFolder = true
+                } label: {
+                    Label("Sync Folder", systemImage: "folder")
+                }
+                .help("Choose iCloud Sync Folder")
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -70,9 +83,16 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $isAddingFeed) {
-            AddFeedSheet { feedURL in
+            AddFeedSheet(isLoading: store.isRefreshing) { feedURL in
                 store.addFeed(urlString: feedURL)
             }
+        }
+        .fileImporter(
+            isPresented: $isSelectingSyncFolder,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            store.handleSyncFolderSelection(result)
         }
         .focusedSceneValue(
             \.readerCommandActions,
@@ -108,9 +128,32 @@ private struct ReaderWorkspaceView: View {
 
 private struct FeedSidebar: View {
     @Bindable var store: ReaderStore
+    var onChooseSyncFolder: () -> Void
 
     var body: some View {
         List(selection: $store.selectedSource) {
+            Section("Sync") {
+                Button {
+                    onChooseSyncFolder()
+                } label: {
+                    Label(
+                        store.isStorageConfigured ? "Change Sync Folder" : "Choose iCloud Folder",
+                        systemImage: store.isStorageConfigured ? "checkmark.icloud" : "icloud"
+                    )
+                }
+
+                if let syncFolderDisplayPath = store.syncFolderDisplayPath {
+                    Text(syncFolderDisplayPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                } else {
+                    Text("Pick a folder in iCloud Drive to store feeds, articles, read state, and starred state.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Library") {
                 ForEach(SmartSource.allCases) { source in
                     SourceRow(
@@ -123,20 +166,28 @@ private struct FeedSidebar: View {
             }
 
             Section("Feeds") {
-                ForEach(store.feeds) { feed in
-                    SourceRow(
-                        title: feed.title,
-                        subtitle: feed.siteDescription,
-                        systemImage: feed.systemImage,
-                        count: store.unreadCount(feedID: feed.id)
-                    )
-                    .tag(SourceSelection.feed(feed.id))
-                    .contextMenu {
-                        Button("Refresh Feed") {
-                            store.refresh(feedID: feed.id)
-                        }
-                        Button("Mark Feed as Read") {
-                            store.markFeedRead(feedID: feed.id)
+                if store.feeds.isEmpty {
+                    Text(store.isStorageConfigured ? "Add an RSS or Atom feed." : "Choose a sync folder first.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(store.feeds) { feed in
+                        SourceRow(
+                            title: feed.title,
+                            subtitle: feed.siteDescription,
+                            systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
+                            count: store.unreadCount(feedID: feed.id)
+                        )
+                        .tag(SourceSelection.feed(feed.id))
+                        .contextMenu {
+                            Button("Refresh Feed") {
+                                store.refresh(feedID: feed.id)
+                            }
+                            Button("Mark Feed as Read") {
+                                store.markFeedRead(feedID: feed.id)
+                            }
+                            Divider()
+                            Link("Open Site", destination: feed.siteURL)
                         }
                     }
                 }
@@ -153,13 +204,20 @@ private struct SourceRow: View {
     var systemImage: String
     var count: Int
 
+    init(title: String, subtitle: String? = nil, systemImage: String, count: Int) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.count = count
+    }
+
     var body: some View {
         Label {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .lineLimit(1)
-                    if let subtitle {
+                    if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -187,11 +245,17 @@ private struct ArticleListView: View {
 
     var body: some View {
         Group {
-            if store.visibleArticles.isEmpty {
+            if !store.isStorageConfigured {
+                ContentUnavailableView {
+                    Label("Choose a Sync Folder", systemImage: "icloud")
+                } description: {
+                    Text("Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault.")
+                }
+            } else if store.visibleArticles.isEmpty {
                 ContentUnavailableView {
                     Label("No Articles", systemImage: "newspaper")
                 } description: {
-                    Text(store.searchText.isEmpty ? "Refresh feeds or add a new source." : "No article matches the current search.")
+                    Text(store.searchText.isEmpty ? "Add an RSS or Atom feed, then refresh." : "No article matches the current search.")
                 }
             } else {
                 List(selection: $store.selectedArticleID) {
@@ -278,8 +342,23 @@ private struct ArticleListStatusBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("\(store.visibleArticles.count) articles")
+            if store.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Refreshing")
+            } else if let status = store.statusMessage {
+                Text(status)
+            } else {
+                Text("\(store.visibleArticles.count) articles")
+            }
+
             Text("\(store.unreadCount()) unread")
+
+            if let errorMessage = store.errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+            }
 
             Spacer()
 
@@ -305,7 +384,13 @@ private struct ReaderDetailView: View {
 
     var body: some View {
         Group {
-            if let article = store.selectedArticle {
+            if !store.isStorageConfigured {
+                ContentUnavailableView {
+                    Label("Set Up iCloud Sync", systemImage: "icloud.and.arrow.up")
+                } description: {
+                    Text("Choose a folder in iCloud Drive. Nook will keep its library JSON there.")
+                }
+            } else if let article = store.selectedArticle {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         articleHeader(article)
@@ -419,7 +504,9 @@ private struct ArticleInspector: View {
                     if let feed = store.feed(for: article.feedID) {
                         LabeledContent("Feed", value: feed.title)
                         LabeledContent("Category", value: feed.category)
+                        LabeledContent("Last Refresh", value: feed.lastFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? "Never")
                         Link("Open Site", destination: feed.siteURL)
+                        Link("Open Feed", destination: feed.feedURL)
                     }
 
                     Link("Open Article", destination: article.url)
@@ -443,6 +530,7 @@ private struct ArticleInspector: View {
 }
 
 private struct AddFeedSheet: View {
+    var isLoading: Bool
     var onAdd: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -454,7 +542,7 @@ private struct AddFeedSheet: View {
                 Text("Add Feed")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Paste an RSS, Atom, or website URL. The parser will be wired in after the UI flow is settled.")
+                Text("Paste an RSS or Atom feed URL. Nook will fetch it now and save the library to your sync folder.")
                     .foregroundStyle(.secondary)
             }
 
@@ -474,7 +562,7 @@ private struct AddFeedSheet: View {
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
             }
         }
         .padding(24)
@@ -486,6 +574,7 @@ struct ReaderSettingsView: View {
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("openLinksInBrowser") private var openLinksInBrowser = true
+    @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
     var body: some View {
         Form {
@@ -497,421 +586,18 @@ struct ReaderSettingsView: View {
             Section("Feeds") {
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
             }
+
+            Section("Storage") {
+                LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? "Not selected" : syncFolderDisplayPath)
+                Text("Use the folder button in the main window to choose or change the iCloud Drive folder. Nook stores RSS data in NookLibrary.json inside that folder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding(20)
-        .frame(width: 460)
+        .frame(width: 520)
     }
-}
-
-@MainActor
-@Observable
-private final class ReaderStore {
-    var feeds: [Feed] = Feed.sampleFeeds
-    var articles: [Article] = Article.sampleArticles
-    var selectedSource: SourceSelection? = .smart(.unread)
-    var selectedArticleID: Article.ID? = Article.sampleArticles.first?.id
-    var searchText = ""
-    var readingFilter = ReadingFilter.all
-    var lastRefreshedAt = Date.now
-
-    var selectedArticle: Article? {
-        guard let selectedArticleID else { return nil }
-        return articles.first { $0.id == selectedArticleID }
-    }
-
-    var visibleArticles: [Article] {
-        articles
-            .filter(matchesSelectedSource)
-            .filter(matchesReadingFilter)
-            .filter(matchesSearch)
-            .sorted { $0.publishedAt > $1.publishedAt }
-    }
-
-    var selectedSourceTitle: String {
-        switch selectedSource {
-        case .smart(let source):
-            source.title
-        case .feed(let feedID):
-            feed(for: feedID)?.title ?? "Feed"
-        case nil:
-            "Articles"
-        }
-    }
-
-    func feed(for feedID: Feed.ID) -> Feed? {
-        feeds.first { $0.id == feedID }
-    }
-
-    func unreadCount(feedID: Feed.ID? = nil) -> Int {
-        articles.filter { article in
-            !article.isRead && (feedID == nil || article.feedID == feedID)
-        }.count
-    }
-
-    func count(for source: SmartSource) -> Int {
-        switch source {
-        case .unread:
-            unreadCount()
-        case .today:
-            articles.filter { Calendar.current.isDateInToday($0.publishedAt) }.count
-        case .starred:
-            articles.filter(\.isStarred).count
-        case .all:
-            articles.count
-        }
-    }
-
-    func markArticleOpened(articleID: Article.ID) {
-        setRead(articleID: articleID, isRead: true)
-    }
-
-    func setRead(articleID: Article.ID, isRead: Bool) {
-        guard let index = articles.firstIndex(where: { $0.id == articleID }),
-              articles[index].isRead != isRead else { return }
-
-        articles[index].isRead = isRead
-    }
-
-    func markSelectedRead() {
-        guard let selectedArticleID else { return }
-        setRead(articleID: selectedArticleID, isRead: true)
-    }
-
-    func markFeedRead(feedID: Feed.ID) {
-        for index in articles.indices where articles[index].feedID == feedID {
-            if !articles[index].isRead {
-                articles[index].isRead = true
-            }
-        }
-    }
-
-    func toggleSelectedStarred() {
-        guard let selectedArticleID else { return }
-        toggleStarred(articleID: selectedArticleID)
-    }
-
-    func toggleStarred(articleID: Article.ID) {
-        updateArticle(articleID) { article in
-            article.isStarred.toggle()
-        }
-    }
-
-    func refreshAll() {
-        lastRefreshedAt = Date.now
-    }
-
-    func refresh(feedID: Feed.ID) {
-        lastRefreshedAt = Date.now
-        selectedSource = .feed(feedID)
-    }
-
-    func addFeed(urlString: String) {
-        let trimmedURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedURL.isEmpty else { return }
-
-        let url = URL(string: trimmedURL) ?? URL(string: "https://example.com/feed.xml")!
-        let host = url.host(percentEncoded: false) ?? "New Feed"
-        let feed = Feed(
-            id: "feed-\(feeds.count + 1)",
-            title: host.replacingOccurrences(of: "www.", with: ""),
-            siteDescription: "Added just now",
-            category: "Inbox",
-            systemImage: "dot.radiowaves.left.and.right",
-            siteURL: url,
-            healthScore: 0.72
-        )
-
-        feeds.append(feed)
-        selectedSource = .feed(feed.id)
-        selectedArticleID = nil
-    }
-
-    func selectFirstVisibleArticleIfNeeded() {
-        let visibleIDs = Set(visibleArticles.map(\.id))
-        if let selectedArticleID, visibleIDs.contains(selectedArticleID) {
-            return
-        }
-
-        selectedArticleID = visibleArticles.first?.id
-    }
-
-    func selectNextArticle() {
-        moveSelection(offset: 1)
-    }
-
-    func selectPreviousArticle() {
-        moveSelection(offset: -1)
-    }
-
-    func readBinding(articleID: Article.ID) -> Binding<Bool> {
-        Binding {
-            self.articles.first { $0.id == articleID }?.isRead ?? false
-        } set: { isRead in
-            self.setRead(articleID: articleID, isRead: isRead)
-        }
-    }
-
-    func starredBinding(articleID: Article.ID) -> Binding<Bool> {
-        Binding {
-            self.articles.first { $0.id == articleID }?.isStarred ?? false
-        } set: { isStarred in
-            self.updateArticle(articleID) { article in
-                article.isStarred = isStarred
-            }
-        }
-    }
-
-    private func moveSelection(offset: Int) {
-        let visible = visibleArticles
-        guard !visible.isEmpty else {
-            selectedArticleID = nil
-            return
-        }
-
-        guard let selectedArticleID,
-              let currentIndex = visible.firstIndex(where: { $0.id == selectedArticleID }) else {
-            self.selectedArticleID = visible.first?.id
-            return
-        }
-
-        let nextIndex = min(max(currentIndex + offset, visible.startIndex), visible.index(before: visible.endIndex))
-        self.selectedArticleID = visible[nextIndex].id
-    }
-
-    private func updateArticle(_ articleID: Article.ID, update: (inout Article) -> Void) {
-        guard let index = articles.firstIndex(where: { $0.id == articleID }) else { return }
-        update(&articles[index])
-    }
-
-    private func matchesSelectedSource(_ article: Article) -> Bool {
-        switch selectedSource {
-        case .smart(.all), nil:
-            true
-        case .smart(.unread):
-            !article.isRead
-        case .smart(.today):
-            Calendar.current.isDateInToday(article.publishedAt)
-        case .smart(.starred):
-            article.isStarred
-        case .feed(let feedID):
-            article.feedID == feedID
-        }
-    }
-
-    private func matchesReadingFilter(_ article: Article) -> Bool {
-        switch readingFilter {
-        case .all:
-            true
-        case .unread:
-            !article.isRead
-        case .starred:
-            article.isStarred
-        }
-    }
-
-    private func matchesSearch(_ article: Article) -> Bool {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return true }
-
-        return article.title.localizedStandardContains(query)
-            || article.summary.localizedStandardContains(query)
-            || article.bodyParagraphs.joined(separator: " ").localizedStandardContains(query)
-            || (feed(for: article.feedID)?.title.localizedStandardContains(query) ?? false)
-    }
-}
-
-private enum SourceSelection: Hashable {
-    case smart(SmartSource)
-    case feed(Feed.ID)
-}
-
-private enum SmartSource: String, CaseIterable, Identifiable {
-    case unread
-    case today
-    case starred
-    case all
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .unread: "Unread"
-        case .today: "Today"
-        case .starred: "Starred"
-        case .all: "All Articles"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .unread: "largecircle.fill.circle"
-        case .today: "calendar"
-        case .starred: "star"
-        case .all: "tray.full"
-        }
-    }
-}
-
-private enum ReadingFilter: String, CaseIterable, Identifiable {
-    case all
-    case unread
-    case starred
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .all: "All"
-        case .unread: "Unread"
-        case .starred: "Starred"
-        }
-    }
-}
-
-private struct Feed: Identifiable {
-    var id: String
-    var title: String
-    var siteDescription: String
-    var category: String
-    var systemImage: String
-    var siteURL: URL
-    var healthScore: Double
-
-    static let sampleFeeds: [Feed] = [
-        Feed(
-            id: "swift",
-            title: "Swift Blog",
-            siteDescription: "Language and tooling",
-            category: "Development",
-            systemImage: "swift",
-            siteURL: URL(string: "https://www.swift.org/blog/")!,
-            healthScore: 0.96
-        ),
-        Feed(
-            id: "apple-news",
-            title: "Apple Developer",
-            siteDescription: "Platform updates",
-            category: "Development",
-            systemImage: "apple.logo",
-            siteURL: URL(string: "https://developer.apple.com/news/")!,
-            healthScore: 0.91
-        ),
-        Feed(
-            id: "design",
-            title: "Design Notes",
-            siteDescription: "Interface research",
-            category: "Design",
-            systemImage: "paintpalette",
-            siteURL: URL(string: "https://example.com/design")!,
-            healthScore: 0.84
-        ),
-        Feed(
-            id: "infra",
-            title: "Systems Weekly",
-            siteDescription: "Infrastructure essays",
-            category: "Engineering",
-            systemImage: "server.rack",
-            siteURL: URL(string: "https://example.com/systems")!,
-            healthScore: 0.78
-        )
-    ]
-}
-
-private struct Article: Identifiable, Hashable {
-    var id: String
-    var feedID: Feed.ID
-    var title: String
-    var summary: String
-    var bodyParagraphs: [String]
-    var publishedAt: Date
-    var url: URL
-    var estimatedReadMinutes: Int
-    var isRead: Bool
-    var isStarred: Bool
-
-    static let sampleArticles: [Article] = [
-        Article(
-            id: "swift-observation",
-            feedID: "swift",
-            title: "Designing fast state updates with Observation",
-            summary: "A practical look at how fine-grained view invalidation changes the structure of SwiftUI apps.",
-            bodyParagraphs: [
-                "Observation lets a SwiftUI view depend on the values it actually reads. For an RSS reader, that means the article list, reader pane, and inspector can react independently instead of forcing broad redraws.",
-                "The draft keeps the store small on purpose. Feed parsing, persistence, and background refresh can be added behind the same model without changing the main navigation structure.",
-                "For web developers, the closest mental model is a reactive store with automatic dependency tracking. You mutate regular Swift properties, and SwiftUI schedules the UI update."
-            ],
-            publishedAt: .now.addingTimeInterval(-1_800),
-            url: URL(string: "https://www.swift.org/blog/")!,
-            estimatedReadMinutes: 4,
-            isRead: false,
-            isStarred: true
-        ),
-        Article(
-            id: "xcode-previews",
-            feedID: "apple-news",
-            title: "Using previews to iterate on native Mac layouts",
-            summary: "Preview-driven UI work is especially useful when balancing sidebars, inspectors, and reading panes.",
-            bodyParagraphs: [
-                "The primary navigation uses a three-column split view because it maps directly to long-running macOS reading workflows: source selection, item selection, and detail reading.",
-                "Toolbar items use SF Symbols and native controls so they inherit platform spacing, keyboard focus, and accessibility behavior.",
-                "The inspector keeps metadata and toggles out of the reading surface while still making them available to power users."
-            ],
-            publishedAt: .now.addingTimeInterval(-7_200),
-            url: URL(string: "https://developer.apple.com/xcode/")!,
-            estimatedReadMinutes: 3,
-            isRead: false,
-            isStarred: false
-        ),
-        Article(
-            id: "rss-parser-boundaries",
-            feedID: "infra",
-            title: "Separating feed fetching from reader state",
-            summary: "Treat network refresh, parsing, and read state as separate responsibilities before adding persistence.",
-            bodyParagraphs: [
-                "RSS and Atom feeds vary in shape, date formats, and content encoding. The UI should not know about those differences. It should receive normalized articles from a feed service.",
-                "A native macOS app can refresh in the background later, but the first useful milestone is a local store that makes read, unread, and starred state reliable.",
-                "Once the interaction model is stable, the next layer can add URLSession fetching, XML parsing, OPML import, and SwiftData persistence."
-            ],
-            publishedAt: .now.addingTimeInterval(-18_000),
-            url: URL(string: "https://example.com/systems/rss-parser-boundaries")!,
-            estimatedReadMinutes: 5,
-            isRead: false,
-            isStarred: false
-        ),
-        Article(
-            id: "mac-interface-density",
-            feedID: "design",
-            title: "Density rules for desktop reading tools",
-            summary: "A desktop reader should optimize for scanning, triage, and repeated actions instead of a marketing-style layout.",
-            bodyParagraphs: [
-                "The article list keeps rows compact and information-rich. Feed name, relative date, unread state, and reading time are visible without opening a story.",
-                "The detail pane uses generous text width and selectable text, while commands stay in the toolbar and context menus.",
-                "This shape leaves room for future native affordances such as drag-and-drop feed organization, menu commands, and system share sheets."
-            ],
-            publishedAt: .now.addingTimeInterval(-26_400),
-            url: URL(string: "https://example.com/design/density")!,
-            estimatedReadMinutes: 6,
-            isRead: true,
-            isStarred: true
-        ),
-        Article(
-            id: "opml-import",
-            feedID: "apple-news",
-            title: "Planning an OPML import flow",
-            summary: "A native document picker can make subscription migration feel like a normal Mac file operation.",
-            bodyParagraphs: [
-                "OPML support should use the platform file importer rather than a custom file picker. That gives the app sandbox-compatible access to user-selected files.",
-                "The visible UI can start with Add Feed and grow into Import OPML once parsing and validation are ready.",
-                "Keeping the command in the File menu later will make the workflow discoverable to experienced Mac users."
-            ],
-            publishedAt: .now.addingTimeInterval(-90_000),
-            url: URL(string: "https://developer.apple.com/documentation/swiftui/")!,
-            estimatedReadMinutes: 4,
-            isRead: true,
-            isStarred: false
-        )
-    ]
 }
 
 struct ReaderCommandActions {
