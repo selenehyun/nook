@@ -4,6 +4,7 @@ enum RSSFeedError: LocalizedError {
     case invalidURL(String)
     case emptyFeed(URL)
     case badStatus(Int)
+    case noDiscoveredFeeds(URL)
     case parserFailure(String)
 
     var errorDescription: String? {
@@ -14,6 +15,8 @@ enum RSSFeedError: LocalizedError {
             "No RSS or Atom entries were found at \(url.absoluteString)."
         case .badStatus(let statusCode):
             "The feed request failed with HTTP \(statusCode)."
+        case .noDiscoveredFeeds(let url):
+            "No RSS or Atom feed link was found at \(url.absoluteString)."
         case .parserFailure(let message):
             "The feed could not be parsed: \(message)"
         }
@@ -36,6 +39,26 @@ struct RSSFeedService {
     }
 
     func fetch(url: URL) async throws -> ParsedFeed {
+        do {
+            return try await fetchFeed(url: url)
+        } catch RSSFeedError.emptyFeed, RSSFeedError.parserFailure {
+            let discoveredURL = try await discoverFeedURL(from: url)
+            return try await fetchFeed(url: discoveredURL)
+        }
+    }
+
+    private func fetchFeed(url: URL) async throws -> ParsedFeed {
+        let data = try await fetchData(url: url)
+        let parser = FeedXMLParser(feedURL: url)
+        let parsedFeed = try parser.parse(data: data)
+        guard !parsedFeed.articles.isEmpty else {
+            throw RSSFeedError.emptyFeed(url)
+        }
+
+        return parsedFeed
+    }
+
+    private func fetchData(url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         request.setValue("Nook RSS Reader", forHTTPHeaderField: "User-Agent")
 
@@ -45,13 +68,71 @@ struct RSSFeedService {
             throw RSSFeedError.badStatus(httpResponse.statusCode)
         }
 
-        let parser = FeedXMLParser(feedURL: url)
-        let parsedFeed = try parser.parse(data: data)
-        guard !parsedFeed.articles.isEmpty else {
-            throw RSSFeedError.emptyFeed(url)
+        return data
+    }
+
+    private func discoverFeedURL(from pageURL: URL) async throws -> URL {
+        let data = try await fetchData(url: pageURL)
+        let html = String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .isoLatin1)
+            ?? ""
+        let links = FeedLinkDiscovery.feedLinks(in: html, baseURL: pageURL)
+        guard let firstLink = links.first else {
+            throw RSSFeedError.noDiscoveredFeeds(pageURL)
         }
 
-        return parsedFeed
+        return firstLink
+    }
+}
+
+private enum FeedLinkDiscovery {
+    static func feedLinks(in html: String, baseURL: URL) -> [URL] {
+        linkTags(in: html).compactMap { tag -> URL? in
+            let attributes = attributes(in: tag)
+            let rel = attributes["rel"]?.lowercased() ?? ""
+            let type = attributes["type"]?.lowercased() ?? ""
+
+            guard rel.contains("alternate"),
+                  type.contains("rss") || type.contains("atom") || type.contains("xml"),
+                  let href = attributes["href"],
+                  !href.isEmpty else {
+                return nil
+            }
+
+            return URL(string: href, relativeTo: baseURL)?.absoluteURL
+        }
+    }
+
+    private static func linkTags(in html: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: #"<link\s+[^>]*>"#, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return regex.matches(in: html, range: range).compactMap { match in
+            guard let range = Range(match.range, in: html) else { return nil }
+            return String(html[range])
+        }
+    }
+
+    private static func attributes(in tag: String) -> [String: String] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*["']([^"']+)["']"#,
+            options: []
+        ) else {
+            return [:]
+        }
+
+        let range = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+        return regex.matches(in: tag, range: range).reduce(into: [:]) { result, match in
+            guard match.numberOfRanges == 3,
+                  let keyRange = Range(match.range(at: 1), in: tag),
+                  let valueRange = Range(match.range(at: 2), in: tag) else {
+                return
+            }
+
+            result[String(tag[keyRange]).lowercased()] = String(tag[valueRange])
+        }
     }
 }
 

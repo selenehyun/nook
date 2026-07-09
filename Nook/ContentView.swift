@@ -7,6 +7,10 @@ struct ContentView: View {
     @State private var isAddingFeed = false
     @State private var isInspectorPresented = true
     @State private var isSelectingSyncFolder = false
+    @State private var isImportingOPML = false
+    @State private var isExportingOPML = false
+    @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
+    @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
 
     var body: some View {
         NavigationSplitView {
@@ -45,6 +49,25 @@ struct ContentView: View {
                     Label("Sync Folder", systemImage: "folder")
                 }
                 .help("Choose iCloud Sync Folder")
+
+                Menu {
+                    Button {
+                        isImportingOPML = true
+                    } label: {
+                        Label("Import OPML", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(!store.isStorageConfigured || store.isRefreshing)
+
+                    Button {
+                        isExportingOPML = true
+                    } label: {
+                        Label("Export OPML", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(store.feeds.isEmpty)
+                } label: {
+                    Label("Subscriptions", systemImage: "tray.full")
+                }
+                .help("Import or Export Subscriptions")
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -93,6 +116,25 @@ struct ContentView: View {
             allowsMultipleSelection: false
         ) { result in
             store.handleSyncFolderSelection(result)
+        }
+        .fileImporter(
+            isPresented: $isImportingOPML,
+            allowedContentTypes: [.opml, .xml],
+            allowsMultipleSelection: false
+        ) { result in
+            store.handleOPMLImport(result)
+        }
+        .fileExporter(
+            isPresented: $isExportingOPML,
+            document: OPMLDocument(feeds: store.feeds),
+            contentType: .opml,
+            defaultFilename: "NookSubscriptions.opml"
+        ) { result in
+            store.handleOPMLExport(result)
+        }
+        .task(id: "\(autoRefreshEnabled)-\(refreshIntervalMinutes)-\(store.isStorageConfigured)") {
+            guard autoRefreshEnabled, store.isStorageConfigured else { return }
+            await store.runAutoRefreshLoop(intervalMinutes: refreshIntervalMinutes)
         }
         .focusedSceneValue(
             \.readerCommandActions,
@@ -571,6 +613,7 @@ private struct AddFeedSheet: View {
 }
 
 struct ReaderSettingsView: View {
+    @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("openLinksInBrowser") private var openLinksInBrowser = true
@@ -584,7 +627,9 @@ struct ReaderSettingsView: View {
             }
 
             Section("Feeds") {
+                Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
+                    .disabled(!autoRefreshEnabled)
             }
 
             Section("Storage") {
