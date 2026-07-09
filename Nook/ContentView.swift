@@ -1,3 +1,4 @@
+import AppKit
 import Observation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -6,7 +7,6 @@ struct ContentView: View {
     @State private var store = ReaderStore()
     @State private var isAddingFeed = false
     @State private var isInspectorPresented = true
-    @State private var isSelectingSyncFolder = false
     @State private var isImportingOPML = false
     @State private var isExportingOPML = false
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
@@ -15,7 +15,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             FeedSidebar(store: store) {
-                isSelectingSyncFolder = true
+                chooseSyncFolder()
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 270, max: 340)
         } content: {
@@ -44,7 +44,7 @@ struct ContentView: View {
                 .help("Refresh All Feeds")
 
                 Button {
-                    isSelectingSyncFolder = true
+                    chooseSyncFolder()
                 } label: {
                     Label("Sync Folder", systemImage: "folder")
                 }
@@ -111,13 +111,6 @@ struct ContentView: View {
             }
         }
         .fileImporter(
-            isPresented: $isSelectingSyncFolder,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            store.handleSyncFolderSelection(result)
-        }
-        .fileImporter(
             isPresented: $isImportingOPML,
             allowedContentTypes: [.opml, .xml],
             allowsMultipleSelection: false
@@ -146,6 +139,39 @@ struct ContentView: View {
                 selectPreviousArticle: store.selectPreviousArticle
             )
         )
+    }
+}
+
+private extension ContentView {
+    @MainActor
+    func chooseSyncFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose iCloud Sync Folder"
+        panel.message = "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there."
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+
+        if let iCloudDriveURL = FileManager.default.iCloudDriveURL {
+            panel.directoryURL = iCloudDriveURL
+        }
+
+        guard panel.runModal() == .OK, let directoryURL = panel.url else {
+            return
+        }
+
+        store.configureSyncFolder(directoryURL)
+    }
+}
+
+private extension FileManager {
+    var iCloudDriveURL: URL? {
+        let url = homeDirectoryForCurrentUser
+            .appending(path: "Library/Mobile Documents/com~apple~CloudDocs", directoryHint: .isDirectory)
+        return fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
     }
 }
 
@@ -183,6 +209,8 @@ private struct FeedSidebar: View {
                         systemImage: store.isStorageConfigured ? "checkmark.icloud" : "icloud"
                     )
                 }
+                .buttonStyle(.borderless)
+                .help("Choose iCloud Sync Folder")
 
                 if let syncFolderDisplayPath = store.syncFolderDisplayPath {
                     Text(syncFolderDisplayPath)
