@@ -32,6 +32,7 @@ Nook is a native macOS RSS reader. Keep it native.
 - `Nook/ReaderStorage.swift`: security-scoped bookmark persistence and `NookLibrary.json` load/save.
 - `Nook/RSSFeedService.swift`: URL normalization, real `URLSession` fetching, RSS/Atom XML parsing, date parsing, and website feed auto-discovery.
 - `Nook/OPMLService.swift`: OPML import/export and `.opml` file document support.
+- `Nook/Info.plist`: explicit app metadata, including `CFBundleAllowMixedLocalizations` for native dialog localization.
 - `Nook/Nook.entitlements`: App Sandbox, network client access, and user-selected read/write file access.
 
 ## Important Implementation Notes
@@ -40,6 +41,7 @@ Nook is a native macOS RSS reader. Keep it native.
 - Do not replace the folder picker with SwiftUI `fileImporter` for folders; it previously made the "Choose iCloud Folder" action appear to do nothing on macOS.
 - Keep the iCloud folder permission flow based on security-scoped bookmarks in `ReaderStorage`.
 - The folder picker should default to `~/Library/Mobile Documents/com~apple~CloudDocs` when that path exists, but users may choose any folder.
+- Folder picker dialog strings live in `Localizable.strings`. Keep `CFBundleAllowMixedLocalizations` enabled in `Nook/Info.plist` so AppKit-provided dialog controls can follow the user's preferred language.
 - Use `URLSession` for network fetches and `XMLParser` for RSS/Atom/OPML parsing.
 - Website URLs may be added as feeds. If direct RSS/Atom parsing fails, discover RSS/Atom links from HTML `<link rel="alternate">` tags.
 - OPML import/export should support `.opml` and `.xml` where appropriate.

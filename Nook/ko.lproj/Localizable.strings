@@ -1,0 +1,3 @@
+"SyncFolderPanel.Title" = "iCloud 동기화 폴더 선택";
+"SyncFolderPanel.Message" = "iCloud Drive에서 폴더를 선택하거나 새로 만드세요. Nook은 여기에 NookLibrary.json을 저장합니다.";
+"SyncFolderPanel.Prompt" = "선택";

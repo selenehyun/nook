@@ -146,9 +146,9 @@ private extension ContentView {
     @MainActor
     func chooseSyncFolder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose iCloud Sync Folder"
-        panel.message = "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there."
-        panel.prompt = "Choose"
+        panel.title = L10n.syncFolderPanelTitle
+        panel.message = L10n.syncFolderPanelMessage
+        panel.prompt = L10n.syncFolderPanelPrompt
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -174,6 +174,25 @@ private extension ContentView {
         } else {
             panel.begin(completionHandler: handleSelection)
         }
+    }
+}
+
+private enum L10n {
+    static let syncFolderPanelTitle = string(
+        "SyncFolderPanel.Title",
+        defaultValue: "Choose iCloud Sync Folder"
+    )
+    static let syncFolderPanelMessage = string(
+        "SyncFolderPanel.Message",
+        defaultValue: "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there."
+    )
+    static let syncFolderPanelPrompt = string(
+        "SyncFolderPanel.Prompt",
+        defaultValue: "Choose"
+    )
+
+    private static func string(_ key: String, defaultValue: String) -> String {
+        Bundle.main.localizedString(forKey: key, value: defaultValue, table: nil)
     }
 }
 

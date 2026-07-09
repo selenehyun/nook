@@ -1,0 +1,3 @@
+"SyncFolderPanel.Title" = "Choose iCloud Sync Folder";
+"SyncFolderPanel.Message" = "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there.";
+"SyncFolderPanel.Prompt" = "Choose";
