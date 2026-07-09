@@ -36,7 +36,8 @@ Nook is a native macOS RSS reader. Keep it native.
 
 ## Important Implementation Notes
 
-- Folder picking must use `NSOpenPanel` from `ContentView.chooseSyncFolder()`. Do not replace it with SwiftUI `fileImporter` for folders; it previously made the "Choose iCloud Folder" action appear to do nothing on macOS.
+- Folder picking must use `NSOpenPanel` from `ContentView.chooseSyncFolder()`. Present it as a sheet with `beginSheetModal(for:)` when a window is available. Avoid `runModal()` for this panel because it can interfere with text input and Korean/English IME switching inside the panel's New Folder dialog.
+- Do not replace the folder picker with SwiftUI `fileImporter` for folders; it previously made the "Choose iCloud Folder" action appear to do nothing on macOS.
 - Keep the iCloud folder permission flow based on security-scoped bookmarks in `ReaderStorage`.
 - The folder picker should default to `~/Library/Mobile Documents/com~apple~CloudDocs` when that path exists, but users may choose any folder.
 - Use `URLSession` for network fetches and `XMLParser` for RSS/Atom/OPML parsing.

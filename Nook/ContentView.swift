@@ -159,11 +159,29 @@ private extension ContentView {
             panel.directoryURL = iCloudDriveURL
         }
 
-        guard panel.runModal() == .OK, let directoryURL = panel.url else {
-            return
+        let handleSelection: (NSApplication.ModalResponse) -> Void = { response in
+            Task { @MainActor in
+                guard response == .OK, let directoryURL = panel.url else {
+                    return
+                }
+
+                store.configureSyncFolder(directoryURL)
+            }
         }
 
-        store.configureSyncFolder(directoryURL)
+        if let window = NSApplication.shared.modalPresentationWindow {
+            panel.beginSheetModal(for: window, completionHandler: handleSelection)
+        } else {
+            panel.begin(completionHandler: handleSelection)
+        }
+    }
+}
+
+private extension NSApplication {
+    var modalPresentationWindow: NSWindow? {
+        keyWindow ?? mainWindow ?? windows.first { window in
+            window.isVisible && !window.isMiniaturized
+        }
     }
 }
 
