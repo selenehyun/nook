@@ -8,8 +8,24 @@ import AppKit
 /// `apple-touch-icon`), then falls back to `/favicon.ico` at the host root.
 struct FaviconService {
     private let userAgent = "Nook RSS Reader"
-    private let requestTimeout: TimeInterval = 10
     private let maxIconBytes = 2_000_000
+
+    /// A dedicated session with a short timeout and a small per-host connection
+    /// cap so favicon fetches can't saturate the network stack.
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 8
+        config.timeoutIntervalForResource = 12
+        config.httpMaximumConnectionsPerHost = 2
+        config.waitsForConnectivity = false
+        return URLSession(configuration: config)
+    }()
+
+    private enum IconResult {
+        case success(Data)
+        case notFound
+        case hostUnreachable
+    }
 
     func fetchFavicon(for siteURL: URL) async -> Data? {
         // Skip malformed site URLs (e.g. a doubled scheme) so we don't fire a
@@ -20,14 +36,20 @@ struct FaviconService {
         // parsing the full HTML page for the common case where a site has a
         // standard favicon, which matters a lot across a large library.
         for candidate in wellKnownIconURLs(for: siteURL) {
-            if let data = await downloadIcon(from: candidate) {
+            switch await downloadIcon(from: candidate) {
+            case .success(let data):
                 return data
+            case .hostUnreachable:
+                // The host is down/slow; further requests to it would also fail.
+                return nil
+            case .notFound:
+                continue
             }
         }
 
         // Fall back to icons declared in the page <head>.
         for candidate in await discoverIconURLs(from: siteURL) {
-            if let data = await downloadIcon(from: candidate) {
+            if case .success(let data) = await downloadIcon(from: candidate) {
                 return data
             }
         }
@@ -46,9 +68,8 @@ struct FaviconService {
     private func discoverIconURLs(from siteURL: URL) async -> [URL] {
         var request = URLRequest(url: siteURL)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = requestTimeout
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
@@ -62,29 +83,39 @@ struct FaviconService {
         }
     }
 
-    private func downloadIcon(from url: URL) async -> Data? {
-        guard url.scheme == "http" || url.scheme == "https" else { return nil }
+    private func downloadIcon(from url: URL) async -> IconResult {
+        guard url.scheme == "http" || url.scheme == "https" else { return .notFound }
 
         var request = URLRequest(url: url)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = requestTimeout
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode),
-              !data.isEmpty,
-              data.count <= maxIconBytes
-        else {
-            return nil
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200...299).contains(http.statusCode),
+                  !data.isEmpty,
+                  data.count <= maxIconBytes else {
+                return .notFound
+            }
+
+            #if canImport(AppKit)
+            guard let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 else {
+                return .notFound
+            }
+            #endif
+
+            return .success(data)
+        } catch let error as URLError {
+            switch error.code {
+            case .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+                 .networkConnectionLost, .notConnectedToInternet:
+                return .hostUnreachable
+            default:
+                return .notFound
+            }
+        } catch {
+            return .notFound
         }
-
-        #if canImport(AppKit)
-        guard let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 else {
-            return nil
-        }
-        #endif
-
-        return data
     }
 
     /// Extracts `href` values from `<link rel="…icon…">` tags, ordered so that

@@ -814,6 +814,8 @@ final class ReaderStore {
         let key = faviconKey(for: feed)
         guard let data = await faviconService.fetchFavicon(for: feed.siteURL),
               let image = NSImage(data: data) else {
+            // Remember the failure so we don't re-hammer this host next launch.
+            storage?.recordFaviconMiss(forKey: key)
             return
         }
 

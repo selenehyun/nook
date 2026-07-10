@@ -36,24 +36,47 @@ struct ReaderStorage {
         iconsDirectoryURL.appending(path: "\(key).png", directoryHint: .notDirectory)
     }
 
+    /// Marker file recording that a favicon fetch failed, so we don't retry a
+    /// dead/slow host on every launch.
+    private func faviconMissURL(forKey key: String) -> URL {
+        iconsDirectoryURL.appending(path: "\(key).miss", directoryHint: .notDirectory)
+    }
+
     func cachedFaviconData(forKey key: String) -> Data? {
         try? Data(contentsOf: faviconURL(forKey: key))
     }
 
-    /// True when there is no cached favicon or the cached one is older than the
-    /// 1-day TTL and should be re-fetched.
-    func faviconNeedsRefresh(forKey key: String) -> Bool {
-        let path = faviconURL(forKey: key).path(percentEncoded: false)
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
-              let modified = attributes[.modificationDate] as? Date else {
-            return true
+    private func modificationDate(of url: URL) -> Date? {
+        let path = url.path(percentEncoded: false)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else {
+            return nil
         }
-        return Date.now.timeIntervalSince(modified) >= Self.faviconTTL
+        return attributes[.modificationDate] as? Date
+    }
+
+    /// True only when neither a cached favicon nor a recent failure marker
+    /// exists within the 1-day TTL. A recorded miss suppresses retries so an
+    /// unreachable host isn't hammered on every launch.
+    func faviconNeedsRefresh(forKey key: String) -> Bool {
+        let newest = [faviconURL(forKey: key), faviconMissURL(forKey: key)]
+            .compactMap(modificationDate(of:))
+            .max()
+        guard let newest else { return true }
+        return Date.now.timeIntervalSince(newest) >= Self.faviconTTL
     }
 
     func writeFaviconData(_ data: Data, forKey key: String) throws {
         try FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
         try data.write(to: faviconURL(forKey: key), options: [.atomic])
+        // A fresh success clears any stale failure marker.
+        try? FileManager.default.removeItem(at: faviconMissURL(forKey: key))
+    }
+
+    /// Records that a favicon fetch failed so it is not retried until the TTL
+    /// elapses.
+    func recordFaviconMiss(forKey key: String) {
+        try? FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
+        try? Data().write(to: faviconMissURL(forKey: key), options: [.atomic])
     }
 
     func load() throws -> ReaderLibrary? {
