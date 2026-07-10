@@ -6,12 +6,12 @@ import SwiftUI
 @MainActor
 @Observable
 final class ReaderStore {
-    var feeds: [Feed] = []
-    var articles: [Article] = []
+    var feeds: [Feed] = [] { didSet { scheduleArticleFilter() } }
+    var articles: [Article] = [] { didSet { scheduleArticleFilter() } }
     // Library and Feeds are independent selection scopes: a single smart
     // source acts as navigation, while feeds support multiple selection.
-    var smartSelection: SmartSource? = .all
-    var feedSelection: Set<Feed.ID> = []
+    var smartSelection: SmartSource? = .all { didSet { scheduleArticleFilter() } }
+    var feedSelection: Set<Feed.ID> = [] { didSet { scheduleArticleFilter() } }
     /// Whether the window-wide in-app browser bottom sheet is showing.
     var isBrowserPresented = false
     /// The in-app browser's current view mode (reader vs original). Toggled
@@ -24,14 +24,21 @@ final class ReaderStore {
     }
     // Articles kept visible in the current source even after being read, until
     // the user navigates to another source (Chrome-tab-close heuristic).
-    private var retainedArticleIDs: Set<Article.ID> = []
+    private var retainedArticleIDs: Set<Article.ID> = [] { didSet { scheduleArticleFilter() } }
     var selectedArticleID: Article.ID?
     /// The raw text bound to the search field; updates instantly as the user types.
     var searchText = ""
     /// The query actually used to filter articles. Trails `searchText` by a
     /// short debounce so filtering doesn't run on every keystroke.
-    private(set) var activeSearchQuery = ""
+    private(set) var activeSearchQuery = "" { didSet { scheduleArticleFilter() } }
     private var searchDebounceTask: Task<Void, Never>?
+
+    /// The filtered, sorted articles shown in the list. Recomputed off the main
+    /// thread for large libraries so typing/scrolling never blocks the UI.
+    private(set) var displayedArticles: [Article] = []
+    private var filterTask: Task<Void, Never>?
+    /// Above this many articles, filtering runs on a background executor.
+    private static let backgroundFilterThreshold = 600
     var lastRefreshedAt: Date?
     var errorMessage: String?
     private(set) var syncFolderDisplayPath: String?
@@ -48,7 +55,7 @@ final class ReaderStore {
 
     init() {
         restoreStorageIfPossible()
-        selectFirstVisibleArticleIfNeeded()
+        scheduleArticleFilter()
     }
 
     var isStorageConfigured: Bool {
@@ -64,10 +71,85 @@ final class ReaderStore {
         return articles.first { $0.id == selectedArticleID }
     }
 
-    var visibleArticles: [Article] {
-        articles
-            .filter { matchesSelectedSource($0) || (retainedArticleIDs.contains($0.id) && matchesSourceIgnoringReadState($0)) }
-            .filter(matchesSearch)
+    /// The list-backing articles. Backed by `displayedArticles`, which is
+    /// recomputed (off-main for large libraries) whenever a filter input changes.
+    var visibleArticles: [Article] { displayedArticles }
+
+    /// Recomputes `displayedArticles` from the current inputs. Coalesces rapid
+    /// input changes by cancelling any in-flight recompute. Small libraries are
+    /// filtered synchronously (instant, animatable); large ones are filtered on
+    /// a background executor so the main thread stays responsive.
+    private func scheduleArticleFilter() {
+        filterTask?.cancel()
+
+        let snapshot = articles
+        let feedTitles = Dictionary(feeds.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+        let feedSelection = self.feedSelection
+        let smartSelection = self.smartSelection
+        let retained = retainedArticleIDs
+        let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if snapshot.count < Self.backgroundFilterThreshold {
+            applyDisplayed(Self.computeVisibleArticles(
+                snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
+                smartSelection: smartSelection, retained: retained, query: query
+            ))
+            return
+        }
+
+        filterTask = Task { [weak self] in
+            let result = await Task.detached(priority: .userInitiated) {
+                Self.computeVisibleArticles(
+                    snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
+                    smartSelection: smartSelection, retained: retained, query: query
+                )
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.applyDisplayed(result)
+        }
+    }
+
+    private func applyDisplayed(_ result: [Article]) {
+        displayedArticles = result
+        selectFirstVisibleArticleIfNeeded()
+    }
+
+    /// Pure filtering + sorting over a snapshot. `nonisolated` so it can run on
+    /// a background executor; all inputs are value types (`Sendable`).
+    nonisolated private static func computeVisibleArticles(
+        _ articles: [Article],
+        feedTitles: [Feed.ID: String],
+        feedSelection: Set<Feed.ID>,
+        smartSelection: SmartSource?,
+        retained: Set<Article.ID>,
+        query: String
+    ) -> [Article] {
+        func matchesSource(_ article: Article) -> Bool {
+            if !feedSelection.isEmpty { return feedSelection.contains(article.feedID) }
+            if let smartSelection { return article.matches(.smart(smartSelection)) }
+            return true
+        }
+
+        func matchesSourceIgnoringReadState(_ article: Article) -> Bool {
+            if !feedSelection.isEmpty { return feedSelection.contains(article.feedID) }
+            switch smartSelection {
+            case .some(.unread), .some(.all), .none: return true
+            case .some(.today): return Calendar.current.isDateInToday(article.publishedAt)
+            case .some(.starred): return article.isStarred
+            }
+        }
+
+        func matchesQuery(_ article: Article) -> Bool {
+            guard !query.isEmpty else { return true }
+            if article.title.localizedStandardContains(query) { return true }
+            if article.summary.localizedStandardContains(query) { return true }
+            if let title = feedTitles[article.feedID], title.localizedStandardContains(query) { return true }
+            // Scan paragraphs lazily instead of joining the whole body up front.
+            return article.bodyParagraphs.contains { $0.localizedStandardContains(query) }
+        }
+
+        return articles
+            .filter { (matchesSource($0) || (retained.contains($0.id) && matchesSourceIgnoringReadState($0))) && matchesQuery($0) }
             .sorted { $0.publishedAt > $1.publishedAt }
     }
 
@@ -634,64 +716,23 @@ final class ReaderStore {
         saveAfterMutation()
     }
 
-    private func matchesSelectedSource(_ article: Article) -> Bool {
-        if !feedSelection.isEmpty {
-            return feedSelection.contains(article.feedID)
-        }
-        if let smartSelection {
-            return article.matches(.smart(smartSelection))
-        }
-        return true
-    }
-
-    /// Whether the article belongs to the current source ignoring the
-    /// read-state condition (so a just-read article can stay in the Unread
-    /// list). Only the Unread source filters on read state.
-    private func matchesSourceIgnoringReadState(_ article: Article) -> Bool {
-        if !feedSelection.isEmpty {
-            return feedSelection.contains(article.feedID)
-        }
-        switch smartSelection {
-        case .some(.unread), .some(.all), .none:
-            return true
-        case .some(.today):
-            return Calendar.current.isDateInToday(article.publishedAt)
-        case .some(.starred):
-            return article.isStarred
-        }
-    }
-
     /// Debounces search input: an empty query clears instantly for a snappy
-    /// reset, otherwise the filter waits until the user pauses typing.
+    /// reset, otherwise the filter waits until the user pauses typing. Setting
+    /// `activeSearchQuery` triggers the (possibly background) refilter.
     func debounceSearch() {
         searchDebounceTask?.cancel()
 
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             searchDebounceTask = nil
-            applySearchQuery("")
+            activeSearchQuery = ""
             return
         }
 
         searchDebounceTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled, let self else { return }
-            self.applySearchQuery(self.searchText)
+            self.activeSearchQuery = self.searchText
         }
-    }
-
-    private func applySearchQuery(_ query: String) {
-        activeSearchQuery = query
-        selectFirstVisibleArticleIfNeeded()
-    }
-
-    private func matchesSearch(_ article: Article) -> Bool {
-        let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return true }
-
-        return article.title.localizedStandardContains(query)
-            || article.summary.localizedStandardContains(query)
-            || article.bodyParagraphs.joined(separator: " ").localizedStandardContains(query)
-            || (feed(for: article.feedID)?.title.localizedStandardContains(query) ?? false)
     }
 
     private func apply(_ library: ReaderLibrary) {
