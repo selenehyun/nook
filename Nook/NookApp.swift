@@ -12,7 +12,9 @@ struct NookApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        // A single Window (not WindowGroup) so deep links reuse the one main
+        // window instead of opening a new one each time.
+        Window("Nook", id: "main") {
             ContentView()
         }
         .defaultSize(width: 1280, height: 800)
