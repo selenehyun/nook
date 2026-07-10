@@ -15,7 +15,7 @@
 		2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */; };
 		2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */; };
 		2D0E3A2B2D8A4A4700A00001 /* OPMLService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */; };
-		2D0E3A2D2D8A4A4700A00001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A2C2D8A4A4700A00001 /* Localizable.strings */; };
+		2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,8 +30,7 @@
 		2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSSFeedService.swift; sourceTree = "<group>"; };
 		2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStore.swift; sourceTree = "<group>"; };
 		2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OPMLService.swift; sourceTree = "<group>"; };
-		2D0E3A2E2D8A4A4700A00001 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
-		2D0E3A2F2D8A4A4700A00001 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/Localizable.strings; sourceTree = "<group>"; };
+		2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,7 +70,7 @@
 				2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */,
 				2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */,
 				2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */,
-				2D0E3A2C2D8A4A4700A00001 /* Localizable.strings */,
+				2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */,
 				2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */,
 				2D0E3A302D8A4A4700A00001 /* Info.plist */,
 				2D0E3A202D8A4A4700A00001 /* Nook.entitlements */,
@@ -139,7 +138,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2D0E3A1F2D8A4A4700A00001 /* Assets.xcassets in Resources */,
-				2D0E3A2D2D8A4A4700A00001 /* Localizable.strings in Resources */,
+				2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,18 +160,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXVariantGroup section */
-		2D0E3A2C2D8A4A4700A00001 /* Localizable.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				2D0E3A2E2D8A4A4700A00001 /* en */,
-				2D0E3A2F2D8A4A4700A00001 /* ko */,
-			);
-			name = Localizable.strings;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		2D0E3A152D8A4A4700A00001 /* Debug */ = {

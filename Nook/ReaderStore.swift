@@ -54,9 +54,9 @@ final class ReaderStore {
         case .smart(let source):
             source.title
         case .feed(let feedID):
-            feed(for: feedID)?.title ?? "Feed"
+            feed(for: feedID)?.title ?? String(localized: "Feed")
         case nil:
-            "Articles"
+            String(localized: "Articles")
         }
     }
 
@@ -81,7 +81,7 @@ final class ReaderStore {
 
             if let library = try storage.load() {
                 apply(library)
-                statusMessage = "Loaded library from sync folder"
+                statusMessage = String(localized: "Loaded library from sync folder")
             } else {
                 try persistLibrary()
                 statusMessage = syncFolderStatusMessage(for: directoryURL)
@@ -152,7 +152,7 @@ final class ReaderStore {
     func handleOPMLExport(_ result: Result<URL, Error>) {
         switch result {
         case .success:
-            statusMessage = "Exported OPML"
+            statusMessage = String(localized: "Exported OPML")
             errorMessage = nil
         case .failure(let error):
             errorMessage = error.localizedDescription
@@ -285,7 +285,7 @@ final class ReaderStore {
 
             if let library = try storage.load() {
                 apply(library)
-                statusMessage = "Loaded library from sync folder"
+                statusMessage = String(localized: "Loaded library from sync folder")
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -305,10 +305,10 @@ final class ReaderStore {
     private func syncFolderStatusMessage(for directoryURL: URL) -> String {
         let path = directoryURL.path(percentEncoded: false)
         if path.contains("Mobile Documents") || path.localizedStandardContains("iCloud Drive") {
-            return "Created NookLibrary.json in iCloud sync folder"
+            return String(localized: "Created NookLibrary.json in iCloud sync folder")
         }
 
-        return "Created NookLibrary.json. Choose an iCloud Drive folder for cross-device sync."
+        return String(localized: "Created NookLibrary.json. Choose an iCloud Drive folder for cross-device sync.")
     }
 
     private func addFeedFromURLString(_ urlString: String) async {
@@ -317,7 +317,7 @@ final class ReaderStore {
             let parsedFeed = try await fetch(url: url, existingFeedID: nil)
             selectedSource = .feed(parsedFeed.feed.id)
             selectedArticleID = parsedFeed.articles.first?.id
-            statusMessage = "Fetched \(parsedFeed.articles.count) articles"
+            statusMessage = String(localized: "Fetched \(parsedFeed.articles.count) articles")
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -335,7 +335,7 @@ final class ReaderStore {
         do {
             let feedURLStrings = try opmlService.importFeedURLs(from: fileURL)
             guard !feedURLStrings.isEmpty else {
-                statusMessage = "No feeds found in OPML"
+                statusMessage = String(localized: "No feeds found in OPML")
                 return
             }
 
@@ -353,7 +353,7 @@ final class ReaderStore {
                 }
             }
 
-            statusMessage = "Imported \(importedCount) feeds from OPML"
+            statusMessage = String(localized: "Imported \(importedCount) feeds from OPML")
             errorMessage = failures.first
         } catch {
             errorMessage = error.localizedDescription
@@ -389,7 +389,7 @@ final class ReaderStore {
     private func refreshFeed(_ feed: Feed) async {
         do {
             _ = try await fetch(url: feed.feedURL, existingFeedID: feed.id)
-            statusMessage = "Refreshed \(feed.title)"
+            statusMessage = String(localized: "Refreshed \(feed.title)")
             errorMessage = nil
         } catch {
             markFeedUnhealthy(feedID: feed.id)

@@ -146,9 +146,9 @@ private extension ContentView {
     @MainActor
     func chooseSyncFolder() {
         let panel = NSOpenPanel()
-        panel.title = L10n.syncFolderPanelTitle
-        panel.message = L10n.syncFolderPanelMessage
-        panel.prompt = L10n.syncFolderPanelPrompt
+        panel.title = String(localized: "Choose iCloud Sync Folder")
+        panel.message = String(localized: "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there.")
+        panel.prompt = String(localized: "Choose")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -174,25 +174,6 @@ private extension ContentView {
         } else {
             panel.begin(completionHandler: handleSelection)
         }
-    }
-}
-
-private enum L10n {
-    static let syncFolderPanelTitle = string(
-        "SyncFolderPanel.Title",
-        defaultValue: "Choose iCloud Sync Folder"
-    )
-    static let syncFolderPanelMessage = string(
-        "SyncFolderPanel.Message",
-        defaultValue: "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there."
-    )
-    static let syncFolderPanelPrompt = string(
-        "SyncFolderPanel.Prompt",
-        defaultValue: "Choose"
-    )
-
-    private static func string(_ key: String, defaultValue: String) -> String {
-        Bundle.main.localizedString(forKey: key, value: defaultValue, table: nil)
     }
 }
 
@@ -429,7 +410,7 @@ private struct ArticleRow: View {
                     .lineLimit(2)
 
                 HStack(spacing: 6) {
-                    Text(feed?.title ?? "Unknown Feed")
+                    Text(feed?.title ?? String(localized: "Unknown Feed"))
                     Text("·")
                     Text(article.publishedAt, format: .relative(presentation: .named))
                     Text("·")
@@ -599,9 +580,9 @@ private struct ArticleInspector: View {
         Form {
             if let article = store.selectedArticle {
                 Section("Article") {
-                    LabeledContent("Status", value: article.isRead ? "Read" : "Unread")
+                    LabeledContent("Status", value: article.isRead ? String(localized: "Read") : String(localized: "Unread"))
                     LabeledContent("Published", value: article.publishedAt.formatted(date: .abbreviated, time: .shortened))
-                    LabeledContent("Reading Time", value: "\(article.estimatedReadMinutes) min")
+                    LabeledContent("Reading Time", value: String(localized: "\(article.estimatedReadMinutes) min"))
 
                     Toggle("Starred", isOn: store.starredBinding(articleID: article.id))
                     Toggle("Read", isOn: store.readBinding(articleID: article.id))
@@ -611,7 +592,7 @@ private struct ArticleInspector: View {
                     if let feed = store.feed(for: article.feedID) {
                         LabeledContent("Feed", value: feed.title)
                         LabeledContent("Category", value: feed.category)
-                        LabeledContent("Last Refresh", value: feed.lastFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? "Never")
+                        LabeledContent("Last Refresh", value: feed.lastFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? String(localized: "Never"))
                         Link("Open Site", destination: feed.siteURL)
                         Link("Open Feed", destination: feed.feedURL)
                     }
@@ -698,7 +679,7 @@ struct ReaderSettingsView: View {
             }
 
             Section("Storage") {
-                LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? "Not selected" : syncFolderDisplayPath)
+                LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? String(localized: "Not selected") : syncFolderDisplayPath)
                 Text("Use the folder button in the main window to choose or change the iCloud Drive folder. Nook stores RSS data in NookLibrary.json inside that folder.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

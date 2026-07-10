@@ -10,15 +10,15 @@ enum RSSFeedError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL(let value):
-            "'\(value)' is not a valid URL."
+            String(localized: "'\(value)' is not a valid URL.")
         case .emptyFeed(let url):
-            "No RSS or Atom entries were found at \(url.absoluteString)."
+            String(localized: "No RSS or Atom entries were found at \(url.absoluteString).")
         case .badStatus(let statusCode):
-            "The feed request failed with HTTP \(statusCode)."
+            String(localized: "The feed request failed with HTTP \(statusCode).")
         case .noDiscoveredFeeds(let url):
-            "No RSS or Atom feed link was found at \(url.absoluteString)."
+            String(localized: "No RSS or Atom feed link was found at \(url.absoluteString).")
         case .parserFailure(let message):
-            "The feed could not be parsed: \(message)"
+            String(localized: "The feed could not be parsed: \(message)")
         }
     }
 }
@@ -176,7 +176,7 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
         parser.shouldResolveExternalEntities = false
 
         guard parser.parse() else {
-            let message = parser.parserError?.localizedDescription ?? parserError?.localizedDescription ?? "Unknown parser error"
+            let message = parser.parserError?.localizedDescription ?? parserError?.localizedDescription ?? String(localized: "Unknown parser error")
             throw RSSFeedError.parserFailure(message)
         }
 

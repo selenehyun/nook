@@ -7,9 +7,9 @@ enum ReaderStorageError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noDirectorySelected:
-            "Choose an iCloud Drive folder before adding feeds."
+            String(localized: "Choose an iCloud Drive folder before adding feeds.")
         case .staleBookmark:
-            "The saved sync folder permission expired. Choose the folder again."
+            String(localized: "The saved sync folder permission expired. Choose the folder again.")
         }
     }
 }

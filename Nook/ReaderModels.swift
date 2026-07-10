@@ -51,10 +51,10 @@ enum SmartSource: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .unread: "Unread"
-        case .today: "Today"
-        case .starred: "Starred"
-        case .all: "All Articles"
+        case .unread: String(localized: "Unread")
+        case .today: String(localized: "Today")
+        case .starred: String(localized: "Starred")
+        case .all: String(localized: "All Articles")
         }
     }
 
@@ -77,9 +77,9 @@ enum ReadingFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: "All"
-        case .unread: "Unread"
-        case .starred: "Starred"
+        case .all: String(localized: "All")
+        case .unread: String(localized: "Unread")
+        case .starred: String(localized: "Starred")
         }
     }
 }
