@@ -913,7 +913,7 @@ private struct WindowBreadcrumb: View {
                 }
                 .padding(.horizontal, 2)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .font(.callout)
             .frame(maxWidth: 520)
             .onScrollGeometryChange(for: BreadcrumbEdges.self) { geometry in
