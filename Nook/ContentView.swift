@@ -1845,6 +1845,16 @@ struct ReaderSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Feedback") {
+                LabeledContent {
+                    Button("Send Feedback…") { FeedbackMailer.compose() }
+                } label: {
+                    Text("Report a bug, request a feature, or share an idea with the developer.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .padding(20)
@@ -1852,6 +1862,41 @@ struct ReaderSettingsView: View {
         .onChange(of: appLanguage) { _, newValue in
             AppLanguage.apply(newValue)
         }
+    }
+}
+
+/// Opens the user's default mail app with a pre-filled feedback message
+/// addressed to the developer. Subject/body follow the app's current language.
+enum FeedbackMailer {
+    static let recipient = "rationlunas@gmail.com"
+
+    @MainActor
+    static func compose() {
+        guard let url = mailtoURL() else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    private static func mailtoURL() -> URL? {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        let osString = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+
+        let subject = String(localized: "Nook Feedback")
+        let intro = String(localized: "Please describe your bug report, feature request, or idea below. Screenshots are welcome.")
+        let prompts = String(localized: "• What were you trying to do?\n\n• What actually happened?\n\n• What did you expect instead?")
+        let diagnosticsHeader = String(localized: "— Diagnostics (helps with troubleshooting; feel free to delete) —")
+        let diagnostics = String(localized: "Nook \(version) (\(build)) · macOS \(osString)")
+        let body = "\(intro)\n\n\(prompts)\n\n\n\(diagnosticsHeader)\n\(diagnostics)"
+
+        // Encode everything except the mailto delimiters we add ourselves so
+        // newlines become %0A and spaces %20 the way mail clients expect.
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&?=+")
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+        return URL(string: "mailto:\(recipient)?subject=\(encodedSubject)&body=\(encodedBody)")
     }
 }
 
@@ -1921,6 +1966,10 @@ struct ReaderAppCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: [.command, .shift])
             .disabled(actions == nil)
+        }
+
+        CommandGroup(after: .help) {
+            Button("Send Feedback…") { FeedbackMailer.compose() }
         }
     }
 }
