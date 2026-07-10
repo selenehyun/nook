@@ -15,9 +15,11 @@ final class ReaderStore {
     var errorMessage: String?
     private(set) var syncFolderDisplayPath: String?
     private(set) var feedIcons: [Feed.ID: NSImage] = [:]
+    private(set) var loadingContentArticleIDs: Set<Article.ID> = []
 
     private let feedService = RSSFeedService()
     private let faviconService = FaviconService()
+    private let articleReaderService = ArticleReaderService()
     private let opmlService = OPMLService()
     private var storage: ReaderStorage?
     private var securityScopedDirectoryURL: URL?
@@ -202,6 +204,45 @@ final class ReaderStore {
 
     func markArticleOpened(articleID: Article.ID) {
         setRead(articleID: articleID, isRead: true)
+    }
+
+    func isLoadingContent(articleID: Article.ID) -> Bool {
+        loadingContentArticleIDs.contains(articleID)
+    }
+
+    /// Fetches and caches the article's full web content the first time it is
+    /// opened. Falls back silently to the RSS content when extraction is not
+    /// possible.
+    func loadFullContentIfNeeded(articleID: Article.ID) {
+        guard let article = articles.first(where: { $0.id == articleID }),
+              article.fullContentParagraphs == nil,
+              !loadingContentArticleIDs.contains(articleID) else {
+            return
+        }
+
+        loadingContentArticleIDs.insert(articleID)
+        Task { await loadFullContent(for: article) }
+    }
+
+    private func loadFullContent(for article: Article) async {
+        defer { loadingContentArticleIDs.remove(article.id) }
+
+        let extracted = await articleReaderService.loadMainContent(from: article.url)
+        guard let index = articles.firstIndex(where: { $0.id == article.id }) else { return }
+
+        if let extracted, isRicherContent(extracted, than: articles[index].bodyParagraphs) {
+            articles[index].fullContentParagraphs = extracted
+        } else {
+            // Mark the attempt so we do not refetch on every open.
+            articles[index].fullContentParagraphs = []
+        }
+        saveAfterMutation()
+    }
+
+    private func isRicherContent(_ candidate: [String], than existing: [String]) -> Bool {
+        let candidateLength = candidate.reduce(0) { $0 + $1.count }
+        let existingLength = existing.reduce(0) { $0 + $1.count }
+        return candidateLength > existingLength + 200
     }
 
     func setRead(articleID: Article.ID, isRead: Bool) {
@@ -402,6 +443,7 @@ final class ReaderStore {
             if let existing = existingArticlesByID[article.id] {
                 article.isRead = existing.isRead
                 article.isStarred = existing.isStarred
+                article.fullContentParagraphs = existing.fullContentParagraphs
             }
             existingArticlesByID[article.id] = article
         }

@@ -571,11 +571,22 @@ private struct ReaderDetailView: View {
                         Divider()
 
                         VStack(alignment: .leading, spacing: 16) {
-                            ForEach(article.bodyParagraphs, id: \.self) { paragraph in
+                            ForEach(article.readerParagraphs, id: \.self) { paragraph in
                                 Text(paragraph)
                                     .font(.body)
                                     .lineSpacing(4)
                                     .textSelection(.enabled)
+                            }
+
+                            if store.isLoadingContent(articleID: article.id) {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Loading full article…")
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.top, 4)
                             }
                         }
 
@@ -594,12 +605,15 @@ private struct ReaderDetailView: View {
                     }
                     .padding(.horizontal, 44)
                     .padding(.vertical, 36)
-                    .frame(maxWidth: 820, alignment: .leading)
+                    .frame(maxWidth: 720, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
                 .task(id: article.id) {
                     await Task.yield()
                     store.markArticleOpened(articleID: article.id)
+                    store.loadFullContentIfNeeded(articleID: article.id)
                 }
             } else {
                 ContentUnavailableView {
@@ -609,6 +623,15 @@ private struct ReaderDetailView: View {
                 }
             }
         }
+    }
+
+    /// Hides the standfirst summary when it merely repeats the body, which
+    /// happens for feeds that only ship a short description.
+    private func shouldShowSummary(_ article: Article) -> Bool {
+        let summary = article.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !summary.isEmpty else { return false }
+        let firstParagraph = article.readerParagraphs.first?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return summary != firstParagraph
     }
 
     private func articleHeader(_ article: Article) -> some View {
@@ -647,10 +670,12 @@ private struct ReaderDetailView: View {
                 .lineLimit(nil)
                 .textSelection(.enabled)
 
-            Text(article.summary)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .lineSpacing(3)
+            if shouldShowSummary(article) {
+                Text(article.summary)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(3)
+            }
 
             HStack(spacing: 10) {
                 Button {
