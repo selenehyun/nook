@@ -959,6 +959,22 @@
         }
       }
     },
+    "Move out of folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move out of folder"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더에서 빼기"
+          }
+        }
+      }
+    },
     "Move to Folder": {
       "localizations": {
         "en": {

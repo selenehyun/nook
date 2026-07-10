@@ -249,6 +249,7 @@ private struct FeedSidebar: View {
     @State private var newFolderName = ""
     @State private var folderPendingDeletion: String?
     @State private var dropTargetFolder: String?
+    @State private var isTopLevelDropTargeted = false
 
     var body: some View {
         List(selection: $store.feedSelection) {
@@ -280,8 +281,14 @@ private struct FeedSidebar: View {
                     }
                 }
             } header: {
-                HStack {
-                    Text("Feeds")
+                HStack(spacing: 6) {
+                    if isTopLevelDropTargeted {
+                        Label("Move out of folder", systemImage: "tray.and.arrow.up")
+                            .foregroundStyle(Color.accentColor)
+                            .fontWeight(.semibold)
+                    } else {
+                        Text("Feeds")
+                    }
                     Spacer()
                     Button {
                         newFolderName = ""
@@ -293,6 +300,26 @@ private struct FeedSidebar: View {
                     .foregroundStyle(.secondary)
                     .help("New Folder")
                     .disabled(!store.isStorageConfigured)
+                }
+                .padding(.vertical, 3)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(isTopLevelDropTargeted ? 0.2 : 0))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.accentColor, lineWidth: isTopLevelDropTargeted ? 1.5 : 0)
+                        )
+                )
+                .contentShape(Rectangle())
+                .dropDestination(for: String.self) { droppedIDs, _ in
+                    for id in droppedIDs { store.moveFeed(id, toFolder: "") }
+                    isTopLevelDropTargeted = false
+                    return true
+                } isTargeted: { targeted in
+                    withAnimation(.easeOut(duration: 0.1)) {
+                        isTopLevelDropTargeted = targeted
+                    }
                 }
             }
         }
