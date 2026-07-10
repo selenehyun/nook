@@ -108,6 +108,10 @@ struct ContentView: View {
                 }
                 .help("Toggle Inspector")
             }
+
+            ToolbarItem(placement: .principal) {
+                WindowBreadcrumb(store: store)
+            }
         }
         .sheet(isPresented: $isAddingFeed) {
             AddFeedSheet(isLoading: store.isRefreshing) { feedURL in
@@ -863,55 +867,52 @@ private struct ReaderTitleButtonStyle: ButtonStyle {
     }
 }
 
-/// A native, Xcode-jump-bar-style breadcrumb pinned to the top of the reader:
-/// Source › Feed › Article. The feed segment jumps to that feed.
-private struct ReaderBreadcrumbBar: View {
+/// A native, Xcode-jump-bar-style breadcrumb shown at the top of the window
+/// (toolbar), reflecting the current location: Source › Feed › Article. The
+/// feed segment jumps to that feed.
+private struct WindowBreadcrumb: View {
     @Bindable var store: ReaderStore
-    let article: Article
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(store.selectedSourceTitle)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .layoutPriority(1)
+        if store.isStorageConfigured {
+            HStack(spacing: 6) {
+                Text(store.selectedSourceTitle)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
 
-            if let feed = store.feed(for: article.feedID) {
-                chevron
-                Button {
-                    store.feedSelection = [feed.id]
-                } label: {
-                    HStack(spacing: 4) {
-                        if let icon = store.faviconImage(for: feed) {
-                            icon
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 13, height: 13)
-                                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                if let article = store.selectedArticle {
+                    if let feed = store.feed(for: article.feedID) {
+                        chevron
+                        Button {
+                            store.feedSelection = [feed.id]
+                        } label: {
+                            HStack(spacing: 4) {
+                                if let icon = store.faviconImage(for: feed) {
+                                    icon
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 13, height: 13)
+                                        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                                }
+                                Text(feed.title).lineLimit(1)
+                            }
                         }
-                        Text(feed.title).lineLimit(1)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .layoutPriority(1)
                     }
+
+                    chevron
+
+                    Text(article.title)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .layoutPriority(1)
             }
-
-            chevron
-
-            Text(article.title)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            Spacer(minLength: 0)
-        }
-        .font(.callout)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .background(.bar)
-        .overlay(alignment: .bottom) {
-            Divider()
+            .font(.callout)
+            .frame(maxWidth: 560)
         }
     }
 
@@ -998,9 +999,6 @@ private struct ReaderDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
-        .safeAreaInset(edge: .top, spacing: 0) {
-            ReaderBreadcrumbBar(store: store, article: article)
-        }
         .task(id: article.id) {
             await markReadAfterDwell(article)
         }
