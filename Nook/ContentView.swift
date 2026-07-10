@@ -702,6 +702,27 @@ private struct ArticleListView: View {
                                 Divider()
                                 Link("Open in Browser", destination: article.url)
                             }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    store.setRead(articleID: article.id, isRead: !article.isRead)
+                                } label: {
+                                    Label(
+                                        article.isRead ? "Mark as Unread" : "Mark as Read",
+                                        systemImage: article.isRead ? "circle" : "checkmark.circle.fill"
+                                    )
+                                }
+                                .tint(.accentColor)
+
+                                Button {
+                                    store.toggleStarred(articleID: article.id)
+                                } label: {
+                                    Label(
+                                        article.isStarred ? "Remove Star" : "Star",
+                                        systemImage: article.isStarred ? "star.slash.fill" : "star.fill"
+                                    )
+                                }
+                                .tint(.yellow)
+                            }
                     }
                 }
                 .listStyle(.inset)
