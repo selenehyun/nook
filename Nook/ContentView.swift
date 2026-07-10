@@ -17,6 +17,33 @@ struct ContentView: View {
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
 
+    // In-app browser (window-wide bottom sheet).
+    @State private var browserMode: ReaderViewMode = .reader
+    @State private var browserDragOffset: CGFloat = 0
+    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
+    @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
+    @AppStorage("readerFont") private var readerFont = ReaderFont.system
+    @AppStorage("readerFontSize") private var readerFontSize = 18
+    @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
+    @AppStorage("readerLetterSpacing") private var readerLetterSpacing = 0.0
+    @AppStorage("readerBackgroundOption") private var readerBackgroundOption = ReaderColorOption.automatic
+    @AppStorage("readerBackgroundHex") private var readerBackgroundHex = "#FFFFFF"
+    @AppStorage("readerTextOption") private var readerTextOption = ReaderColorOption.automatic
+    @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
+
+    private var readerStyle: ReaderStyle {
+        ReaderStyle(
+            font: readerFont,
+            fontSize: readerFontSize,
+            lineHeight: readerLineHeight,
+            letterSpacing: readerLetterSpacing,
+            backgroundOption: readerBackgroundOption,
+            backgroundHex: readerBackgroundHex,
+            textOption: readerTextOption,
+            textHex: readerTextHex
+        )
+    }
+
     init() {
         // Restore the last sidebar state before the first render to avoid a flash.
         let wasVisible = UserDefaults.standard.object(forKey: ContentView.sidebarVisibleKey) as? Bool ?? true
@@ -160,6 +187,32 @@ struct ContentView: View {
             }
             // nook://open simply brings the app forward.
         }
+        .overlay(alignment: .bottom) {
+            if store.isBrowserPresented, let article = store.selectedArticle {
+                InAppBrowserPanel(
+                    store: store,
+                    article: article,
+                    mode: $browserMode,
+                    style: readerStyle,
+                    linkOpensInApp: readerLinkBehavior == .inApp,
+                    dragOffset: $browserDragOffset,
+                    onClose: closeBrowser
+                )
+                .transition(.move(edge: .bottom))
+                .zIndex(1)
+            }
+        }
+        .onChange(of: store.isBrowserPresented) { _, presented in
+            if presented {
+                browserMode = readerViewMode
+                browserDragOffset = 0
+            }
+        }
+        .onChange(of: store.selectedArticleID) { _, id in
+            if id == nil, store.isBrowserPresented {
+                closeBrowser()
+            }
+        }
         .focusedSceneValue(
             \.readerCommandActions,
             ReaderCommandActions(
@@ -174,6 +227,13 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    func closeBrowser() {
+        withAnimation(.easeInOut(duration: 0.28)) {
+            store.isBrowserPresented = false
+            browserDragOffset = 0
+        }
+    }
+
     @MainActor
     func chooseSyncFolder() {
         let panel = NSOpenPanel()
@@ -1070,56 +1130,115 @@ private struct CrumbWidthKey: PreferenceKey {
     }
 }
 
+/// A window-wide in-app browser presented as a bottom sheet (à la the iOS Mail
+/// compose sheet): a rounded card that slides up from the bottom of the window,
+/// with a grabber, and is dragged down to dismiss.
+private struct InAppBrowserPanel: View {
+    @Bindable var store: ReaderStore
+    let article: Article
+    @Binding var mode: ReaderViewMode
+    let style: ReaderStyle
+    let linkOpensInApp: Bool
+    @Binding var dragOffset: CGFloat
+    var onClose: () -> Void
+
+    @Environment(\.openURL) private var openURL
+    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            topBar
+            Divider()
+            ArticleWebView(
+                url: article.url,
+                useReaderMode: mode == .reader,
+                style: style,
+                linkOpensInApp: linkOpensInApp
+            )
+            .id("\(article.id)|\(mode.rawValue)|\(style.identity)")
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.28), radius: 24, y: -3)
+        .padding(.top, 40)
+        .offset(y: max(0, dragOffset))
+        .task(id: article.id) {
+            store.retainArticle(id: article.id)
+            if markReadOnOpen {
+                store.markArticleOpened(articleID: article.id)
+            }
+        }
+    }
+
+    private var topBar: some View {
+        VStack(spacing: 8) {
+            Capsule()
+                .fill(.quaternary)
+                .frame(width: 38, height: 5)
+
+            HStack(spacing: 12) {
+                Button { onClose() } label: {
+                    Image(systemName: "xmark")
+                }
+                .keyboardShortcut("w", modifiers: .command)
+                .help("Close")
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        mode = (mode == .reader) ? .original : .reader
+                    }
+                } label: {
+                    Label(
+                        mode == .reader ? "Reader Mode" : "Original Page",
+                        systemImage: mode == .reader ? "doc.plaintext" : "globe"
+                    )
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .help("Switch Reader / Original (⌘⇧R)")
+
+                Spacer()
+
+                Button { openURL(article.url) } label: {
+                    Image(systemName: "safari")
+                }
+                .help("Open Original")
+
+                ShareLink(item: article.url) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .help("Share")
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.top, 7)
+        .padding(.bottom, 9)
+        .padding(.horizontal, 14)
+        .background(.bar)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 4)
+                .onChanged { value in dragOffset = value.translation.height }
+                .onEnded { value in
+                    if value.translation.height > 120 {
+                        onClose()
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
+                    }
+                }
+        )
+    }
+}
+
 private struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
 
-    // In-app browser defaults (Settings).
-    @AppStorage("readerViewMode") private var defaultViewModeRaw = ReaderViewMode.reader.rawValue
-    @AppStorage("readerLinkBehavior") private var linkBehaviorRaw = ReaderLinkBehavior.inApp.rawValue
-    @AppStorage("readerFont") private var readerFontRaw = ReaderFont.system.rawValue
-    @AppStorage("readerFontSize") private var readerFontSize = 18
-    @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
-    @AppStorage("readerLetterSpacing") private var readerLetterSpacing = 0.0
-    @AppStorage("readerBackgroundOption") private var readerBackgroundOptionRaw = ReaderColorOption.automatic.rawValue
-    @AppStorage("readerBackgroundHex") private var readerBackgroundHex = "#FFFFFF"
-    @AppStorage("readerTextOption") private var readerTextOptionRaw = ReaderColorOption.automatic.rawValue
-    @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
-
-    // In-app browser (bottom panel) state.
-    @State private var isBrowserPresented = false
-    @State private var browserMode: ReaderViewMode = .reader
-    @State private var dragOffset: CGFloat = 0
-
-    private var defaultViewMode: ReaderViewMode { ReaderViewMode(rawValue: defaultViewModeRaw) ?? .reader }
-    private var linkOpensInApp: Bool { (ReaderLinkBehavior(rawValue: linkBehaviorRaw) ?? .inApp) == .inApp }
-    private var readerStyle: ReaderStyle {
-        ReaderStyle(
-            font: ReaderFont(rawValue: readerFontRaw) ?? .system,
-            fontSize: readerFontSize,
-            lineHeight: readerLineHeight,
-            letterSpacing: readerLetterSpacing,
-            backgroundOption: ReaderColorOption(rawValue: readerBackgroundOptionRaw) ?? .automatic,
-            backgroundHex: readerBackgroundHex,
-            textOption: ReaderColorOption(rawValue: readerTextOptionRaw) ?? .automatic,
-            textHex: readerTextHex
-        )
-    }
-
     var body: some View {
-        ZStack(alignment: .bottom) {
-            baseContent
-
-            if isBrowserPresented, let article = store.selectedArticle {
-                browserPanel(article)
-                    .transition(.move(edge: .bottom))
-            }
-        }
-        .onChange(of: store.selectedArticleID) { _, id in
-            if id == nil { closeBrowser() }
-        }
+        baseContent
     }
 
     @ViewBuilder
@@ -1138,27 +1257,6 @@ private struct ReaderDetailView: View {
             } description: {
                 Text("Choose a story from the article list.")
             }
-        }
-    }
-
-    private func openBrowser() {
-        browserMode = defaultViewMode
-        withAnimation(.easeInOut(duration: 0.3)) {
-            dragOffset = 0
-            isBrowserPresented = true
-        }
-    }
-
-    private func closeBrowser() {
-        withAnimation(.easeInOut(duration: 0.28)) {
-            isBrowserPresented = false
-            dragOffset = 0
-        }
-    }
-
-    private func toggleBrowserMode() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            browserMode = (browserMode == .reader) ? .original : .reader
         }
     }
 
@@ -1205,101 +1303,6 @@ private struct ReaderDetailView: View {
         .task(id: article.id) {
             await markReadAfterDwell(article)
         }
-    }
-
-    /// The in-app browser as a non-modal bottom panel over the reader pane.
-    /// The sidebar and article list stay interactive, so selecting another
-    /// article switches this same panel to it (only one is ever open).
-    private func browserPanel(_ article: Article) -> some View {
-        VStack(spacing: 0) {
-            browserTopBar(article)
-            Divider()
-            ArticleWebView(
-                url: article.url,
-                useReaderMode: browserMode == .reader,
-                style: readerStyle,
-                linkOpensInApp: linkOpensInApp
-            )
-            .id("\(article.id)|\(browserMode.rawValue)|\(readerStyle.identity)")
-        }
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.28), radius: 22, y: -3)
-        .padding(.top, 44)
-        .offset(y: max(0, dragOffset))
-        .task(id: article.id) {
-            // Opening the in-app browser is an explicit read action.
-            store.retainArticle(id: article.id)
-            if markReadOnOpen {
-                store.markArticleOpened(articleID: article.id)
-            }
-        }
-    }
-
-    private func browserTopBar(_ article: Article) -> some View {
-        ZStack {
-            Capsule()
-                .fill(.quaternary)
-                .frame(width: 38, height: 5)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, 6)
-
-            HStack(spacing: 12) {
-                Button {
-                    closeBrowser()
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .keyboardShortcut("w", modifiers: .command)
-                .help("Close")
-
-                Spacer()
-
-                Button {
-                    toggleBrowserMode()
-                } label: {
-                    Label(
-                        browserMode == .reader ? "Reader Mode" : "Original Page",
-                        systemImage: browserMode == .reader ? "doc.plaintext" : "globe"
-                    )
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-                .help("Switch Reader / Original (⌘⇧R)")
-
-                Spacer()
-
-                Button {
-                    openURL(article.url)
-                } label: {
-                    Image(systemName: "safari")
-                }
-                .help("Open Original")
-
-                ShareLink(item: article.url) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .help("Share")
-            }
-            .buttonStyle(.borderless)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .padding(.top, 6)
-        }
-        .background(.bar)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 4)
-                .onChanged { value in
-                    dragOffset = value.translation.height
-                }
-                .onEnded { value in
-                    if value.translation.height > 120 {
-                        closeBrowser()
-                    } else {
-                        withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
-                    }
-                }
-        )
     }
 
     /// Keeps the article visible while reading, then marks it read only after
@@ -1364,7 +1367,9 @@ private struct ReaderDetailView: View {
                 if NSEvent.modifierFlags.contains(.command) {
                     openURL(article.url)
                 } else {
-                    openBrowser()
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        store.isBrowserPresented = true
+                    }
                 }
             } label: {
                 Text(article.title)

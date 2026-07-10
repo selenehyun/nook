@@ -12,6 +12,8 @@ final class ReaderStore {
     // source acts as navigation, while feeds support multiple selection.
     var smartSelection: SmartSource? = .all
     var feedSelection: Set<Feed.ID> = []
+    /// Whether the window-wide in-app browser bottom sheet is showing.
+    var isBrowserPresented = false
     // Articles kept visible in the current source even after being read, until
     // the user navigates to another source (Chrome-tab-close heuristic).
     private var retainedArticleIDs: Set<Article.ID> = []
