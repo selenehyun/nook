@@ -742,6 +742,11 @@ private struct ArticleListView: View {
             ArticleListStatusBar(store: store)
         }
         .onChange(of: store.feedSelection) { _, _ in
+            store.clearRetainedArticles()
+            store.selectFirstVisibleArticleIfNeeded()
+        }
+        .onChange(of: store.smartSelection) { _, _ in
+            store.clearRetainedArticles()
             store.selectFirstVisibleArticleIfNeeded()
         }
         .onChange(of: store.searchText) { _, _ in
@@ -862,6 +867,8 @@ private struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     @Environment(\.openURL) private var openURL
     @State private var webReaderArticleID: Article.ID?
+    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
 
     var body: some View {
         Group {
@@ -933,8 +940,7 @@ private struct ReaderDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
         .task(id: article.id) {
-            await Task.yield()
-            store.markArticleOpened(articleID: article.id)
+            await markReadAfterDwell(article)
         }
     }
 
@@ -970,8 +976,7 @@ private struct ReaderDetailView: View {
                 .padding(16)
             }
             .task(id: article.id) {
-                await Task.yield()
-                store.markArticleOpened(articleID: article.id)
+                await markReadAfterDwell(article)
             }
     }
 
@@ -992,6 +997,25 @@ private struct ReaderDetailView: View {
     private func closeWebReader() {
         withAnimation(.easeInOut(duration: 0.28)) {
             webReaderArticleID = nil
+        }
+    }
+
+    /// Keeps the article visible while reading, then marks it read only after
+    /// the user dwells for the configured delay. Navigating away cancels this
+    /// task before the delay elapses, so the article stays unread.
+    private func markReadAfterDwell(_ article: Article) async {
+        store.retainArticle(id: article.id)
+        guard markReadOnOpen else { return }
+
+        do {
+            if markReadDelaySeconds > 0 {
+                try await Task.sleep(for: .seconds(Double(markReadDelaySeconds)))
+            } else {
+                await Task.yield()
+            }
+            store.markArticleOpened(articleID: article.id)
+        } catch {
+            // Cancelled before the dwell completed — leave it unread.
         }
     }
 
@@ -1401,6 +1425,7 @@ struct ReaderSettingsView: View {
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
     @AppStorage("openLinksInBrowser") private var openLinksInBrowser = true
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
@@ -1427,6 +1452,8 @@ struct ReaderSettingsView: View {
 
             Section("Reading") {
                 Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
+                Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
+                    .disabled(!markReadOnOpen)
                 Toggle("Open original links in the default browser", isOn: $openLinksInBrowser)
             }
 

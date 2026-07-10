@@ -12,6 +12,9 @@ final class ReaderStore {
     // source acts as navigation, while feeds support multiple selection.
     var smartSelection: SmartSource? = .all
     var feedSelection: Set<Feed.ID> = []
+    // Articles kept visible in the current source even after being read, until
+    // the user navigates to another source (Chrome-tab-close heuristic).
+    private var retainedArticleIDs: Set<Article.ID> = []
     var selectedArticleID: Article.ID?
     var searchText = ""
     var lastRefreshedAt: Date?
@@ -48,7 +51,7 @@ final class ReaderStore {
 
     var visibleArticles: [Article] {
         articles
-            .filter(matchesSelectedSource)
+            .filter { matchesSelectedSource($0) || (retainedArticleIDs.contains($0.id) && matchesSourceIgnoringReadState($0)) }
             .filter(matchesSearch)
             .sorted { $0.publishedAt > $1.publishedAt }
     }
@@ -76,6 +79,7 @@ final class ReaderStore {
     func selectSmartSource(_ source: SmartSource) {
         smartSelection = source
         feedSelection = []
+        clearRetainedArticles()
         selectFirstVisibleArticleIfNeeded()
     }
 
@@ -191,6 +195,7 @@ final class ReaderStore {
     /// shows the folder's combined articles.
     func selectFolder(_ folder: String) {
         feedSelection = Set(feeds.filter { $0.folderName == folder }.map(\.id))
+        clearRetainedArticles()
         selectFirstVisibleArticleIfNeeded()
     }
 
@@ -322,6 +327,19 @@ final class ReaderStore {
 
     func markArticleOpened(articleID: Article.ID) {
         setRead(articleID: articleID, isRead: true)
+    }
+
+    /// Keeps an article visible in the current source even once it is read, so
+    /// it does not vanish out from under the reader while it is being viewed.
+    func retainArticle(id: Article.ID) {
+        retainedArticleIDs.insert(id)
+    }
+
+    /// Drops the retained set so the list recomputes fresh; called when the
+    /// selected source changes.
+    func clearRetainedArticles() {
+        guard !retainedArticleIDs.isEmpty else { return }
+        retainedArticleIDs.removeAll()
     }
 
     /// Opens an article by ID (used by the widget deep link): makes it visible
@@ -588,6 +606,23 @@ final class ReaderStore {
             return article.matches(.smart(smartSelection))
         }
         return true
+    }
+
+    /// Whether the article belongs to the current source ignoring the
+    /// read-state condition (so a just-read article can stay in the Unread
+    /// list). Only the Unread source filters on read state.
+    private func matchesSourceIgnoringReadState(_ article: Article) -> Bool {
+        if !feedSelection.isEmpty {
+            return feedSelection.contains(article.feedID)
+        }
+        switch smartSelection {
+        case .some(.unread), .some(.all), .none:
+            return true
+        case .some(.today):
+            return Calendar.current.isDateInToday(article.publishedAt)
+        case .some(.starred):
+            return article.isStarred
+        }
     }
 
     private func matchesSearch(_ article: Article) -> Bool {
