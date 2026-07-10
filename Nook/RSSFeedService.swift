@@ -58,7 +58,54 @@ struct RSSFeedService {
         return parsedFeed
     }
 
+    /// Rejects clearly malformed URLs (e.g. a doubled scheme like
+    /// "https://site.comhttps://site.com") so we never fire a request that is
+    /// guaranteed to fail DNS. Prevents a storm of failing requests when the
+    /// stored library contains corrupt feed/site URLs.
+    static func isFetchableWebURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            return false
+        }
+        guard let host = url.host(percentEncoded: false), host.contains(".") else {
+            return false
+        }
+        // A valid host never contains a scheme fragment or slashes.
+        if host.lowercased().contains("http") || host.contains("/") {
+            return false
+        }
+        // A well-formed absolute URL has exactly one scheme separator.
+        return url.absoluteString.components(separatedBy: "://").count == 2
+    }
+
+    /// Repairs a URL whose scheme was accidentally doubled
+    /// ("https://site.comhttps://site.com" -> "https://site.com"). Returns the
+    /// original when it is already well-formed or cannot be repaired.
+    static func repairedWebURL(_ url: URL) -> URL {
+        guard !isFetchableWebURL(url) else { return url }
+
+        let string = url.absoluteString
+        var lastSchemeStart: String.Index?
+        for marker in ["https://", "http://"] {
+            var range = string.startIndex..<string.endIndex
+            while let found = string.range(of: marker, options: .caseInsensitive, range: range) {
+                if found.lowerBound != string.startIndex { lastSchemeStart = found.lowerBound }
+                range = found.upperBound..<string.endIndex
+            }
+        }
+
+        if let lastSchemeStart,
+           let repaired = URL(string: String(string[lastSchemeStart...])),
+           isFetchableWebURL(repaired) {
+            return repaired
+        }
+        return url
+    }
+
     private func fetchData(url: URL) async throws -> Data {
+        guard RSSFeedService.isFetchableWebURL(url) else {
+            throw RSSFeedError.invalidURL(url.absoluteString)
+        }
+
         var request = URLRequest(url: url)
         request.setValue("Nook RSS Reader", forHTTPHeaderField: "User-Agent")
 
@@ -376,7 +423,16 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
             return fallback
         }
 
-        return URL(string: trimmed, relativeTo: feedURL)?.absoluteURL ?? fallback
+        // If the value is already an absolute URL (has its own scheme), use it
+        // directly. Resolving an absolute string against a base can otherwise
+        // concatenate the two into a malformed URL such as
+        // "https://site.comhttps://site.com".
+        if let absolute = URL(string: trimmed), absolute.scheme?.isEmpty == false {
+            return absolute
+        }
+
+        let resolved = URL(string: trimmed, relativeTo: feedURL)?.absoluteURL ?? fallback
+        return RSSFeedService.isFetchableWebURL(resolved) ? resolved : fallback
     }
 
     /// Returns the raw content as HTML when the feed declares an HTML type

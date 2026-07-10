@@ -12,6 +12,10 @@ struct FaviconService {
     private let maxIconBytes = 2_000_000
 
     func fetchFavicon(for siteURL: URL) async -> Data? {
+        // Skip malformed site URLs (e.g. a doubled scheme) so we don't fire a
+        // request that is guaranteed to fail.
+        guard RSSFeedService.isFetchableWebURL(siteURL) else { return nil }
+
         for candidate in await iconCandidates(for: siteURL) {
             if let data = await downloadIcon(from: candidate) {
                 return data

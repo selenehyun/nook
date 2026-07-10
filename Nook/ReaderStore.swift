@@ -736,13 +736,27 @@ final class ReaderStore {
     }
 
     private func apply(_ library: ReaderLibrary) {
-        feeds = library.feeds
+        // Repair any feeds whose stored URLs have a doubled scheme (from an
+        // earlier bug) so they fetch correctly instead of flooding failed
+        // requests. `id` is left untouched so existing articles stay linked.
+        var repairedFeeds = library.feeds
+        var didRepair = false
+        for index in repairedFeeds.indices {
+            let fixedFeed = RSSFeedService.repairedWebURL(repairedFeeds[index].feedURL)
+            let fixedSite = RSSFeedService.repairedWebURL(repairedFeeds[index].siteURL)
+            if fixedFeed != repairedFeeds[index].feedURL { repairedFeeds[index].feedURL = fixedFeed; didRepair = true }
+            if fixedSite != repairedFeeds[index].siteURL { repairedFeeds[index].siteURL = fixedSite; didRepair = true }
+        }
+
+        feeds = repairedFeeds
         articles = library.articles
         lastRefreshedAt = library.lastRefreshedAt
         // Merge explicit folders with any folders implied by feed categories.
         let feedFolderNames = feeds.map(\.folderName).filter { !$0.isEmpty }
         folders = Array(Set(library.folders + feedFolderNames))
         loadCachedFavicons()
+
+        if didRepair { try? persistLibrary() }
     }
 
     private func loadCachedFavicons() {
