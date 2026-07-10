@@ -190,6 +190,11 @@ final class ReaderStore {
         refreshingFeedIDs.contains(feedID)
     }
 
+    /// Total unread across every feed, used for the app icon badge.
+    var totalUnreadCount: Int {
+        articles.reduce(0) { $1.isRead ? $0 : $0 + 1 }
+    }
+
     func unreadCount(feedID: Feed.ID? = nil) -> Int {
         articles.filter { article in
             !article.isRead && (feedID == nil || article.feedID == feedID)
@@ -567,16 +572,30 @@ final class ReaderStore {
         }
 
         var existingArticlesByID = Dictionary(uniqueKeysWithValues: articles.map { ($0.id, $0) })
+        let knownIDs = Set(existingArticlesByID.keys)
+        var hasNewArticles = false
         for newArticle in parsedFeed.articles {
             var article = newArticle
             if let existing = existingArticlesByID[article.id] {
                 article.isRead = existing.isRead
                 article.isStarred = existing.isStarred
+            } else {
+                hasNewArticles = true
             }
             existingArticlesByID[article.id] = article
         }
 
-        articles = Array(existingArticlesByID.values)
+        let merged = Array(existingArticlesByID.values)
+        // Animate the list only when a refresh actually brings in new stories,
+        // so rows slide/fade in like Apple Mail. Batch and single arrivals are
+        // both handled by the List's built-in insertion animation.
+        if hasNewArticles && !knownIDs.isEmpty {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                articles = merged
+            }
+        } else {
+            articles = merged
+        }
     }
 
     private func markFeedUnhealthy(feedID: Feed.ID) {

@@ -16,6 +16,7 @@ struct ContentView: View {
     @AppStorage(ContentView.sidebarVisibleKey) private var sidebarVisible = true
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
+    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
 
     // In-app browser (window-wide bottom sheet).
     @State private var browserDragOffset: CGFloat = 0
@@ -186,47 +187,16 @@ struct ContentView: View {
             }
             // nook://open simply brings the app forward.
         }
-        .overlay {
-            ZStack(alignment: .bottom) {
-                if store.isBrowserPresented {
-                    Color.black
-                        .opacity(max(0, 0.32 - browserDragOffset / 1400))
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture { closeBrowser() }
-                        .transition(.opacity)
-                }
-
-                if store.isBrowserPresented, let article = store.selectedArticle {
-                    InAppBrowserPanel(
-                        store: store,
-                        article: article,
-                        style: readerStyle,
-                        linkOpensInApp: readerLinkBehavior == .inApp,
-                        dragOffset: $browserDragOffset,
-                        onClose: closeBrowser
-                    )
-                    .transition(.move(edge: .bottom))
-                }
-
-                // Grabber lives outside the sheet (does not move with it) so its
-                // drag gesture isn't cancelled as the sheet slides down.
-                if store.isBrowserPresented {
-                    browserGrabber
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 52)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.spring(response: 0.38, dampingFraction: 0.85), value: store.isBrowserPresented)
-            .allowsHitTesting(store.isBrowserPresented)
-        }
+        .overlay { browserOverlay }
         .onChange(of: store.isBrowserPresented) { _, presented in
             if presented {
                 store.browserMode = readerViewMode
                 browserDragOffset = 0
             }
         }
+        .onChange(of: store.totalUnreadCount) { _, _ in updateDockBadge() }
+        .onChange(of: showUnreadBadge) { _, _ in updateDockBadge() }
+        .onAppear { updateDockBadge() }
         .focusedSceneValue(
             \.readerCommandActions,
             ReaderCommandActions(
@@ -239,9 +209,55 @@ struct ContentView: View {
             )
         )
     }
+
+    /// The window-wide in-app browser bottom sheet, its dimmer, and the fixed
+    /// drag grabber, shown when an article is opened in the browser.
+    @ViewBuilder
+    private var browserOverlay: some View {
+        ZStack(alignment: .bottom) {
+            if store.isBrowserPresented {
+                Color.black
+                    .opacity(max(0, 0.32 - browserDragOffset / 1400))
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeBrowser() }
+                    .transition(.opacity)
+            }
+
+            if store.isBrowserPresented, let article = store.selectedArticle {
+                InAppBrowserPanel(
+                    store: store,
+                    article: article,
+                    style: readerStyle,
+                    linkOpensInApp: readerLinkBehavior == .inApp,
+                    dragOffset: $browserDragOffset,
+                    onClose: closeBrowser
+                )
+                .transition(.move(edge: .bottom))
+            }
+
+            // Grabber lives outside the sheet (does not move with it) so its
+            // drag gesture isn't cancelled as the sheet slides down.
+            if store.isBrowserPresented {
+                browserGrabber
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 52)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.spring(response: 0.38, dampingFraction: 0.85), value: store.isBrowserPresented)
+        .allowsHitTesting(store.isBrowserPresented)
+    }
 }
 
 private extension ContentView {
+    /// Shows the total unread count on the Dock icon, or clears it when the
+    /// option is off or there is nothing unread.
+    func updateDockBadge() {
+        let count = store.totalUnreadCount
+        NSApp.dockTile.badgeLabel = (showUnreadBadge && count > 0) ? String(count) : nil
+    }
+
     func closeBrowser() {
         withAnimation(.easeInOut(duration: 0.28)) {
             store.isBrowserPresented = false
@@ -1757,6 +1773,7 @@ struct ReaderSettingsView: View {
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
@@ -1795,6 +1812,8 @@ struct ReaderSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
             }
 
             Section("Reading") {

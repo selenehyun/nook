@@ -2199,6 +2199,22 @@
         }
       }
     },
+    "Show unread count on app icon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show unread count on app icon"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱 아이콘에 안 읽음 개수 표시"
+          }
+        }
+      }
+    },
     "Source": {
       "localizations": {
         "en": {
