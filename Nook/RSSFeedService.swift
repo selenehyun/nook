@@ -108,6 +108,7 @@ struct RSSFeedService {
 
         var request = URLRequest(url: url)
         request.setValue("Nook RSS Reader", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 15
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,

@@ -45,6 +45,13 @@ final class ReaderStore {
     private(set) var feedIcons: [Feed.ID: NSImage] = [:]
     private(set) var folders: [String] = []
 
+    // Favicon fetching is deduplicated by host and rate-limited so a large
+    // library doesn't spawn a storm of concurrent requests on launch.
+    private var faviconAttemptedKeys: Set<String> = []
+    private var faviconQueue: [Feed] = []
+    private var activeFaviconFetches = 0
+    private static let maxConcurrentFaviconFetches = 4
+
     private let feedService = RSSFeedService()
     private let faviconService = FaviconService()
     private let opmlService = OPMLService()
@@ -765,8 +772,10 @@ final class ReaderStore {
         }
     }
 
-    /// Shows any cached favicon immediately, then refreshes it in the
-    /// background when it is missing or older than the 1-day TTL.
+    /// Shows any cached favicon immediately, then queues a background refresh
+    /// when it is missing or older than the 1-day TTL. Refreshes are keyed by
+    /// host, deduplicated, and rate-limited so opening a large library doesn't
+    /// fire hundreds of concurrent (and often duplicate) network requests.
     private func ensureFavicon(for feed: Feed) {
         guard let storage else { return }
         let key = faviconKey(for: feed)
@@ -777,20 +786,44 @@ final class ReaderStore {
             feedIcons[feed.id] = image
         }
 
-        if storage.faviconNeedsRefresh(forKey: key) {
-            Task { await refreshFavicon(for: feed) }
+        // One attempt per host per session: many feeds can share a host, and a
+        // host that failed shouldn't be retried repeatedly.
+        guard storage.faviconNeedsRefresh(forKey: key), !faviconAttemptedKeys.contains(key) else {
+            return
+        }
+        faviconAttemptedKeys.insert(key)
+        faviconQueue.append(feed)
+        pumpFaviconQueue()
+    }
+
+    /// Starts queued favicon fetches up to the concurrency cap.
+    private func pumpFaviconQueue() {
+        while activeFaviconFetches < Self.maxConcurrentFaviconFetches, !faviconQueue.isEmpty {
+            let feed = faviconQueue.removeFirst()
+            activeFaviconFetches += 1
+            Task { [weak self] in
+                await self?.refreshFavicon(for: feed)
+                guard let self else { return }
+                self.activeFaviconFetches -= 1
+                self.pumpFaviconQueue()
+            }
         }
     }
 
     private func refreshFavicon(for feed: Feed) async {
+        let key = faviconKey(for: feed)
         guard let data = await faviconService.fetchFavicon(for: feed.siteURL),
               let image = NSImage(data: data) else {
             return
         }
 
         let pngData = image.pngData() ?? data
-        try? storage?.writeFaviconData(pngData, forKey: faviconKey(for: feed))
-        feedIcons[feed.id] = NSImage(data: pngData) ?? image
+        try? storage?.writeFaviconData(pngData, forKey: key)
+        let finalImage = NSImage(data: pngData) ?? image
+        // Apply to every feed that shares this host, so we fetch each icon once.
+        for sibling in feeds where faviconKey(for: sibling) == key {
+            feedIcons[sibling.id] = finalImage
+        }
     }
 
     private func faviconKey(for feed: Feed) -> String {

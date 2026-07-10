@@ -16,7 +16,17 @@ struct FaviconService {
         // request that is guaranteed to fail.
         guard RSSFeedService.isFetchableWebURL(siteURL) else { return nil }
 
-        for candidate in await iconCandidates(for: siteURL) {
+        // Try the well-known icon paths first — this avoids downloading and
+        // parsing the full HTML page for the common case where a site has a
+        // standard favicon, which matters a lot across a large library.
+        for candidate in wellKnownIconURLs(for: siteURL) {
+            if let data = await downloadIcon(from: candidate) {
+                return data
+            }
+        }
+
+        // Fall back to icons declared in the page <head>.
+        for candidate in await discoverIconURLs(from: siteURL) {
             if let data = await downloadIcon(from: candidate) {
                 return data
             }
@@ -24,17 +34,13 @@ struct FaviconService {
         return nil
     }
 
-    private func iconCandidates(for siteURL: URL) async -> [URL] {
-        var candidates = await discoverIconURLs(from: siteURL)
-
-        if let scheme = siteURL.scheme,
-           let host = siteURL.host(percentEncoded: false),
-           let root = URL(string: "\(scheme)://\(host)/favicon.ico") {
-            candidates.append(root)
+    private func wellKnownIconURLs(for siteURL: URL) -> [URL] {
+        guard let scheme = siteURL.scheme, let host = siteURL.host(percentEncoded: false) else {
+            return []
         }
-
-        var seen = Set<URL>()
-        return candidates.filter { seen.insert($0).inserted }
+        return ["/apple-touch-icon.png", "/favicon.ico"].compactMap {
+            URL(string: "\(scheme)://\(host)\($0)")
+        }
     }
 
     private func discoverIconURLs(from siteURL: URL) async -> [URL] {
