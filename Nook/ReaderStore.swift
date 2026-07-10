@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import SwiftUI
@@ -13,8 +14,10 @@ final class ReaderStore {
     var lastRefreshedAt: Date?
     var errorMessage: String?
     private(set) var syncFolderDisplayPath: String?
+    private(set) var feedIcons: [Feed.ID: NSImage] = [:]
 
     private let feedService = RSSFeedService()
+    private let faviconService = FaviconService()
     private let opmlService = OPMLService()
     private var storage: ReaderStorage?
     private var securityScopedDirectoryURL: URL?
@@ -96,6 +99,10 @@ final class ReaderStore {
 
     func feed(for feedID: Feed.ID) -> Feed? {
         feeds.first { $0.id == feedID }
+    }
+
+    func faviconImage(for feed: Feed) -> Image? {
+        feedIcons[feed.id].map(Image.init(nsImage:))
     }
 
     func isRefreshing(feedID: Feed.ID) -> Bool {
@@ -365,6 +372,7 @@ final class ReaderStore {
         }
 
         merge(parsedFeed)
+        ensureFavicon(for: parsedFeed.feed)
         lastRefreshedAt = Date.now
         try persistLibrary()
         selectFirstVisibleArticleIfNeeded()
@@ -459,6 +467,49 @@ final class ReaderStore {
         feeds = library.feeds
         articles = library.articles
         lastRefreshedAt = library.lastRefreshedAt
+        loadCachedFavicons()
+    }
+
+    private func loadCachedFavicons() {
+        for feed in feeds {
+            ensureFavicon(for: feed)
+        }
+    }
+
+    /// Shows any cached favicon immediately, then refreshes it in the
+    /// background when it is missing or older than the 1-day TTL.
+    private func ensureFavicon(for feed: Feed) {
+        guard let storage else { return }
+        let key = faviconKey(for: feed)
+
+        if feedIcons[feed.id] == nil,
+           let data = storage.cachedFaviconData(forKey: key),
+           let image = NSImage(data: data) {
+            feedIcons[feed.id] = image
+        }
+
+        if storage.faviconNeedsRefresh(forKey: key) {
+            Task { await refreshFavicon(for: feed) }
+        }
+    }
+
+    private func refreshFavicon(for feed: Feed) async {
+        guard let data = await faviconService.fetchFavicon(for: feed.siteURL),
+              let image = NSImage(data: data) else {
+            return
+        }
+
+        let pngData = image.pngData() ?? data
+        try? storage?.writeFaviconData(pngData, forKey: faviconKey(for: feed))
+        feedIcons[feed.id] = NSImage(data: pngData) ?? image
+    }
+
+    private func faviconKey(for feed: Feed) -> String {
+        let base = feed.siteURL.host(percentEncoded: false) ?? feed.id
+        let sanitized = base.map { character -> Character in
+            character.isLetter || character.isNumber || character == "." || character == "-" ? character : "_"
+        }
+        return String(sanitized)
     }
 
     private func saveAfterMutation() {

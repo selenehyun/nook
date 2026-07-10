@@ -15,6 +15,7 @@
 		2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */; };
 		2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */; };
 		2D0E3A2B2D8A4A4700A00001 /* OPMLService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */; };
+		2D0E3A342D8A4A4700A00001 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A332D8A4A4700A00001 /* FaviconService.swift */; };
 		2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
@@ -30,6 +31,7 @@
 		2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSSFeedService.swift; sourceTree = "<group>"; };
 		2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStore.swift; sourceTree = "<group>"; };
 		2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OPMLService.swift; sourceTree = "<group>"; };
+		2D0E3A332D8A4A4700A00001 /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
 		2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -70,6 +72,7 @@
 				2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */,
 				2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */,
 				2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */,
+				2D0E3A332D8A4A4700A00001 /* FaviconService.swift */,
 				2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */,
 				2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */,
 				2D0E3A302D8A4A4700A00001 /* Info.plist */,
@@ -156,6 +159,7 @@
 				2D0E3A252D8A4A4700A00001 /* ReaderStorage.swift in Sources */,
 				2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */,
 				2D0E3A2B2D8A4A4700A00001 /* OPMLService.swift in Sources */,
+				2D0E3A342D8A4A4700A00001 /* FaviconService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -247,6 +247,7 @@ private struct FeedSidebar: View {
                             title: feed.title,
                             subtitle: feed.siteDescription,
                             systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
+                            iconImage: store.isRefreshing(feedID: feed.id) ? nil : store.faviconImage(for: feed),
                             count: store.unreadCount(feedID: feed.id)
                         )
                         .tag(SourceSelection.feed(feed.id))
@@ -353,12 +354,14 @@ private struct SourceRow: View {
     var title: String
     var subtitle: String?
     var systemImage: String
+    var iconImage: Image?
     var count: Int
 
-    init(title: String, subtitle: String? = nil, systemImage: String, count: Int) {
+    init(title: String, subtitle: String? = nil, systemImage: String, iconImage: Image? = nil, count: Int) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
+        self.iconImage = iconImage
         self.count = count
     }
 
@@ -386,7 +389,15 @@ private struct SourceRow: View {
                 }
             }
         } icon: {
-            Image(systemName: systemImage)
+            if let iconImage {
+                iconImage
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            } else {
+                Image(systemName: systemImage)
+            }
         }
     }
 }
@@ -581,7 +592,19 @@ private struct ReaderDetailView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 if let feed = store.feed(for: article.feedID) {
-                    Label(feed.title, systemImage: feed.systemImage)
+                    Label {
+                        Text(feed.title)
+                    } icon: {
+                        if let icon = store.faviconImage(for: feed) {
+                            icon
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 14, height: 14)
+                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        } else {
+                            Image(systemName: feed.systemImage)
+                        }
+                    }
                 }
 
                 Text("·")

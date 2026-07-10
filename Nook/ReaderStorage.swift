@@ -19,11 +19,41 @@ struct ReaderStorage {
     static let displayPathDefaultsKey = "syncFolderDisplayPath"
 
     private static let libraryFileName = "NookLibrary.json"
+    private static let iconsDirectoryName = "Icons"
+    private static let faviconTTL: TimeInterval = 24 * 60 * 60
 
     var directoryURL: URL
 
     var libraryURL: URL {
         directoryURL.appending(path: Self.libraryFileName, directoryHint: .notDirectory)
+    }
+
+    private var iconsDirectoryURL: URL {
+        directoryURL.appending(path: Self.iconsDirectoryName, directoryHint: .isDirectory)
+    }
+
+    private func faviconURL(forKey key: String) -> URL {
+        iconsDirectoryURL.appending(path: "\(key).png", directoryHint: .notDirectory)
+    }
+
+    func cachedFaviconData(forKey key: String) -> Data? {
+        try? Data(contentsOf: faviconURL(forKey: key))
+    }
+
+    /// True when there is no cached favicon or the cached one is older than the
+    /// 1-day TTL and should be re-fetched.
+    func faviconNeedsRefresh(forKey key: String) -> Bool {
+        let path = faviconURL(forKey: key).path(percentEncoded: false)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let modified = attributes[.modificationDate] as? Date else {
+            return true
+        }
+        return Date.now.timeIntervalSince(modified) >= Self.faviconTTL
+    }
+
+    func writeFaviconData(_ data: Data, forKey key: String) throws {
+        try FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
+        try data.write(to: faviconURL(forKey: key), options: [.atomic])
     }
 
     func load() throws -> ReaderLibrary? {
