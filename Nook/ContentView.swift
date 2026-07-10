@@ -976,7 +976,12 @@ private struct ReaderDetailView: View {
                 .padding(16)
             }
             .task(id: article.id) {
-                await markReadAfterDwell(article)
+                // Opening the full reader mode is an explicit "I'm reading
+                // this" action, so mark it read immediately.
+                store.retainArticle(id: article.id)
+                if markReadOnOpen {
+                    store.markArticleOpened(articleID: article.id)
+                }
             }
     }
 
