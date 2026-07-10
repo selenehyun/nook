@@ -740,7 +740,8 @@ private struct ArticleListView: View {
                 .listStyle(.inset)
             }
         }
-        .navigationTitle(store.selectedSourceTitle)
+        // The source is shown by the toolbar breadcrumb instead, so no column
+        // title here (avoids duplicating it in the toolbar).
         .searchable(text: $store.searchText, placement: .toolbar, prompt: "Search Articles")
         .safeAreaInset(edge: .bottom) {
             ArticleListStatusBar(store: store)
