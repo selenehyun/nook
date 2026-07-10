@@ -244,7 +244,7 @@ private struct FeedSidebar: View {
     @Bindable var store: ReaderStore
     var onChooseSyncFolder: () -> Void
 
-    @State private var collapsedFolders: Set<String> = []
+    @AppStorage("collapsedFolders") private var collapsedFoldersData = Data()
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderPendingDeletion: String?
@@ -350,6 +350,12 @@ private struct FeedSidebar: View {
         } message: { _ in
             Text("The folder and any feeds inside it will be removed.")
         }
+    }
+
+    /// Per-folder collapsed state, persisted so it is restored on relaunch.
+    private var collapsedFolders: Set<String> {
+        get { (try? JSONDecoder().decode(Set<String>.self, from: collapsedFoldersData)) ?? [] }
+        nonmutating set { collapsedFoldersData = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
 
     @ViewBuilder
