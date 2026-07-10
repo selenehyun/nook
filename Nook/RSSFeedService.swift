@@ -187,7 +187,7 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
             id: feedURL.absoluteString,
             title: normalizedFeedTitle,
             siteDescription: feedDescription.cleanedFeedText(),
-            category: "Feeds",
+            category: "",
             systemImage: "dot.radiowaves.left.and.right",
             feedURL: feedURL,
             siteURL: siteURL,

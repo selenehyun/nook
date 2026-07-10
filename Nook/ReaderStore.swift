@@ -105,6 +105,22 @@ final class ReaderStore {
         feedIcons[feed.id].map(Image.init(nsImage:))
     }
 
+    /// Distinct folder names, in natural order.
+    var feedFolders: [String] {
+        let names = Set(feeds.map(\.folderName).filter { !$0.isEmpty })
+        return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    func feeds(inFolder folder: String) -> [Feed] {
+        feeds.filter { $0.folderName == folder }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    var ungroupedFeeds: [Feed] {
+        feeds.filter { $0.folderName.isEmpty }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
     func isRefreshing(feedID: Feed.ID) -> Bool {
         refreshingFeedIDs.contains(feedID)
     }
@@ -356,8 +372,10 @@ final class ReaderStore {
 
         for opmlFeed in opmlFeeds {
             do {
-                let existingFeedID = feeds.first {
-                    $0.feedURL == opmlFeed.feedURL || $0.id == opmlFeed.feedURL.absoluteString
+                let existingFeedID = feeds.first { existing in
+                    existing.feedURL.feedIdentityKey == opmlFeed.feedURL.feedIdentityKey
+                        || existing.id == opmlFeed.feedURL.absoluteString
+                        || (opmlFeed.siteURL.map { existing.siteURL.feedIdentityKey == $0.feedIdentityKey } ?? false)
                 }?.id
                 let parsed = try await fetch(url: opmlFeed.feedURL, existingFeedID: existingFeedID)
 

@@ -130,7 +130,7 @@ struct ContentView: View {
         .sheet(item: $opmlImport) { request in
             OPMLImportView(
                 feeds: request.feeds,
-                existingFeedURLs: Set(store.feeds.map(\.feedURL))
+                existingKeys: Set(store.feeds.flatMap { [$0.feedURL.feedIdentityKey, $0.siteURL.feedIdentityKey] })
             ) { selected in
                 store.importFeeds(selected)
             }
@@ -263,28 +263,17 @@ private struct FeedSidebar: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(store.feeds) { feed in
-                        SourceRow(
-                            title: feed.title,
-                            subtitle: feed.siteDescription,
-                            systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
-                            iconImage: store.isRefreshing(feedID: feed.id) ? nil : store.faviconImage(for: feed),
-                            isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
-                            count: store.unreadCount(feedID: feed.id)
-                        )
-                        .tag(SourceSelection.feed(feed.id))
-                        .contextMenu {
-                            Button("Refresh Feed") {
-                                store.refresh(feedID: feed.id)
+                    ForEach(store.ungroupedFeeds) { feed in
+                        feedRow(feed)
+                    }
+
+                    ForEach(store.feedFolders, id: \.self) { folder in
+                        DisclosureGroup {
+                            ForEach(store.feeds(inFolder: folder)) { feed in
+                                feedRow(feed)
                             }
-                            Button("Mark Feed as Read") {
-                                store.markFeedRead(feedID: feed.id)
-                            }
-                            Link("Open Site", destination: feed.siteURL)
-                            Divider()
-                            Button("Remove Feed", role: .destructive) {
-                                store.removeFeed(feedID: feed.id)
-                            }
+                        } label: {
+                            Label(folder, systemImage: "folder")
                         }
                     }
                 }
@@ -294,6 +283,32 @@ private struct FeedSidebar: View {
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
+        }
+    }
+
+    @ViewBuilder
+    private func feedRow(_ feed: Feed) -> some View {
+        SourceRow(
+            title: feed.title,
+            subtitle: feed.siteDescription,
+            systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
+            iconImage: store.isRefreshing(feedID: feed.id) ? nil : store.faviconImage(for: feed),
+            isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
+            count: store.unreadCount(feedID: feed.id)
+        )
+        .tag(SourceSelection.feed(feed.id))
+        .contextMenu {
+            Button("Refresh Feed") {
+                store.refresh(feedID: feed.id)
+            }
+            Button("Mark Feed as Read") {
+                store.markFeedRead(feedID: feed.id)
+            }
+            Link("Open Site", destination: feed.siteURL)
+            Divider()
+            Button("Remove Feed", role: .destructive) {
+                store.removeFeed(feedID: feed.id)
+            }
         }
     }
 }
@@ -959,7 +974,7 @@ private struct OPMLImportRequest: Identifiable {
 /// grouped Settings form.
 private struct OPMLImportView: View {
     let feeds: [OPMLFeed]
-    let existingFeedURLs: Set<URL>
+    let existingKeys: Set<String>
     var onImport: ([OPMLFeed]) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -967,12 +982,21 @@ private struct OPMLImportView: View {
     @State private var icons: [OPMLFeed.ID: NSImage] = [:]
     private let faviconService = FaviconService()
 
-    init(feeds: [OPMLFeed], existingFeedURLs: Set<URL>, onImport: @escaping ([OPMLFeed]) -> Void) {
+    init(feeds: [OPMLFeed], existingKeys: Set<String>, onImport: @escaping ([OPMLFeed]) -> Void) {
         self.feeds = feeds
-        self.existingFeedURLs = existingFeedURLs
+        self.existingKeys = existingKeys
         self.onImport = onImport
         // Default to the feeds that are not already subscribed.
-        _selection = State(initialValue: Set(feeds.filter { !existingFeedURLs.contains($0.feedURL) }.map(\.id)))
+        let isNew: (OPMLFeed) -> Bool = { feed in
+            !(existingKeys.contains(feed.feedURL.feedIdentityKey)
+                || (feed.siteURL.map { existingKeys.contains($0.feedIdentityKey) } ?? false))
+        }
+        _selection = State(initialValue: Set(feeds.filter(isNew).map(\.id)))
+    }
+
+    private func isExisting(_ feed: OPMLFeed) -> Bool {
+        existingKeys.contains(feed.feedURL.feedIdentityKey)
+            || (feed.siteURL.map { existingKeys.contains($0.feedIdentityKey) } ?? false)
     }
 
     var body: some View {
@@ -1093,7 +1117,7 @@ private struct OPMLImportView: View {
                     HStack(spacing: 6) {
                         Text(feed.title)
                             .lineLimit(1)
-                        if existingFeedURLs.contains(feed.feedURL) {
+                        if isExisting(feed) {
                             Text("Already added")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)

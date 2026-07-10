@@ -16,6 +16,22 @@ struct Feed: Identifiable, Codable, Hashable {
     var siteURL: URL
     var healthScore: Double
     var lastFetchedAt: Date?
+
+    /// The folder this feed lives in, or empty for a top-level feed. The legacy
+    /// default category "Feeds" is treated as no folder.
+    var folderName: String {
+        (category == "Feeds") ? "" : category
+    }
+}
+
+extension URL {
+    /// A normalized key for comparing feed/site URLs so trivial differences
+    /// (trailing slash, casing) don't split one feed into duplicates.
+    var feedIdentityKey: String {
+        var value = absoluteString.lowercased()
+        while value.hasSuffix("/") { value.removeLast() }
+        return value
+    }
 }
 
 struct Article: Identifiable, Codable, Hashable {
