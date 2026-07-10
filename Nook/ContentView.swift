@@ -4,16 +4,26 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    private static let sidebarVisibleKey = "sidebarVisible"
+
     @State private var store = ReaderStore()
     @State private var isAddingFeed = false
-    @State private var isInspectorPresented = true
     @State private var isImportingOPML = false
     @State private var isExportingOPML = false
+    @State private var columnVisibility: NavigationSplitViewVisibility
+    @AppStorage("inspectorPresented") private var isInspectorPresented = true
+    @AppStorage(ContentView.sidebarVisibleKey) private var sidebarVisible = true
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
 
+    init() {
+        // Restore the last sidebar state before the first render to avoid a flash.
+        let wasVisible = UserDefaults.standard.object(forKey: ContentView.sidebarVisibleKey) as? Bool ?? true
+        _columnVisibility = State(initialValue: wasVisible ? .all : .doubleColumn)
+    }
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             FeedSidebar(store: store) {
                 chooseSyncFolder()
             }
@@ -128,6 +138,9 @@ struct ContentView: View {
         .task(id: "\(autoRefreshEnabled)-\(refreshIntervalMinutes)-\(store.isStorageConfigured)") {
             guard autoRefreshEnabled, store.isStorageConfigured else { return }
             await store.runAutoRefreshLoop(intervalMinutes: refreshIntervalMinutes)
+        }
+        .onChange(of: columnVisibility) { _, newValue in
+            sidebarVisible = (newValue == .all)
         }
         .focusedSceneValue(
             \.readerCommandActions,
