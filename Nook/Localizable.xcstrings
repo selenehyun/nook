@@ -153,6 +153,38 @@
         }
       }
     },
+    "A native RSS reader for macOS.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A native RSS reader for macOS."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS를 위한 네이티브 RSS 리더."
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "정보"
+          }
+        }
+      }
+    },
     "Add": {
       "localizations": {
         "en": {
@@ -245,6 +277,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "이미 추가됨"
+          }
+        }
+      }
+    },
+    "App Icon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Icon"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱 아이콘"
           }
         }
       }
@@ -533,6 +581,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "리더 닫기"
+          }
+        }
+      }
+    },
+    "Colors": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colors"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상"
           }
         }
       }
@@ -2519,6 +2583,22 @@
         }
       }
     },
+    "These options apply when reading in reader mode.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These options apply when reading in reader mode."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "리더 모드로 글을 볼 때 적용되는 설정입니다."
+          }
+        }
+      }
+    },
     "Today": {
       "localizations": {
         "en": {
@@ -2547,6 +2627,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "인스펙터 표시/숨기기"
+          }
+        }
+      }
+    },
+    "Typography": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typography"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "타이포그래피"
           }
         }
       }
@@ -2627,6 +2723,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "별표 해제"
+          }
+        }
+      }
+    },
+    "Version %@ (%@)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ (%@)"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버전 %@ (%@)"
           }
         }
       }

@@ -1768,35 +1768,33 @@ private struct OPMLImportView: View {
     }
 }
 
+/// The app's preferences window, laid out as a standard macOS multi-tab
+/// Settings scene with grouped forms that match the main window's styling.
 struct ReaderSettingsView: View {
-    @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
-    @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
-    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
-    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
-    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
-    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
-    @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
-    @AppStorage("readerFont") private var readerFont = ReaderFont.system
-    @AppStorage("readerFontSize") private var readerFontSize = 18
-    @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
-    @AppStorage("readerLetterSpacing") private var readerLetterSpacing = 0.0
-    @AppStorage("readerBackgroundOption") private var readerBackgroundOption = ReaderColorOption.automatic
-    @AppStorage("readerBackgroundHex") private var readerBackgroundHex = "#FFFFFF"
-    @AppStorage("readerTextOption") private var readerTextOption = ReaderColorOption.automatic
-    @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
-    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
-    @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
+    var body: some View {
+        TabView {
+            GeneralSettingsTab()
+                .tabItem { Label("General", systemImage: "gearshape") }
+            ReadingSettingsTab()
+                .tabItem { Label("Reading", systemImage: "book") }
+            ReaderSettingsTab()
+                .tabItem { Label("Reader", systemImage: "textformat") }
+            FeedsSettingsTab()
+                .tabItem { Label("Feeds", systemImage: "dot.radiowaves.up.forward") }
+            AboutSettingsTab()
+                .tabItem { Label("About", systemImage: "info.circle") }
+        }
+        .frame(width: 540, height: 430)
+    }
+}
 
-    private var backgroundColor: Binding<Color> {
-        Binding { Color(hex: readerBackgroundHex) } set: { readerBackgroundHex = $0.hexString }
-    }
-    private var textColor: Binding<Color> {
-        Binding { Color(hex: readerTextHex) } set: { readerTextHex = $0.hexString }
-    }
+private struct GeneralSettingsTab: View {
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
 
     var body: some View {
         Form {
-            Section("General") {
+            Section("Language") {
                 Picker("Language", selection: $appLanguage) {
                     ForEach(AppLanguage.allCases) { language in
                         Text(language.label).tag(language)
@@ -1812,75 +1810,171 @@ struct ReaderSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-
-                Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
             }
 
+            Section("App Icon") {
+                Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
+            }
+        }
+        .formStyle(.grouped)
+        .onChange(of: appLanguage) { _, newValue in
+            AppLanguage.apply(newValue)
+        }
+    }
+}
+
+private struct ReadingSettingsTab: View {
+    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
+    @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
+
+    var body: some View {
+        Form {
             Section("Reading") {
                 Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
                 Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
                     .disabled(!markReadOnOpen)
             }
 
-            Section("Reader") {
+            Section("In-App Browser") {
                 Picker("In-App Browser", selection: $readerViewMode) {
                     ForEach(ReaderViewMode.allCases) { Text($0.label).tag($0) }
                 }
                 Picker("Links Open", selection: $readerLinkBehavior) {
                     ForEach(ReaderLinkBehavior.allCases) { Text($0.label).tag($0) }
                 }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
 
-                if readerViewMode == .reader {
-                    Picker("Font", selection: $readerFont) {
-                        ForEach(ReaderFont.allCases) { Text($0.label).tag($0) }
-                    }
-                    Stepper("Font Size: \(readerFontSize)", value: $readerFontSize, in: 12...28)
-                    Stepper("Line Spacing: \(String(format: "%.1f", readerLineHeight))", value: $readerLineHeight, in: 1.2...2.4, step: 0.1)
-                    Stepper("Letter Spacing: \(String(format: "%.2f", readerLetterSpacing))", value: $readerLetterSpacing, in: -0.02...0.15, step: 0.01)
-                    Picker("Background", selection: $readerBackgroundOption) {
-                        ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
-                    }
-                    if readerBackgroundOption == .custom {
-                        ColorPicker("Background Color", selection: backgroundColor, supportsOpacity: false)
-                    }
-                    Picker("Text", selection: $readerTextOption) {
-                        ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
-                    }
-                    if readerTextOption == .custom {
-                        ColorPicker("Text Color", selection: textColor, supportsOpacity: false)
-                    }
+private struct ReaderSettingsTab: View {
+    @AppStorage("readerFont") private var readerFont = ReaderFont.system
+    @AppStorage("readerFontSize") private var readerFontSize = 18
+    @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
+    @AppStorage("readerLetterSpacing") private var readerLetterSpacing = 0.0
+    @AppStorage("readerBackgroundOption") private var readerBackgroundOption = ReaderColorOption.automatic
+    @AppStorage("readerBackgroundHex") private var readerBackgroundHex = "#FFFFFF"
+    @AppStorage("readerTextOption") private var readerTextOption = ReaderColorOption.automatic
+    @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
+
+    private var backgroundColor: Binding<Color> {
+        Binding { Color(hex: readerBackgroundHex) } set: { readerBackgroundHex = $0.hexString }
+    }
+    private var textColor: Binding<Color> {
+        Binding { Color(hex: readerTextHex) } set: { readerTextHex = $0.hexString }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Font", selection: $readerFont) {
+                    ForEach(ReaderFont.allCases) { Text($0.label).tag($0) }
                 }
+                Stepper("Font Size: \(readerFontSize)", value: $readerFontSize, in: 12...28)
+                Stepper("Line Spacing: \(String(format: "%.1f", readerLineHeight))", value: $readerLineHeight, in: 1.2...2.4, step: 0.1)
+                Stepper("Letter Spacing: \(String(format: "%.2f", readerLetterSpacing))", value: $readerLetterSpacing, in: -0.02...0.15, step: 0.01)
+            } header: {
+                Text("Typography")
+            } footer: {
+                Text("These options apply when reading in reader mode.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
+            Section("Colors") {
+                Picker("Background", selection: $readerBackgroundOption) {
+                    ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
+                }
+                if readerBackgroundOption == .custom {
+                    ColorPicker("Background Color", selection: backgroundColor, supportsOpacity: false)
+                }
+                Picker("Text", selection: $readerTextOption) {
+                    ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
+                }
+                if readerTextOption == .custom {
+                    ColorPicker("Text Color", selection: textColor, supportsOpacity: false)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct FeedsSettingsTab: View {
+    @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
+    @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
+    @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
+
+    var body: some View {
+        Form {
             Section("Feeds") {
                 Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
                     .disabled(!autoRefreshEnabled)
             }
 
-            Section("Storage") {
+            Section {
                 LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? String(localized: "Not selected") : syncFolderDisplayPath)
+            } header: {
+                Text("Storage")
+            } footer: {
                 Text("Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            Section("Feedback") {
-                LabeledContent {
-                    Button("Send Feedback…") { FeedbackMailer.compose() }
-                } label: {
-                    Text("Report a bug, request a feature, or share an idea with the developer.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
         .formStyle(.grouped)
-        .padding(20)
-        .frame(width: 520)
-        .onChange(of: appLanguage) { _, newValue in
-            AppLanguage.apply(newValue)
+    }
+}
+
+private struct AboutSettingsTab: View {
+    private var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
+    private var build: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1" }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            VStack(spacing: 10) {
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .frame(width: 96, height: 96)
+
+                Text("Nook")
+                    .font(.title)
+                    .fontWeight(.semibold)
+
+                Text("A native RSS reader for macOS.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Text("Version \(version) (\(build))")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 6) {
+                Button {
+                    FeedbackMailer.compose()
+                } label: {
+                    Label("Send Feedback…", systemImage: "envelope")
+                }
+                .controlSize(.large)
+
+                Text("Report a bug, request a feature, or share an idea with the developer.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.bottom, 24)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 40)
     }
 }
 
