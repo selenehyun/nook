@@ -960,6 +960,7 @@ private struct MiddleCrumbSegment: View {
     var action: () -> Void
 
     private let collapsedMaxWidth: CGFloat = 150
+    private let fadeInset: CGFloat = 18
 
     // Expands when hovered and stays expanded until the pointer leaves the
     // whole breadcrumb (breadcrumbHovered turns false).
@@ -1001,19 +1002,37 @@ private struct MiddleCrumbSegment: View {
             )
         )
         // On hover, reveal the full text as a floating pill overlaid on top of
-        // the following segments — no layout shift.
+        // the following segments — no layout shift. The pill's width unfurls
+        // from the collapsed cap to full, with the trailing fade receding as
+        // more text is revealed.
         .overlay(alignment: .leading) {
-            if expanded && isTruncated {
+            if isTruncated {
+                let full = intrinsicWidth + fadeInset
+                let revealWidth = expanded ? full : collapsedMaxWidth
                 content()
                     .fixedSize()
                     .foregroundStyle(.secondary)
+                    .frame(width: revealWidth, alignment: .leading)
+                    .clipped()
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .black, location: 0),
+                                .init(color: .black, location: max(0, (revealWidth - fadeInset) / revealWidth)),
+                                .init(color: .clear, location: 1)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(.regularMaterial, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1)))
-                    .shadow(color: .black.opacity(0.18), radius: 6, y: 1)
+                    // Match the toolbar surface so the pill blends in; the
+                    // shadow alone lifts it off the bar.
+                    .background(.bar, in: Capsule())
+                    .shadow(color: .black.opacity(expanded ? 0.22 : 0), radius: 7, y: 1)
                     .offset(x: -8)
-                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .leading)))
+                    .opacity(expanded ? 1 : 0)
                     .allowsHitTesting(false)
             }
         }
