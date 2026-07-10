@@ -18,6 +18,7 @@ final class ReaderStore {
     var errorMessage: String?
     private(set) var syncFolderDisplayPath: String?
     private(set) var feedIcons: [Feed.ID: NSImage] = [:]
+    private(set) var folders: [String] = []
 
     private let feedService = RSSFeedService()
     private let faviconService = FaviconService()
@@ -118,10 +119,9 @@ final class ReaderStore {
         feedIcons[feed.id].map(Image.init(nsImage:))
     }
 
-    /// Distinct folder names, in natural order.
+    /// All folder names (including empty ones), in natural order.
     var feedFolders: [String] {
-        let names = Set(feeds.map(\.folderName).filter { !$0.isEmpty })
-        return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        folders.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     func feeds(inFolder folder: String) -> [Feed] {
@@ -129,9 +129,47 @@ final class ReaderStore {
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
+    func feedCount(inFolder folder: String) -> Int {
+        feeds.reduce(0) { $1.folderName == folder ? $0 + 1 : $0 }
+    }
+
     var ungroupedFeeds: [Feed] {
         feeds.filter { $0.folderName.isEmpty }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    func createFolder(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !folders.contains(trimmed) else { return }
+        folders.append(trimmed)
+        saveAfterMutation()
+    }
+
+    /// Removes a folder and every feed inside it.
+    func removeFolder(_ name: String) {
+        let removedIDs = Set(feeds.filter { $0.folderName == name }.map(\.id))
+        feeds.removeAll { removedIDs.contains($0.id) }
+        articles.removeAll { removedIDs.contains($0.feedID) }
+        for id in removedIDs {
+            feedIcons[id] = nil
+            feedSelection.remove(id)
+        }
+        folders.removeAll { $0 == name }
+        selectFirstVisibleArticleIfNeeded()
+        saveAfterMutation()
+    }
+
+    /// Moves a feed into a folder (empty string moves it back to top level).
+    func moveFeed(_ feedID: Feed.ID, toFolder folder: String) {
+        guard let index = feeds.firstIndex(where: { $0.id == feedID }),
+              feeds[index].category != folder else {
+            return
+        }
+        feeds[index].category = folder
+        if !folder.isEmpty, !folders.contains(folder) {
+            folders.append(folder)
+        }
+        saveAfterMutation()
     }
 
     func isRefreshing(feedID: Feed.ID) -> Bool {
@@ -142,6 +180,23 @@ final class ReaderStore {
         articles.filter { article in
             !article.isRead && (feedID == nil || article.feedID == feedID)
         }.count
+    }
+
+    func unreadCount(inFolder folder: String) -> Int {
+        let ids = Set(feeds.filter { $0.folderName == folder }.map(\.id))
+        return articles.reduce(0) { $1.isRead || !ids.contains($1.feedID) ? $0 : $0 + 1 }
+    }
+
+    /// Selecting a folder selects all feeds inside it, so the article list
+    /// shows the folder's combined articles.
+    func selectFolder(_ folder: String) {
+        feedSelection = Set(feeds.filter { $0.folderName == folder }.map(\.id))
+        selectFirstVisibleArticleIfNeeded()
+    }
+
+    func isFolderSelected(_ folder: String) -> Bool {
+        let ids = Set(feeds.filter { $0.folderName == folder }.map(\.id))
+        return !ids.isEmpty && feedSelection == ids
     }
 
     func count(for source: SmartSource) -> Int {
@@ -408,10 +463,13 @@ final class ReaderStore {
                 }?.id
                 let parsed = try await fetch(url: opmlFeed.feedURL, existingFeedID: existingFeedID)
 
-                // Carry the OPML folder over as the feed's category.
-                if let category = opmlFeed.category,
+                // Carry the OPML folder over as the feed's category/folder.
+                if let category = opmlFeed.category, !category.isEmpty,
                    let index = feeds.firstIndex(where: { $0.id == parsed.feed.id }) {
                     feeds[index].category = category
+                    if !folders.contains(category) {
+                        folders.append(category)
+                    }
                 }
             } catch {
                 failures.append(error.localizedDescription)
@@ -532,6 +590,9 @@ final class ReaderStore {
         feeds = library.feeds
         articles = library.articles
         lastRefreshedAt = library.lastRefreshedAt
+        // Merge explicit folders with any folders implied by feed categories.
+        let feedFolderNames = feeds.map(\.folderName).filter { !$0.isEmpty }
+        folders = Array(Set(library.folders + feedFolderNames))
         loadCachedFavicons()
     }
 
@@ -594,7 +655,8 @@ final class ReaderStore {
         let library = ReaderLibrary(
             feeds: feeds,
             articles: articles,
-            lastRefreshedAt: lastRefreshedAt
+            lastRefreshedAt: lastRefreshedAt,
+            folders: folders
         )
         try storage.save(library)
     }

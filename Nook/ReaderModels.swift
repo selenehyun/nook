@@ -4,6 +4,28 @@ struct ReaderLibrary: Codable {
     var feeds: [Feed]
     var articles: [Article]
     var lastRefreshedAt: Date?
+    /// Explicit folder names, including empty folders, so they persist and sync
+    /// even with no feeds inside (the ".gitkeep" role for folders).
+    var folders: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case feeds, articles, lastRefreshedAt, folders
+    }
+
+    init(feeds: [Feed], articles: [Article], lastRefreshedAt: Date?, folders: [String]) {
+        self.feeds = feeds
+        self.articles = articles
+        self.lastRefreshedAt = lastRefreshedAt
+        self.folders = folders
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        feeds = try container.decode([Feed].self, forKey: .feeds)
+        articles = try container.decode([Article].self, forKey: .articles)
+        lastRefreshedAt = try container.decodeIfPresent(Date.self, forKey: .lastRefreshedAt)
+        folders = try container.decodeIfPresent([String].self, forKey: .folders) ?? []
+    }
 }
 
 struct Feed: Identifiable, Codable, Hashable {

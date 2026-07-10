@@ -523,6 +523,38 @@
         }
       }
     },
+    "Create": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "만들기"
+          }
+        }
+      }
+    },
+    "Create an empty folder to organize feeds.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create an empty folder to organize feeds."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드를 정리할 빈 폴더를 만듭니다."
+          }
+        }
+      }
+    },
     "Deselect All": {
       "localizations": {
         "en": {
@@ -583,6 +615,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "피드"
+          }
+        }
+      }
+    },
+    "Folder Name": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder Name"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 이름"
           }
         }
       }
@@ -911,6 +959,22 @@
         }
       }
     },
+    "Move to Folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Folder"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더로 이동"
+          }
+        }
+      }
+    },
     "Never": {
       "localizations": {
         "en": {
@@ -923,6 +987,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "없음"
+          }
+        }
+      }
+    },
+    "New Folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Folder"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 폴더"
           }
         }
       }
@@ -1035,6 +1115,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "OPML 파일에서 피드를 찾지 못했습니다."
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "없음"
           }
         }
       }
@@ -1541,6 +1637,22 @@
         }
       }
     },
+    "Remove Folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Folder"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 제거"
+          }
+        }
+      }
+    },
     "Remove Star": {
       "localizations": {
         "en": {
@@ -1857,6 +1969,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "피드를 불러오지 못했습니다 (HTTP %lld)."
+          }
+        }
+      }
+    },
+    "The folder and any feeds inside it will be removed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The folder and any feeds inside it will be removed."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더와 그 안의 피드가 모두 제거됩니다."
           }
         }
       }

@@ -244,6 +244,11 @@ private struct FeedSidebar: View {
     @Bindable var store: ReaderStore
     var onChooseSyncFolder: () -> Void
 
+    @State private var collapsedFolders: Set<String> = []
+    @State private var isCreatingFolder = false
+    @State private var newFolderName = ""
+    @State private var folderPendingDeletion: String?
+
     var body: some View {
         List(selection: $store.feedSelection) {
             Section("Library") {
@@ -252,8 +257,8 @@ private struct FeedSidebar: View {
                 }
             }
 
-            Section("Feeds") {
-                if store.feeds.isEmpty {
+            Section {
+                if store.feeds.isEmpty && store.feedFolders.isEmpty {
                     Text(store.isStorageConfigured ? "Add an RSS or Atom feed." : "Choose a sync folder first.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -263,14 +268,30 @@ private struct FeedSidebar: View {
                     }
 
                     ForEach(store.feedFolders, id: \.self) { folder in
-                        DisclosureGroup {
+                        folderHeader(folder)
+
+                        if !collapsedFolders.contains(folder) {
                             ForEach(store.feeds(inFolder: folder)) { feed in
                                 feedRow(feed)
+                                    .padding(.leading, 14)
                             }
-                        } label: {
-                            Label(folder, systemImage: "folder")
                         }
                     }
+                }
+            } header: {
+                HStack {
+                    Text("Feeds")
+                    Spacer()
+                    Button {
+                        newFolderName = ""
+                        isCreatingFolder = true
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("New Folder")
+                    .disabled(!store.isStorageConfigured)
                 }
             }
         }
@@ -278,6 +299,83 @@ private struct FeedSidebar: View {
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
+        }
+        .alert("New Folder", isPresented: $isCreatingFolder) {
+            TextField("Folder Name", text: $newFolderName)
+            Button("Create") { store.createFolder(newFolderName) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Create an empty folder to organize feeds.")
+        }
+        .confirmationDialog(
+            "Remove Folder",
+            isPresented: Binding(
+                get: { folderPendingDeletion != nil },
+                set: { if !$0 { folderPendingDeletion = nil } }
+            ),
+            presenting: folderPendingDeletion
+        ) { folder in
+            Button("Remove Folder", role: .destructive) {
+                store.removeFolder(folder)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("The folder and any feeds inside it will be removed.")
+        }
+    }
+
+    @ViewBuilder
+    private func folderHeader(_ folder: String) -> some View {
+        let isActive = store.isFolderSelected(folder)
+        let isCollapsed = collapsedFolders.contains(folder)
+        let unread = store.unreadCount(inFolder: folder)
+
+        HStack(spacing: 4) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    if isCollapsed { collapsedFolders.remove(folder) } else { collapsedFolders.insert(folder) }
+                }
+            } label: {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(isActive ? Color.white.opacity(0.9) : Color.secondary)
+                    .frame(width: 12, height: 12)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Label(folder, systemImage: "folder")
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            if unread > 0 {
+                Text(unread, format: .number)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(isActive ? Color.white.opacity(0.85) : Color.secondary)
+            }
+        }
+        .contentShape(Rectangle())
+        .foregroundStyle(isActive ? Color.white : Color.primary)
+        .onTapGesture {
+            store.selectFolder(folder)
+        }
+        .listRowBackground(
+            isActive
+                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor)
+                : nil
+        )
+        .dropDestination(for: String.self) { droppedIDs, _ in
+            for id in droppedIDs { store.moveFeed(id, toFolder: folder) }
+            return true
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                folderPendingDeletion = folder
+            } label: {
+                Text("Remove Folder")
+            }
         }
     }
 
@@ -292,6 +390,7 @@ private struct FeedSidebar: View {
             count: store.unreadCount(feedID: feed.id)
         )
         .tag(feed.id)
+        .draggable(feed.id)
         .contextMenu {
             feedContextMenu(feed)
         }
@@ -351,6 +450,20 @@ private struct FeedSidebar: View {
                 .disabled(true)
         } else {
             Link("Open Site", destination: feed.siteURL)
+        }
+
+        Menu("Move to Folder") {
+            Button("None") {
+                targets.forEach { store.moveFeed($0, toFolder: "") }
+            }
+            if !store.feedFolders.isEmpty {
+                Divider()
+                ForEach(store.feedFolders, id: \.self) { folder in
+                    Button(folder) {
+                        targets.forEach { store.moveFeed($0, toFolder: folder) }
+                    }
+                }
+            }
         }
 
         Divider()
@@ -557,11 +670,13 @@ private struct ArticleRow: View {
     var feed: Feed?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Circle()
                 .fill(article.isRead ? Color.clear : Color.accentColor)
                 .frame(width: 8, height: 8)
-                .padding(.top, 7)
+                .alignmentGuide(.firstTextBaseline) { dimension in
+                    dimension[VerticalAlignment.center] + 3
+                }
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
