@@ -53,13 +53,6 @@ struct ContentView: View {
                 .disabled(store.feeds.isEmpty || store.isRefreshing)
                 .help("Refresh All Feeds")
 
-                Button {
-                    chooseSyncFolder()
-                } label: {
-                    Label("Sync Folder", systemImage: "folder")
-                }
-                .help("Choose iCloud Sync Folder")
-
                 Menu {
                     Button {
                         isImportingOPML = true
