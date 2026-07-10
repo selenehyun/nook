@@ -8,7 +8,10 @@ import SwiftUI
 final class ReaderStore {
     var feeds: [Feed] = []
     var articles: [Article] = []
-    var selectedSources: Set<SourceSelection> = [.smart(.all)]
+    // Library and Feeds are independent selection scopes: a single smart
+    // source acts as navigation, while feeds support multiple selection.
+    var smartSelection: SmartSource? = .all
+    var feedSelection: Set<Feed.ID> = []
     var selectedArticleID: Article.ID?
     var searchText = ""
     var lastRefreshedAt: Date?
@@ -55,29 +58,24 @@ final class ReaderStore {
     }
 
     var selectedSourceTitle: String {
-        guard let only = singleSelectedSource else {
-            return selectedSources.isEmpty
-                ? String(localized: "Articles")
-                : String(localized: "\(selectedSources.count) selected")
+        if !feedSelection.isEmpty {
+            if feedSelection.count == 1, let id = feedSelection.first {
+                return feed(for: id)?.title ?? String(localized: "Feed")
+            }
+            return String(localized: "\(feedSelection.count) selected")
         }
-        switch only {
-        case .smart(let source):
-            return source.title
-        case .feed(let feedID):
-            return feed(for: feedID)?.title ?? String(localized: "Feed")
-        }
+        return smartSelection?.title ?? String(localized: "Articles")
     }
 
-    private var singleSelectedSource: SourceSelection? {
-        selectedSources.count == 1 ? selectedSources.first : nil
-    }
+    /// The feed IDs currently selected, for batch feed actions.
+    var selectedFeedIDs: [Feed.ID] { Array(feedSelection) }
 
-    /// The feed IDs among the current selection, for batch feed actions.
-    var selectedFeedIDs: [Feed.ID] {
-        selectedSources.compactMap {
-            if case .feed(let id) = $0 { return id }
-            return nil
-        }
+    /// Selecting a smart source is single-select navigation and clears any
+    /// feed selection, keeping the two scopes independent.
+    func selectSmartSource(_ source: SmartSource) {
+        smartSelection = source
+        feedSelection = []
+        selectFirstVisibleArticleIfNeeded()
     }
 
     func handleSyncFolderSelection(_ result: Result<[URL], Error>) {
@@ -242,7 +240,7 @@ final class ReaderStore {
 
     func refresh(feedID: Feed.ID) {
         guard let feed = feed(for: feedID) else { return }
-        selectedSources = [.feed(feedID)]
+        feedSelection = [feedID]
 
         Task {
             await refreshFeed(feed)
@@ -290,9 +288,7 @@ final class ReaderStore {
         feedIcons[feedID] = nil
         refreshingFeedIDs.remove(feedID)
 
-        if selectedSources.remove(.feed(feedID)) != nil, selectedSources.isEmpty {
-            selectedSources = [.smart(.all)]
-        }
+        feedSelection.remove(feedID)
 
         selectFirstVisibleArticleIfNeeded()
         saveAfterMutation()
@@ -392,7 +388,7 @@ final class ReaderStore {
         do {
             let url = try feedService.normalizedFeedURL(from: urlString)
             let parsedFeed = try await fetch(url: url, existingFeedID: nil)
-            selectedSources = [.feed(parsedFeed.feed.id)]
+            feedSelection = [parsedFeed.feed.id]
             selectedArticleID = parsedFeed.articles.first?.id
             errorMessage = nil
         } catch {
@@ -513,8 +509,13 @@ final class ReaderStore {
     }
 
     private func matchesSelectedSource(_ article: Article) -> Bool {
-        guard !selectedSources.isEmpty else { return true }
-        return selectedSources.contains { article.matches($0) }
+        if !feedSelection.isEmpty {
+            return feedSelection.contains(article.feedID)
+        }
+        if let smartSelection {
+            return article.matches(.smart(smartSelection))
+        }
+        return true
     }
 
     private func matchesSearch(_ article: Article) -> Bool {

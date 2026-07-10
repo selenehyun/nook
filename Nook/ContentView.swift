@@ -245,15 +245,10 @@ private struct FeedSidebar: View {
     var onChooseSyncFolder: () -> Void
 
     var body: some View {
-        List(selection: $store.selectedSources) {
+        List(selection: $store.feedSelection) {
             Section("Library") {
                 ForEach(SmartSource.allCases) { source in
-                    SourceRow(
-                        title: source.title,
-                        systemImage: source.systemImage,
-                        count: store.count(for: source)
-                    )
-                    .tag(SourceSelection.smart(source))
+                    smartSourceRow(source)
                 }
             }
 
@@ -296,10 +291,38 @@ private struct FeedSidebar: View {
             isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
             count: store.unreadCount(feedID: feed.id)
         )
-        .tag(SourceSelection.feed(feed.id))
+        .tag(feed.id)
         .contextMenu {
             feedContextMenu(feed)
         }
+    }
+
+    @ViewBuilder
+    private func smartSourceRow(_ source: SmartSource) -> some View {
+        let isActive = store.feedSelection.isEmpty && store.smartSelection == source
+        Button {
+            store.selectSmartSource(source)
+        } label: {
+            HStack(spacing: 8) {
+                Label(source.title, systemImage: source.systemImage)
+                Spacer(minLength: 8)
+                let count = store.count(for: source)
+                if count > 0 {
+                    Text(count, format: .number)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(isActive ? Color.white.opacity(0.85) : Color.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isActive ? Color.white : Color.primary)
+        .listRowBackground(
+            isActive
+                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor)
+                : nil
+        )
     }
 
     /// Acts on the whole feed selection when the right-clicked feed is part of
@@ -520,7 +543,7 @@ private struct ArticleListView: View {
         .safeAreaInset(edge: .bottom) {
             ArticleListStatusBar(store: store)
         }
-        .onChange(of: store.selectedSources) { _, _ in
+        .onChange(of: store.feedSelection) { _, _ in
             store.selectFirstVisibleArticleIfNeeded()
         }
         .onChange(of: store.searchText) { _, _ in
