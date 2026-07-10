@@ -248,6 +248,7 @@ private struct FeedSidebar: View {
                             subtitle: feed.siteDescription,
                             systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
                             iconImage: store.isRefreshing(feedID: feed.id) ? nil : store.faviconImage(for: feed),
+                            isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
                             count: store.unreadCount(feedID: feed.id)
                         )
                         .tag(SourceSelection.feed(feed.id))
@@ -355,13 +356,15 @@ private struct SourceRow: View {
     var subtitle: String?
     var systemImage: String
     var iconImage: Image?
+    var isUnhealthy: Bool
     var count: Int
 
-    init(title: String, subtitle: String? = nil, systemImage: String, iconImage: Image? = nil, count: Int) {
+    init(title: String, subtitle: String? = nil, systemImage: String, iconImage: Image? = nil, isUnhealthy: Bool = false, count: Int) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
         self.iconImage = iconImage
+        self.isUnhealthy = isUnhealthy
         self.count = count
     }
 
@@ -380,6 +383,13 @@ private struct SourceRow: View {
                 }
 
                 Spacer(minLength: 8)
+
+                if isUnhealthy {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .help("Last refresh failed.")
+                }
 
                 if count > 0 {
                     Text(count, format: .number)
@@ -672,16 +682,6 @@ private struct ArticleInspector: View {
                     }
 
                     Link("Open Article", destination: article.url)
-                }
-
-                Section("Feed Health") {
-                    if let feed = store.feed(for: article.feedID) {
-                        Gauge(value: feed.healthScore, in: 0...1) {
-                            Text("Availability")
-                        } currentValueLabel: {
-                            Text(feed.healthScore.formatted(.percent))
-                        }
-                    }
                 }
             } else {
                 ContentUnavailableView("No Article", systemImage: "info.circle")

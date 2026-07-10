@@ -231,22 +231,6 @@
         }
       }
     },
-    "Availability": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Availability"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "연결 상태"
-          }
-        }
-      }
-    },
     "Cancel": {
       "localizations": {
         "en": {
@@ -439,22 +423,6 @@
         }
       }
     },
-    "Feed Health": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Feed Health"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 상태"
-          }
-        }
-      }
-    },
     "Feeds": {
       "localizations": {
         "en": {
@@ -563,6 +531,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "마지막 새로 고침"
+          }
+        }
+      }
+    },
+    "Last refresh failed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last refresh failed."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마지막 새로 고침에 실패했습니다."
           }
         }
       }
