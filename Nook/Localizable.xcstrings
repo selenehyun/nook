@@ -231,22 +231,6 @@
         }
       }
     },
-    "Back to Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to Article"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글로 돌아가기"
-          }
-        }
-      }
-    },
     "Cancel": {
       "localizations": {
         "en": {
@@ -419,6 +403,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "iCloud 동기화 폴더 선택"
+          }
+        }
+      }
+    },
+    "Close Reader": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Reader"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "리더 닫기"
           }
         }
       }

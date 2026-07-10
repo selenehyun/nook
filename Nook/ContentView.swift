@@ -544,6 +544,37 @@ private struct ArticleListStatusBar: View {
     }
 }
 
+/// Makes the large reader title read as an interactive control: it tints to
+/// the accent color and shows a pointer on hover, and dims while pressed.
+private struct ReaderTitleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Title(configuration: configuration)
+    }
+
+    private struct Title: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .foregroundStyle(isHovering ? Color.accentColor : Color.primary)
+                .opacity(configuration.isPressed ? 0.55 : 1)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    isHovering = hovering
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .onDisappear { if isHovering { NSCursor.pop() } }
+                .animation(.easeOut(duration: 0.12), value: isHovering)
+                .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+        }
+    }
+}
+
 private struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     @Environment(\.openURL) private var openURL
@@ -558,11 +589,13 @@ private struct ReaderDetailView: View {
                     Text("Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                if webReaderArticleID == article.id {
-                    webReader(article)
-                } else {
-                    articleReader(article)
-                }
+                articleReader(article)
+                    .overlay {
+                        if webReaderArticleID == article.id {
+                            webReader(article)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
             } else {
                 ContentUnavailableView {
                     Label("Select an Article", systemImage: "newspaper")
@@ -623,36 +656,59 @@ private struct ReaderDetailView: View {
     }
 
     private func webReader(_ article: Article) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    webReaderArticleID = nil
-                } label: {
-                    Label("Back to Article", systemImage: "chevron.left")
+        ArticleWebView(url: article.url)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .textBackgroundColor))
+            .overlay(alignment: .topLeading) {
+                floatingReaderButton(systemImage: "xmark", label: "Close Reader") {
+                    closeWebReader()
                 }
-
-                Spacer()
-
-                Link(destination: article.url) {
-                    Label("Open Original", systemImage: "safari")
-                }
-
-                ShareLink(item: article.url) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
+                .keyboardShortcut("w", modifiers: .command)
+                .padding(16)
             }
-            .buttonStyle(.borderless)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.bar)
+            .overlay(alignment: .topTrailing) {
+                HStack(spacing: 10) {
+                    floatingReaderButton(systemImage: "safari", label: "Open Original") {
+                        openURL(article.url)
+                    }
 
-            Divider()
+                    ShareLink(item: article.url) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(width: 30, height: 30)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(.regularMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+                    .shadow(color: .black.opacity(0.15), radius: 5, y: 1)
+                    .help("Share")
+                }
+                .padding(16)
+            }
+            .task(id: article.id) {
+                await Task.yield()
+                store.markArticleOpened(articleID: article.id)
+            }
+    }
 
-            ArticleWebView(url: article.url)
+    private func floatingReaderButton(systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 30, height: 30)
+                .contentShape(Circle())
         }
-        .task(id: article.id) {
-            await Task.yield()
-            store.markArticleOpened(articleID: article.id)
+        .buttonStyle(.plain)
+        .background(.regularMaterial, in: Circle())
+        .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+        .shadow(color: .black.opacity(0.15), radius: 5, y: 1)
+        .help(label)
+    }
+
+    private func closeWebReader() {
+        withAnimation(.easeInOut(duration: 0.28)) {
+            webReaderArticleID = nil
         }
     }
 
@@ -699,7 +755,9 @@ private struct ReaderDetailView: View {
                 if NSEvent.modifierFlags.contains(.command) {
                     openURL(article.url)
                 } else {
-                    webReaderArticleID = article.id
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        webReaderArticleID = article.id
+                    }
                 }
             } label: {
                 Text(article.title)
@@ -709,7 +767,7 @@ private struct ReaderDetailView: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ReaderTitleButtonStyle())
             .help("Open in Reader — ⌘-click to open in browser")
 
             if shouldShowSummary(article) {
