@@ -68,22 +68,6 @@ enum SmartSource: String, CaseIterable, Identifiable {
     }
 }
 
-enum ReadingFilter: String, CaseIterable, Identifiable {
-    case all
-    case unread
-    case starred
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .all: String(localized: "All")
-        case .unread: String(localized: "Unread")
-        case .starred: String(localized: "Starred")
-        }
-    }
-}
-
 extension Article {
     static func readingMinutes(for paragraphs: [String]) -> Int {
         let wordCount = paragraphs

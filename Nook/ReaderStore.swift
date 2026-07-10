@@ -10,9 +10,7 @@ final class ReaderStore {
     var selectedSource: SourceSelection? = .smart(.all)
     var selectedArticleID: Article.ID?
     var searchText = ""
-    var readingFilter = ReadingFilter.all
     var lastRefreshedAt: Date?
-    var statusMessage: String?
     var errorMessage: String?
     private(set) var syncFolderDisplayPath: String?
 
@@ -44,9 +42,13 @@ final class ReaderStore {
     var visibleArticles: [Article] {
         articles
             .filter(matchesSelectedSource)
-            .filter(matchesReadingFilter)
             .filter(matchesSearch)
             .sorted { $0.publishedAt > $1.publishedAt }
+    }
+
+    var syncFolderName: String? {
+        guard let syncFolderDisplayPath, !syncFolderDisplayPath.isEmpty else { return nil }
+        return (syncFolderDisplayPath as NSString).lastPathComponent
     }
 
     var selectedSourceTitle: String {
@@ -81,10 +83,8 @@ final class ReaderStore {
 
             if let library = try storage.load() {
                 apply(library)
-                statusMessage = String(localized: "Loaded library from sync folder")
             } else {
                 try persistLibrary()
-                statusMessage = syncFolderStatusMessage(for: directoryURL)
             }
 
             errorMessage = nil
@@ -152,7 +152,6 @@ final class ReaderStore {
     func handleOPMLExport(_ result: Result<URL, Error>) {
         switch result {
         case .success:
-            statusMessage = String(localized: "Exported OPML")
             errorMessage = nil
         case .failure(let error):
             errorMessage = error.localizedDescription
@@ -285,7 +284,6 @@ final class ReaderStore {
 
             if let library = try storage.load() {
                 apply(library)
-                statusMessage = String(localized: "Loaded library from sync folder")
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -302,22 +300,12 @@ final class ReaderStore {
         isAccessingSecurityScopedResource = directoryURL.startAccessingSecurityScopedResource()
     }
 
-    private func syncFolderStatusMessage(for directoryURL: URL) -> String {
-        let path = directoryURL.path(percentEncoded: false)
-        if path.contains("Mobile Documents") || path.localizedStandardContains("iCloud Drive") {
-            return String(localized: "Created NookLibrary.json in iCloud sync folder")
-        }
-
-        return String(localized: "Created NookLibrary.json. Choose an iCloud Drive folder for cross-device sync.")
-    }
-
     private func addFeedFromURLString(_ urlString: String) async {
         do {
             let url = try feedService.normalizedFeedURL(from: urlString)
             let parsedFeed = try await fetch(url: url, existingFeedID: nil)
             selectedSource = .feed(parsedFeed.feed.id)
             selectedArticleID = parsedFeed.articles.first?.id
-            statusMessage = String(localized: "Fetched \(parsedFeed.articles.count) articles")
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -335,11 +323,10 @@ final class ReaderStore {
         do {
             let feedURLStrings = try opmlService.importFeedURLs(from: fileURL)
             guard !feedURLStrings.isEmpty else {
-                statusMessage = String(localized: "No feeds found in OPML")
+                errorMessage = String(localized: "No feeds found in the OPML file.")
                 return
             }
 
-            var importedCount = 0
             var failures: [String] = []
 
             for feedURLString in feedURLStrings {
@@ -347,13 +334,11 @@ final class ReaderStore {
                     let url = try feedService.normalizedFeedURL(from: feedURLString)
                     let existingFeedID = feeds.first { $0.feedURL == url || $0.id == url.absoluteString }?.id
                     _ = try await fetch(url: url, existingFeedID: existingFeedID)
-                    importedCount += 1
                 } catch {
                     failures.append(error.localizedDescription)
                 }
             }
 
-            statusMessage = String(localized: "Imported \(importedCount) feeds from OPML")
             errorMessage = failures.first
         } catch {
             errorMessage = error.localizedDescription
@@ -389,7 +374,6 @@ final class ReaderStore {
     private func refreshFeed(_ feed: Feed) async {
         do {
             _ = try await fetch(url: feed.feedURL, existingFeedID: feed.id)
-            statusMessage = String(localized: "Refreshed \(feed.title)")
             errorMessage = nil
         } catch {
             markFeedUnhealthy(feedID: feed.id)
@@ -458,17 +442,6 @@ final class ReaderStore {
             article.isStarred
         case .feed(let feedID):
             article.feedID == feedID
-        }
-    }
-
-    private func matchesReadingFilter(_ article: Article) -> Bool {
-        switch readingFilter {
-        case .all:
-            true
-        case .unread:
-            !article.isRead
-        case .starred:
-            article.isStarred
         }
     }
 

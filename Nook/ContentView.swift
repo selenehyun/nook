@@ -147,7 +147,7 @@ private extension ContentView {
     func chooseSyncFolder() {
         let panel = NSOpenPanel()
         panel.title = String(localized: "Choose iCloud Sync Folder")
-        panel.message = String(localized: "Choose or create a folder in iCloud Drive. Nook stores NookLibrary.json there.")
+        panel.message = String(localized: "Pick a folder in iCloud Drive so Nook can keep your feeds in sync across your devices.")
         panel.prompt = String(localized: "Choose")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -169,7 +169,14 @@ private extension ContentView {
             }
         }
 
+        // Make sure Nook is the active, key application before presenting. The
+        // sandboxed open panel (and its nested "New Folder" dialog) run out of
+        // process, and their text fields only receive input-source (한/영)
+        // switching when the hosting app is truly frontmost and key.
+        NSApp.activate()
+
         if let window = NSApplication.shared.modalPresentationWindow {
+            window.makeKeyAndOrderFront(nil)
             panel.beginSheetModal(for: window, completionHandler: handleSelection)
         } else {
             panel.begin(completionHandler: handleSelection)
@@ -218,30 +225,6 @@ private struct FeedSidebar: View {
 
     var body: some View {
         List(selection: $store.selectedSource) {
-            Section("Sync") {
-                Button {
-                    onChooseSyncFolder()
-                } label: {
-                    Label(
-                        store.isStorageConfigured ? "Change Sync Folder" : "Choose iCloud Folder",
-                        systemImage: store.isStorageConfigured ? "checkmark.icloud" : "icloud"
-                    )
-                }
-                .buttonStyle(.borderless)
-                .help("Choose iCloud Sync Folder")
-
-                if let syncFolderDisplayPath = store.syncFolderDisplayPath {
-                    Text(syncFolderDisplayPath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                } else {
-                    Text("Pick a folder in iCloud Drive to store feeds, articles, read state, and starred state.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             Section("Library") {
                 ForEach(SmartSource.allCases) { source in
                     SourceRow(
@@ -283,6 +266,51 @@ private struct FeedSidebar: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("Feeds")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
+        }
+    }
+}
+
+private struct SyncFolderFooter: View {
+    @Bindable var store: ReaderStore
+    var onChoose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            Button(action: onChoose) {
+                HStack(spacing: 8) {
+                    Image(systemName: store.isStorageConfigured ? "checkmark.icloud" : "icloud")
+                        .foregroundStyle(store.isStorageConfigured ? Color.secondary : Color.accentColor)
+                        .imageScale(.large)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(store.isStorageConfigured ? "Sync Folder" : "Choose iCloud Folder")
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+
+                        if let name = store.syncFolderName {
+                            Text(name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            // Full path is intentionally hidden; it reveals as a native tooltip on hover.
+            .help(store.syncFolderDisplayPath ?? String(localized: "Choose iCloud Sync Folder"))
+        }
+        .background(.bar)
     }
 }
 
@@ -429,38 +457,26 @@ private struct ArticleListStatusBar: View {
     @Bindable var store: ReaderStore
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             if store.isRefreshing {
                 ProgressView()
                     .controlSize(.small)
                 Text("Refreshing")
-            } else if let status = store.statusMessage {
-                Text(status)
-            } else {
-                Text("\(store.visibleArticles.count) articles")
-            }
-
-            Text("\(store.unreadCount()) unread")
-
-            if let errorMessage = store.errorMessage {
+            } else if let errorMessage = store.errorMessage {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
                 Text(errorMessage)
-                    .foregroundStyle(.red)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+            } else {
+                Text("\(store.unreadCount()) unread")
             }
 
-            Spacer()
-
-            Picker("Filter", selection: $store.readingFilter) {
-                ForEach(ReadingFilter.allCases) { filter in
-                    Text(filter.title).tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 240)
+            Spacer(minLength: 0)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .background(.bar)
     }
@@ -476,7 +492,7 @@ private struct ReaderDetailView: View {
                 ContentUnavailableView {
                     Label("Set Up iCloud Sync", systemImage: "icloud.and.arrow.up")
                 } description: {
-                    Text("Choose a folder in iCloud Drive. Nook will keep its library JSON there.")
+                    Text("Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
                 ScrollView {
@@ -630,7 +646,7 @@ private struct AddFeedSheet: View {
                 Text("Add Feed")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Paste an RSS or Atom feed URL. Nook will fetch it now and save the library to your sync folder.")
+                Text("Paste an RSS or Atom feed URL and Nook will fetch it right away.")
                     .foregroundStyle(.secondary)
             }
 
@@ -663,10 +679,29 @@ struct ReaderSettingsView: View {
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("openLinksInBrowser") private var openLinksInBrowser = true
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
     var body: some View {
         Form {
+            Section("General") {
+                Picker("Language", selection: $appLanguage) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.label).tag(language)
+                    }
+                }
+
+                if appLanguage != AppLanguage.launchLanguage {
+                    LabeledContent {
+                        Button("Relaunch") { AppLanguage.relaunch() }
+                    } label: {
+                        Text("Restart Nook to apply the language change.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section("Reading") {
                 Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
                 Toggle("Open original links in the default browser", isOn: $openLinksInBrowser)
@@ -680,7 +715,7 @@ struct ReaderSettingsView: View {
 
             Section("Storage") {
                 LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? String(localized: "Not selected") : syncFolderDisplayPath)
-                Text("Use the folder button in the main window to choose or change the iCloud Drive folder. Nook stores RSS data in NookLibrary.json inside that folder.")
+                Text("Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -688,6 +723,9 @@ struct ReaderSettingsView: View {
         .formStyle(.grouped)
         .padding(20)
         .frame(width: 520)
+        .onChange(of: appLanguage) { _, newValue in
+            AppLanguage.apply(newValue)
+        }
     }
 }
 
