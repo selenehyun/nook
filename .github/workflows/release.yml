@@ -1,0 +1,112 @@
+name: Release
+
+# Builds a DMG and attaches it to a GitHub Release whenever a version tag
+# (e.g. v0.1.0) is pushed. Can also be run manually to produce a test DMG
+# without publishing a release.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp the build with (e.g. 0.1.0)."
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # macOS 26 image: Nook targets macOS 26, so it needs Xcode 26's SDK.
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          [ -z "$VERSION" ] && VERSION="0.0.0-dev"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Nook $VERSION"
+
+      - name: Archive app (ad-hoc signed)
+        run: |
+          xcodebuild archive \
+            -project Nook.xcodeproj \
+            -scheme Nook \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$RUNNER_TEMP/Nook.xcarchive" \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES
+
+      - name: Create DMG
+        id: dmg
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP="$RUNNER_TEMP/Nook.xcarchive/Products/Applications/Nook.app"
+          STAGING="$RUNNER_TEMP/dmg-staging"
+          DMG="Nook-${VERSION}.dmg"
+
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -R "$APP" "$STAGING/"
+          # Classic "drag to Applications" layout.
+          ln -s /Applications "$STAGING/Applications"
+
+          hdiutil create \
+            -volname "Nook ${VERSION}" \
+            -srcfolder "$STAGING" \
+            -fs HFS+ \
+            -format UDZO \
+            -ov \
+            "$DMG"
+
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nook-dmg
+          path: ${{ steps.dmg.outputs.path }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.dmg.outputs.path }}
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            1. Download `Nook-${{ steps.version.outputs.version }}.dmg` below.
+            2. Open it and drag **Nook** into **Applications**.
+            3. On first launch, macOS Gatekeeper will warn that the app is from
+               an unidentified developer (this build is ad-hoc signed, not
+               notarized). To open it:
+               - **Right-click** `Nook.app` → **Open** → **Open**, or
+               - run once in Terminal:
+                 ```sh
+                 xattr -dr com.apple.quarantine /Applications/Nook.app
+                 ```
+
+            Requires macOS 26 or later.

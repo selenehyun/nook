@@ -1,71 +1,121 @@
 # Nook
 
-Native macOS RSS reader draft built with SwiftUI, Swift 6, and Xcode.
+A native macOS RSS reader built with SwiftUI, Swift 6, and Xcode.
 
-## 현재 구성
+## Download & Install
+
+1. Download the latest `Nook-x.y.z.dmg` from the [Releases](https://github.com/selenehyun/nook/releases) page.
+2. Open the DMG and drag **Nook** into your **Applications** folder.
+
+Because this build is ad-hoc signed but not notarized by Apple, macOS
+Gatekeeper blocks it on first launch. Clear the quarantine flag once and it
+will open normally from then on:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Nook.app
+```
+
+Alternatively, double-click Nook, dismiss the warning, then go to
+**System Settings → Privacy & Security** and click **Open Anyway**.
+
+Requires macOS 26 or later. The build is a universal binary (Apple Silicon
+and Intel).
+
+> **Note on signing:** A one-time bypass is required only because the app is
+> not notarized. See [Notarization](#notarization) for how to remove this step
+> entirely with an Apple Developer account.
+
+## Overview
 
 - App framework: SwiftUI
 - Language mode: Swift 6
-- Local toolchain checked here: Xcode 26.5, Swift 6.3.2
+- Toolchain verified here: Xcode 26.5, Swift 6.3.2
 - Deployment target: macOS 26.0
-- Security baseline: App Sandbox enabled with read-only user-selected file access
-- UI: 3-column RSS reader with sidebar feeds, article list, reader pane, inspector, native settings, toolbar actions, search, share sheet, context menus, and menu commands
-- Feed loading: real RSS/Atom fetching through `URLSession` and XML parsing
-- Feed discovery: normal website URLs are checked for RSS/Atom `<link rel="alternate">` tags
-- Storage: user-selected sync folder with `NookLibrary.json`, intended for an iCloud Drive folder
+- Security baseline: App Sandbox with user-selected file access
+- UI: three-column reader with sidebar feeds, article list, reader pane,
+  inspector, native settings, toolbar actions, search, share sheet, context
+  menus, and menu commands
+- Feed loading: real RSS/Atom fetching via `URLSession` and `XMLParser`
+- Feed discovery: plain website URLs are scanned for RSS/Atom
+  `<link rel="alternate">` tags
+- Storage: a user-selected sync folder holding `NookLibrary.json`, intended to
+  live in iCloud Drive
 - Subscriptions: OPML import/export
 
-Apple's current Xcode page is already highlighting Xcode 27. This repo is generated and build-verified with the Xcode version installed on this machine, Xcode 26.5. If you install Xcode 27 later, open the project in Xcode and accept the recommended project setting updates.
+## Project Layout
 
-## 웹 개발자 기준으로 보면
+- `Nook.xcodeproj` — the Xcode project (targets, build settings, schemes).
+- Scheme `Nook` — the run/build configuration for the app.
+- Target `Nook` — the macOS app bundle; the product is `Nook.app`.
+- `Nook/NookApp.swift` — the app entry point.
+- `Nook/ContentView.swift` — the main reader UI.
+- `Nook/ReaderStore.swift` — feed/article state and persistence.
+- `Nook/RSSFeedService.swift` — RSS/Atom fetching and parsing.
+- `Nook/ReaderStorage.swift` — security-scoped bookmark and library storage.
+- `Nook/Assets.xcassets` — colors, icons, and image resources.
+- `Nook/Nook.entitlements` — macOS permissions and sandbox settings.
 
-- `Nook.xcodeproj`: `package.json`과 Vite/Webpack 설정을 합친 Xcode 프로젝트 파일입니다. 보통 Xcode가 관리합니다.
-- Scheme `Nook`: `npm run dev`나 `npm run build`처럼 어떤 타깃을 실행/빌드할지 정하는 실행 설정입니다.
-- Target `Nook`: 실제로 만들어지는 macOS 앱 번들입니다. 결과물은 `Nook.app`입니다.
-- `Nook/NookApp.swift`: 앱의 entry point입니다. 웹으로 치면 `main.tsx` 또는 `App.tsx`를 마운트하는 파일에 가깝습니다.
-- `Nook/ContentView.swift`: RSS reader UI 초안입니다. SwiftUI는 React처럼 선언형 UI를 쓰지만 런타임은 네이티브입니다.
-- `Nook/Assets.xcassets`: 색상, 아이콘, 이미지 같은 앱 리소스 저장소입니다.
-- `Nook/Nook.entitlements`: macOS 권한과 샌드박스 설정입니다.
+## Build & Run
 
-## 실행
+Run from Xcode:
 
-Xcode에서 실행:
+1. Open `Nook.xcodeproj`.
+2. Make sure the scheme is `Nook` and the run destination is `My Mac`.
+3. Press `Command-R`.
 
-1. `Nook.xcodeproj`를 엽니다.
-2. 상단 Scheme이 `Nook`, 실행 대상이 `My Mac`인지 확인합니다.
-3. `Command-R`로 실행합니다.
-
-터미널에서 빌드:
+Build from the terminal (code signing disabled, for a fast compile check):
 
 ```sh
 make build
 ```
 
-`make build`는 빠른 컴파일 확인용이라 코드 서명을 끄고 빌드합니다. 실제 앱 실행은 Xcode에서 `Command-R`로 하는 흐름이 가장 단순합니다.
-
-Xcode 열기:
+Open the project in Xcode:
 
 ```sh
 make open
 ```
 
-## 처음 수정할 곳
+## RSS & iCloud Folder Storage
 
-대부분의 UI 작업은 `Nook/ContentView.swift`에서 시작하면 됩니다. Feed/article 상태와 persistence는 `Nook/ReaderStore.swift`, RSS/Atom fetching은 `Nook/RSSFeedService.swift`, sync-folder 저장은 `Nook/ReaderStorage.swift`에 있습니다.
+1. Launch the app.
+2. Use the folder button in the toolbar to pick a folder inside iCloud Drive.
+3. Nook creates `NookLibrary.json` there and stores feeds, articles, read
+   state, and starred state.
+4. Use the `+` button to add an RSS/Atom feed URL, or a website URL that links
+   to a feed.
+5. Import or export OPML from the Subscriptions menu.
+6. Adjust automatic refresh and the refresh interval in Settings.
 
-## RSS와 iCloud 폴더 저장
+To support older macOS versions, lower `MACOSX_DEPLOYMENT_TARGET` in
+`Nook.xcodeproj`. It is currently `26.0` to match the local development
+environment.
 
-1. 앱을 실행합니다.
-2. toolbar의 folder 버튼으로 iCloud Drive 안의 폴더를 선택합니다.
-3. 앱은 그 폴더에 `NookLibrary.json`을 만들고 feed, article, read state, starred state를 저장합니다.
-4. `+` 버튼으로 RSS/Atom feed URL 또는 feed link가 있는 웹사이트 URL을 추가합니다.
-5. Subscriptions 메뉴에서 OPML을 import/export할 수 있습니다.
-6. Settings에서 automatic refresh와 refresh interval을 조정할 수 있습니다.
+## Releasing (maintainers)
 
-다음 구현 경계:
+Building the DMG and publishing a GitHub Release is automated by
+`.github/workflows/release.yml`, triggered when a version tag (`v*`) is pushed:
 
-- App notification for new articles
-- Better full-content extraction for feeds that only publish summaries
-- Conflict handling if the same `NookLibrary.json` is edited by multiple Macs at once
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
 
-앱이 더 오래된 macOS도 지원해야 한다면 `Nook.xcodeproj`의 `MACOSX_DEPLOYMENT_TARGET` 값을 낮추면 됩니다. 지금은 최신 로컬 개발 환경에 맞춰 `26.0`으로 설정했습니다.
+On a push the workflow, on a macOS 26 runner:
+
+1. Archives the Release configuration with ad-hoc signing (`-`) as a universal
+   binary (arm64 + x86_64). The tag value overrides `MARKETING_VERSION`.
+2. Builds a "drag to Applications" DMG with `hdiutil`.
+3. Creates a GitHub Release for the tag and attaches the DMG, with generated
+   release notes plus install/Gatekeeper instructions.
+
+You can also run the **Release** workflow manually (`workflow_dispatch`) to
+produce a DMG artifact for testing without publishing a release.
+
+## Notarization
+
+The published DMG is ad-hoc signed only, so users must clear the quarantine
+flag once before the first launch. To distribute without any user friction,
+join the Apple Developer Program, sign with a Developer ID Application
+certificate, and notarize the app. In that case, add `xcrun notarytool submit`
+and `xcrun stapler staple` steps after the archive/DMG steps in the workflow,
+and supply the certificate and App Store Connect API key via GitHub Secrets.
