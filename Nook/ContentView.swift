@@ -150,6 +150,11 @@ struct ContentView: View {
         .onChange(of: columnVisibility) { _, newValue in
             sidebarVisible = (newValue == .all)
         }
+        .onOpenURL { url in
+            if let id = WidgetShared.articleID(from: url) {
+                store.openArticle(id: id)
+            }
+        }
         .focusedSceneValue(
             \.readerCommandActions,
             ReaderCommandActions(

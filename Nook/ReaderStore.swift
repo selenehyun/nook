@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import SwiftUI
+import WidgetKit
 
 @MainActor
 @Observable
@@ -322,6 +323,16 @@ final class ReaderStore {
 
     func markArticleOpened(articleID: Article.ID) {
         setRead(articleID: articleID, isRead: true)
+    }
+
+    /// Opens an article by ID (used by the widget deep link): makes it visible
+    /// and selects it so the reader displays it. The reader then marks it read.
+    func openArticle(id: Article.ID) {
+        guard articles.contains(where: { $0.id == id }) else { return }
+        smartSelection = .all
+        feedSelection = []
+        searchText = ""
+        selectedArticleID = id
     }
 
     func setRead(articleID: Article.ID, isRead: Bool) {
@@ -663,5 +674,28 @@ final class ReaderStore {
             folders: folders
         )
         try storage.save(library)
+        exportWidgetSnapshot()
+    }
+
+    /// Publishes a snapshot of unread articles to the App Group so the widget
+    /// can show them, and refreshes the widget timelines.
+    private func exportWidgetSnapshot() {
+        let unread = articles
+            .filter { !$0.isRead }
+            .sorted { $0.publishedAt > $1.publishedAt }
+
+        let items = unread.prefix(20).map { article in
+            WidgetArticle(
+                id: article.id,
+                title: article.title,
+                feedTitle: feed(for: article.feedID)?.title ?? "",
+                publishedAt: article.publishedAt
+            )
+        }
+
+        WidgetShared.writeSnapshot(
+            WidgetSnapshot(unreadCount: unread.count, generatedAt: .now, articles: Array(items))
+        )
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
