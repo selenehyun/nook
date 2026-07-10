@@ -911,7 +911,7 @@ private struct WindowBreadcrumb: View {
                             .fixedSize()
                     }
                 }
-                .padding(.horizontal, 2)
+                .padding(.horizontal, 12)
             }
             .scrollIndicators(.never)
             .font(.callout)
