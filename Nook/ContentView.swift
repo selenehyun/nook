@@ -433,9 +433,11 @@ private struct FeedSidebar: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .strokeBorder(Color.accentColor, lineWidth: 1.5)
                 )
+                .padding(.horizontal, 6)
         } else if isActive {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.accentColor)
+                .padding(.horizontal, 6)
         } else {
             Color.clear
         }
@@ -481,7 +483,7 @@ private struct FeedSidebar: View {
         .foregroundStyle(isActive ? Color.white : Color.primary)
         .listRowBackground(
             isActive
-                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor)
+                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor).padding(.horizontal, 6)
                 : nil
         )
     }
