@@ -94,9 +94,10 @@ struct ArticleWebView: NSViewRepresentable {
     let useReaderMode: Bool
     let style: ReaderStyle
     let linkOpensInApp: Bool
+    var onPullToDismiss: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(linkOpensInApp: linkOpensInApp)
+        Coordinator(linkOpensInApp: linkOpensInApp, onPullToDismiss: onPullToDismiss)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -109,6 +110,8 @@ struct ArticleWebView: NSViewRepresentable {
             }
             controller.addUserScript(WKUserScript(source: readerScript(style: style), injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
+        controller.add(context.coordinator, name: "nookPullToDismiss")
+        controller.addUserScript(WKUserScript(source: Self.pullToDismissScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -120,14 +123,39 @@ struct ArticleWebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.linkOpensInApp = linkOpensInApp
+        context.coordinator.onPullToDismiss = onPullToDismiss
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
-        var linkOpensInApp: Bool
-        private var didLoadInitial = false
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookPullToDismiss")
+    }
 
-        init(linkOpensInApp: Bool) {
+    /// At the top of the page, pulling further down dismisses the sheet.
+    private static let pullToDismissScript = """
+    (function () {
+      var accumulated = 0;
+      window.addEventListener('wheel', function (event) {
+        var top = window.scrollY || document.documentElement.scrollTop || 0;
+        if (top <= 0 && event.deltaY < 0) {
+          accumulated += -event.deltaY;
+          if (accumulated > 80) {
+            try { window.webkit.messageHandlers.nookPullToDismiss.postMessage(1); } catch (e) {}
+            accumulated = 0;
+          }
+        } else {
+          accumulated = 0;
+        }
+      }, { passive: true });
+    })();
+    """
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        var linkOpensInApp: Bool
+        var onPullToDismiss: () -> Void
+
+        init(linkOpensInApp: Bool, onPullToDismiss: @escaping () -> Void) {
             self.linkOpensInApp = linkOpensInApp
+            self.onPullToDismiss = onPullToDismiss
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -141,6 +169,13 @@ struct ArticleWebView: NSViewRepresentable {
                 return
             }
             decisionHandler(.allow)
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "nookPullToDismiss" else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.onPullToDismiss()
+            }
         }
     }
 

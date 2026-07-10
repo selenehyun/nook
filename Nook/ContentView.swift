@@ -187,18 +187,27 @@ struct ContentView: View {
             }
             // nook://open simply brings the app forward.
         }
-        .overlay(alignment: .bottom) {
+        .overlay {
             if store.isBrowserPresented, let article = store.selectedArticle {
-                InAppBrowserPanel(
-                    store: store,
-                    article: article,
-                    mode: $browserMode,
-                    style: readerStyle,
-                    linkOpensInApp: readerLinkBehavior == .inApp,
-                    dragOffset: $browserDragOffset,
-                    onClose: closeBrowser
-                )
-                .transition(.move(edge: .bottom))
+                ZStack(alignment: .bottom) {
+                    Color.black
+                        .opacity(max(0, 0.32 - browserDragOffset / 1400))
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { closeBrowser() }
+                        .transition(.opacity)
+
+                    InAppBrowserPanel(
+                        store: store,
+                        article: article,
+                        mode: $browserMode,
+                        style: readerStyle,
+                        linkOpensInApp: readerLinkBehavior == .inApp,
+                        dragOffset: $browserDragOffset,
+                        onClose: closeBrowser
+                    )
+                    .transition(.move(edge: .bottom))
+                }
                 .zIndex(1)
             }
         }
@@ -1153,7 +1162,8 @@ private struct InAppBrowserPanel: View {
                 url: article.url,
                 useReaderMode: mode == .reader,
                 style: style,
-                linkOpensInApp: linkOpensInApp
+                linkOpensInApp: linkOpensInApp,
+                onPullToDismiss: onClose
             )
             .id("\(article.id)|\(mode.rawValue)|\(style.identity)")
         }
