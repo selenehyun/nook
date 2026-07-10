@@ -26,7 +26,12 @@ final class ReaderStore {
     // the user navigates to another source (Chrome-tab-close heuristic).
     private var retainedArticleIDs: Set<Article.ID> = []
     var selectedArticleID: Article.ID?
+    /// The raw text bound to the search field; updates instantly as the user types.
     var searchText = ""
+    /// The query actually used to filter articles. Trails `searchText` by a
+    /// short debounce so filtering doesn't run on every keystroke.
+    private(set) var activeSearchQuery = ""
+    private var searchDebounceTask: Task<Void, Never>?
     var lastRefreshedAt: Date?
     var errorMessage: String?
     private(set) var syncFolderDisplayPath: String?
@@ -364,6 +369,8 @@ final class ReaderStore {
         smartSelection = .all
         feedSelection = []
         searchText = ""
+        searchDebounceTask?.cancel()
+        activeSearchQuery = ""
         selectedArticleID = id
     }
 
@@ -654,8 +661,31 @@ final class ReaderStore {
         }
     }
 
+    /// Debounces search input: an empty query clears instantly for a snappy
+    /// reset, otherwise the filter waits until the user pauses typing.
+    func debounceSearch() {
+        searchDebounceTask?.cancel()
+
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            searchDebounceTask = nil
+            applySearchQuery("")
+            return
+        }
+
+        searchDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled, let self else { return }
+            self.applySearchQuery(self.searchText)
+        }
+    }
+
+    private func applySearchQuery(_ query: String) {
+        activeSearchQuery = query
+        selectFirstVisibleArticleIfNeeded()
+    }
+
     private func matchesSearch(_ article: Article) -> Bool {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return true }
 
         return article.title.localizedStandardContains(query)

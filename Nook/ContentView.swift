@@ -810,7 +810,7 @@ private struct ArticleListView: View {
                 ContentUnavailableView {
                     Label("No Articles", systemImage: "newspaper")
                 } description: {
-                    Text(store.searchText.isEmpty ? "Add an RSS or Atom feed, then refresh." : "No article matches the current search.")
+                    Text(store.activeSearchQuery.isEmpty ? "Add an RSS or Atom feed, then refresh." : "No article matches the current search.")
                 }
             } else {
                 List(selection: $store.selectedArticleID) {
@@ -868,7 +868,7 @@ private struct ArticleListView: View {
             store.selectFirstVisibleArticleIfNeeded()
         }
         .onChange(of: store.searchText) { _, _ in
-            store.selectFirstVisibleArticleIfNeeded()
+            store.debounceSearch()
         }
     }
 }
