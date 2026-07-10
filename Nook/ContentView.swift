@@ -547,6 +547,7 @@ private struct ArticleListStatusBar: View {
 private struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     @Environment(\.openURL) private var openURL
+    @State private var webReaderArticleID: Article.ID?
 
     var body: some View {
         Group {
@@ -557,48 +558,10 @@ private struct ReaderDetailView: View {
                     Text("Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        articleHeader(article)
-
-                        Divider()
-
-                        if let html = article.contentHTML {
-                            HTMLContentText(html: html)
-                        } else {
-                            VStack(alignment: .leading, spacing: 16) {
-                                ForEach(article.bodyParagraphs, id: \.self) { paragraph in
-                                    Text(paragraph)
-                                        .font(.body)
-                                        .lineSpacing(4)
-                                        .textSelection(.enabled)
-                                }
-                            }
-                        }
-
-                        Divider()
-
-                        HStack {
-                            Link(destination: article.url) {
-                                Label("Open Original", systemImage: "safari")
-                            }
-
-                            ShareLink(item: article.url) {
-                                Label("Share", systemImage: "square.and.arrow.up")
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding(.horizontal, 44)
-                    .padding(.vertical, 36)
-                    .frame(maxWidth: 720, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .textBackgroundColor))
-                .task(id: article.id) {
-                    await Task.yield()
-                    store.markArticleOpened(articleID: article.id)
+                if webReaderArticleID == article.id {
+                    webReader(article)
+                } else {
+                    articleReader(article)
                 }
             } else {
                 ContentUnavailableView {
@@ -607,6 +570,89 @@ private struct ReaderDetailView: View {
                     Text("Choose a story from the article list.")
                 }
             }
+        }
+        .onChange(of: store.selectedArticleID) { _, _ in
+            webReaderArticleID = nil
+        }
+    }
+
+    private func articleReader(_ article: Article) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                articleHeader(article)
+
+                Divider()
+
+                if let html = article.contentHTML {
+                    HTMLContentText(html: html)
+                } else {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(article.bodyParagraphs, id: \.self) { paragraph in
+                            Text(paragraph)
+                                .font(.body)
+                                .lineSpacing(4)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+
+                Divider()
+
+                HStack {
+                    Link(destination: article.url) {
+                        Label("Open Original", systemImage: "safari")
+                    }
+
+                    ShareLink(item: article.url) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal, 44)
+            .padding(.vertical, 36)
+            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .textBackgroundColor))
+        .task(id: article.id) {
+            await Task.yield()
+            store.markArticleOpened(articleID: article.id)
+        }
+    }
+
+    private func webReader(_ article: Article) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    webReaderArticleID = nil
+                } label: {
+                    Label("Back to Article", systemImage: "chevron.left")
+                }
+
+                Spacer()
+
+                Link(destination: article.url) {
+                    Label("Open Original", systemImage: "safari")
+                }
+
+                ShareLink(item: article.url) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+
+            Divider()
+
+            ArticleWebView(url: article.url)
+        }
+        .task(id: article.id) {
+            await Task.yield()
+            store.markArticleOpened(articleID: article.id)
         }
     }
 
@@ -649,11 +695,22 @@ private struct ReaderDetailView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
 
-            Text(article.title)
-                .font(.system(.largeTitle, design: .serif))
-                .fontWeight(.semibold)
-                .lineLimit(nil)
-                .textSelection(.enabled)
+            Button {
+                if NSEvent.modifierFlags.contains(.command) {
+                    openURL(article.url)
+                } else {
+                    webReaderArticleID = article.id
+                }
+            } label: {
+                Text(article.title)
+                    .font(.system(.largeTitle, design: .serif))
+                    .fontWeight(.semibold)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .help("Open in Reader — ⌘-click to open in browser")
 
             if shouldShowSummary(article) {
                 Text(article.summary)

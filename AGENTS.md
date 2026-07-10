@@ -16,7 +16,9 @@ These instructions apply to the entire repository.
 
 Nook is a native macOS RSS reader. Keep it native.
 
-- Use SwiftUI and macOS APIs, not Electron, webviews, or a browser-style app shell.
+- Use SwiftUI and macOS APIs, not Electron or a browser-style app shell.
+- The app shell, navigation, lists, and default reader are native SwiftUI/AppKit. Do not turn Nook into a webview wrapper.
+- One deliberate exception: an opt-in full-article reader mode may use a `WKWebView` (`ArticleWebView`) that loads the article page and injects a self-contained reader script. It is invoked from the reader title button, not the default reading surface.
 - Favor standard macOS UI patterns: `NavigationSplitView`, toolbars, menus, settings scenes, share links, context menus, keyboard commands, and AppKit bridges when SwiftUI is unreliable.
 - The app should fetch real RSS/Atom data. Do not reintroduce mock feed/article data for production reader behavior.
 - RSS data belongs in a user-selected sync folder, preferably in iCloud Drive, similar to an Obsidian vault.
