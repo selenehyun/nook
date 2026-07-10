@@ -873,53 +873,67 @@ private struct ReaderTitleButtonStyle: ButtonStyle {
 private struct WindowBreadcrumb: View {
     @Bindable var store: ReaderStore
 
+    @State private var edges = BreadcrumbEdges(leading: false, trailing: false)
+
     var body: some View {
         if store.isStorageConfigured {
-            HStack(spacing: 6) {
-                Text(store.selectedSourceTitle)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-
-                if let article = store.selectedArticle {
-                    if let feed = store.feed(for: article.feedID), showsFeedSegment(for: article) {
-                        chevron
-                        Button {
-                            store.feedSelection = [feed.id]
-                        } label: {
-                            HStack(spacing: 4) {
-                                if let icon = store.faviconImage(for: feed) {
-                                    icon
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 13, height: 13)
-                                        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-                                }
-                                Text(feed.title).lineLimit(1)
-                            }
-                        }
-                        .buttonStyle(.plain)
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    Text(store.selectedSourceTitle)
                         .foregroundStyle(.secondary)
-                        .layoutPriority(1)
+                        .fixedSize()
+
+                    if let article = store.selectedArticle {
+                        if let feed = store.feed(for: article.feedID), store.feedSelection != [article.feedID] {
+                            chevron
+                            Button {
+                                store.feedSelection = [feed.id]
+                            } label: {
+                                HStack(spacing: 4) {
+                                    if let icon = store.faviconImage(for: feed) {
+                                        icon
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 13, height: 13)
+                                            .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                                    }
+                                    Text(feed.title).fixedSize()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+
+                        chevron
+
+                        Text(article.title)
+                            .foregroundStyle(.primary)
+                            .fixedSize()
                     }
-
-                    chevron
-
-                    Text(article.title)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
                 }
+                .padding(.horizontal, 2)
             }
+            .scrollIndicators(.hidden)
             .font(.callout)
-            .frame(maxWidth: 560, alignment: .leading)
-            // Fade the trailing edge instead of showing an ellipsis, hinting
-            // there is more text beyond the cut-off.
+            .frame(maxWidth: 520)
+            .onScrollGeometryChange(for: BreadcrumbEdges.self) { geometry in
+                let maxOffset = max(0, geometry.contentSize.width - geometry.containerSize.width)
+                return BreadcrumbEdges(
+                    leading: geometry.contentOffset.x > 1,
+                    trailing: geometry.contentOffset.x < maxOffset - 1
+                )
+            } action: { _, newEdges in
+                edges = newEdges
+            }
+            // Fade only the edge(s) where content is actually clipped, hinting
+            // there is more to scroll to.
             .mask(
                 LinearGradient(
                     stops: [
-                        .init(color: .black, location: 0),
-                        .init(color: .black, location: 0.93),
-                        .init(color: .clear, location: 1.0)
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: edges.leading ? 0.06 : 0),
+                        .init(color: .black, location: edges.trailing ? 0.94 : 1),
+                        .init(color: .clear, location: 1)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -928,17 +942,16 @@ private struct WindowBreadcrumb: View {
         }
     }
 
-    /// Hide the feed segment when the current source is already exactly that
-    /// feed, so it does not appear twice (e.g. after tapping the feed).
-    private func showsFeedSegment(for article: Article) -> Bool {
-        store.feedSelection != [article.feedID]
-    }
-
     private var chevron: some View {
         Image(systemName: "chevron.right")
             .font(.caption2)
             .foregroundStyle(.tertiary)
     }
+}
+
+private struct BreadcrumbEdges: Equatable {
+    var leading: Bool
+    var trailing: Bool
 }
 
 private struct ReaderDetailView: View {
