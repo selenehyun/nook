@@ -964,6 +964,8 @@ private struct OPMLImportView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selection: Set<OPMLFeed.ID>
+    @State private var icons: [OPMLFeed.ID: NSImage] = [:]
+    private let faviconService = FaviconService()
 
     init(feeds: [OPMLFeed], existingFeedURLs: Set<URL>, onImport: @escaping ([OPMLFeed]) -> Void) {
         self.feeds = feeds
@@ -993,6 +995,27 @@ private struct OPMLImportView: View {
             footer
         }
         .frame(minWidth: 560, idealWidth: 620, minHeight: 520, idealHeight: 640)
+        .task {
+            await loadIcons()
+        }
+    }
+
+    /// Temporarily fetches site favicons just for the preview list (not cached
+    /// to the sync folder; that happens when a feed is actually imported).
+    private func loadIcons() async {
+        await withTaskGroup(of: (OPMLFeed.ID, Data?).self) { group in
+            for feed in feeds {
+                let iconURL = feed.siteURL ?? feed.feedURL
+                group.addTask {
+                    (feed.id, await faviconService.fetchFavicon(for: iconURL))
+                }
+            }
+            for await (id, data) in group {
+                if let data, let image = NSImage(data: data) {
+                    icons[id] = image
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -1052,7 +1075,20 @@ private struct OPMLImportView: View {
 
     private func feedRow(_ feed: OPMLFeed) -> some View {
         Toggle(isOn: binding(for: feed)) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Group {
+                    if let icon = icons[feed.id] {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        Image(systemName: "globe")
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(feed.title)

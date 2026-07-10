@@ -371,7 +371,7 @@ final class ReaderStore {
             }
         }
 
-        errorMessage = failures.first
+        errorMessage = failures.isEmpty ? nil : String(localized: "Couldn't add \(failures.count) feeds")
         try? persistLibrary()
     }
 
