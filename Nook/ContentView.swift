@@ -265,8 +265,11 @@ private struct FeedSidebar: View {
                             Button("Mark Feed as Read") {
                                 store.markFeedRead(feedID: feed.id)
                             }
-                            Divider()
                             Link("Open Site", destination: feed.siteURL)
+                            Divider()
+                            Button("Remove Feed", role: .destructive) {
+                                store.removeFeed(feedID: feed.id)
+                            }
                         }
                     }
                 }

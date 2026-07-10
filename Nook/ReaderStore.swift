@@ -217,6 +217,20 @@ final class ReaderStore {
         setRead(articleID: selectedArticleID, isRead: true)
     }
 
+    func removeFeed(feedID: Feed.ID) {
+        feeds.removeAll { $0.id == feedID }
+        articles.removeAll { $0.feedID == feedID }
+        feedIcons[feedID] = nil
+        refreshingFeedIDs.remove(feedID)
+
+        if selectedSource == .feed(feedID) {
+            selectedSource = .smart(.all)
+        }
+
+        selectFirstVisibleArticleIfNeeded()
+        saveAfterMutation()
+    }
+
     func markFeedRead(feedID: Feed.ID) {
         var didChange = false
         for index in articles.indices where articles[index].feedID == feedID {
