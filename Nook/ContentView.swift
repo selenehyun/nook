@@ -882,7 +882,7 @@ private struct WindowBreadcrumb: View {
                     .layoutPriority(1)
 
                 if let article = store.selectedArticle {
-                    if let feed = store.feed(for: article.feedID) {
+                    if let feed = store.feed(for: article.feedID), showsFeedSegment(for: article) {
                         chevron
                         Button {
                             store.feedSelection = [feed.id]
@@ -908,12 +908,30 @@ private struct WindowBreadcrumb: View {
                     Text(article.title)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                        .truncationMode(.tail)
                 }
             }
             .font(.callout)
-            .frame(maxWidth: 560)
+            .frame(maxWidth: 560, alignment: .leading)
+            // Fade the trailing edge instead of showing an ellipsis, hinting
+            // there is more text beyond the cut-off.
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.93),
+                        .init(color: .clear, location: 1.0)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
         }
+    }
+
+    /// Hide the feed segment when the current source is already exactly that
+    /// feed, so it does not appear twice (e.g. after tapping the feed).
+    private func showsFeedSegment(for article: Article) -> Bool {
+        store.feedSelection != [article.feedID]
     }
 
     private var chevron: some View {
