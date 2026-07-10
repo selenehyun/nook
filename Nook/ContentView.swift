@@ -887,22 +887,9 @@ private struct WindowBreadcrumb: View {
                     if let article = store.selectedArticle {
                         if let feed = store.feed(for: article.feedID), store.feedSelection != [article.feedID] {
                             chevron
-                            Button {
+                            MiddleCrumbSegment(title: feed.title, icon: store.faviconImage(for: feed)) {
                                 store.feedSelection = [feed.id]
-                            } label: {
-                                HStack(spacing: 4) {
-                                    if let icon = store.faviconImage(for: feed) {
-                                        icon
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(width: 13, height: 13)
-                                            .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-                                    }
-                                    Text(feed.title).fixedSize()
-                                }
                             }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
                         }
 
                         chevron
@@ -953,6 +940,78 @@ private struct WindowBreadcrumb: View {
 private struct BreadcrumbEdges: Equatable {
     var leading: Bool
     var trailing: Bool
+}
+
+/// A middle breadcrumb segment: capped to a max width with a trailing fade
+/// when its text is too long, and expanding to its full text (fade removed)
+/// while hovered.
+private struct MiddleCrumbSegment: View {
+    let title: String
+    let icon: Image?
+    var action: () -> Void
+
+    private let collapsedMaxWidth: CGFloat = 150
+
+    @State private var hovered = false
+    @State private var intrinsicWidth: CGFloat = 0
+
+    private var isTruncated: Bool { intrinsicWidth > collapsedMaxWidth + 0.5 }
+    private var showsFade: Bool { isTruncated && !hovered }
+
+    var body: some View {
+        Button(action: action) {
+            content(measured: false)
+                .lineLimit(1)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .background(alignment: .leading) {
+            content(measured: true)
+                .fixedSize()
+                .hidden()
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(key: CrumbWidthKey.self, value: geometry.size.width)
+                    }
+                )
+        }
+        .onPreferenceChange(CrumbWidthKey.self) { intrinsicWidth = $0 }
+        .frame(maxWidth: (hovered || !isTruncated) ? nil : collapsedMaxWidth, alignment: .leading)
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: showsFade ? 0.78 : 1),
+                    .init(color: showsFade ? .clear : .black, location: 1)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .onHover { isHovered in
+            withAnimation(.easeOut(duration: 0.2)) { hovered = isHovered }
+        }
+    }
+
+    private func content(measured: Bool) -> some View {
+        HStack(spacing: 4) {
+            if let icon {
+                icon
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 13, height: 13)
+                    .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+            }
+            Text(title)
+        }
+    }
+}
+
+private struct CrumbWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 private struct ReaderDetailView: View {
