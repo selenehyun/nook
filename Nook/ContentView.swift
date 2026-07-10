@@ -875,6 +875,7 @@ private struct WindowBreadcrumb: View {
     @Bindable var store: ReaderStore
 
     @State private var edges = BreadcrumbEdges(leading: false, trailing: false)
+    @State private var isHovered = false
 
     var body: some View {
         if store.isStorageConfigured {
@@ -887,7 +888,11 @@ private struct WindowBreadcrumb: View {
                     if let article = store.selectedArticle {
                         if let feed = store.feed(for: article.feedID), store.feedSelection != [article.feedID] {
                             chevron
-                            MiddleCrumbSegment(title: feed.title, icon: store.faviconImage(for: feed)) {
+                            MiddleCrumbSegment(
+                                title: feed.title,
+                                icon: store.faviconImage(for: feed),
+                                breadcrumbHovered: isHovered
+                            ) {
                                 store.feedSelection = [feed.id]
                             }
                         }
@@ -927,6 +932,9 @@ private struct WindowBreadcrumb: View {
                     endPoint: .trailing
                 )
             )
+            .onHover { hovering in
+                isHovered = hovering
+            }
         }
     }
 
@@ -948,25 +956,28 @@ private struct BreadcrumbEdges: Equatable {
 private struct MiddleCrumbSegment: View {
     let title: String
     let icon: Image?
+    let breadcrumbHovered: Bool
     var action: () -> Void
 
     private let collapsedMaxWidth: CGFloat = 150
 
-    @State private var hovered = false
+    // Expands when hovered and stays expanded until the pointer leaves the
+    // whole breadcrumb (breadcrumbHovered turns false).
+    @State private var expanded = false
     @State private var intrinsicWidth: CGFloat = 0
 
     private var isTruncated: Bool { intrinsicWidth > collapsedMaxWidth + 0.5 }
-    private var showsFade: Bool { isTruncated && !hovered }
+    private var showsFade: Bool { isTruncated && !expanded }
 
     var body: some View {
         Button(action: action) {
-            content(measured: false)
+            content()
                 .lineLimit(1)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .background(alignment: .leading) {
-            content(measured: true)
+            content()
                 .fixedSize()
                 .hidden()
                 .background(
@@ -976,7 +987,7 @@ private struct MiddleCrumbSegment: View {
                 )
         }
         .onPreferenceChange(CrumbWidthKey.self) { intrinsicWidth = $0 }
-        .frame(maxWidth: (hovered || !isTruncated) ? nil : collapsedMaxWidth, alignment: .leading)
+        .frame(maxWidth: (expanded || !isTruncated) ? nil : collapsedMaxWidth, alignment: .leading)
         .mask(
             LinearGradient(
                 stops: [
@@ -989,11 +1000,18 @@ private struct MiddleCrumbSegment: View {
             )
         )
         .onHover { isHovered in
-            withAnimation(.easeOut(duration: 0.2)) { hovered = isHovered }
+            if isHovered {
+                withAnimation(.easeOut(duration: 0.2)) { expanded = true }
+            }
+        }
+        .onChange(of: breadcrumbHovered) { _, hovering in
+            if !hovering {
+                withAnimation(.easeOut(duration: 0.2)) { expanded = false }
+            }
         }
     }
 
-    private func content(measured: Bool) -> some View {
+    private func content() -> some View {
         HStack(spacing: 4) {
             if let icon {
                 icon
