@@ -2,10 +2,20 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// A feed entry parsed from an OPML outline, with its declared folder as the
+/// category so the import preview can group and label it.
+struct OPMLFeed: Identifiable, Hashable {
+    var id: String { feedURL.absoluteString }
+    var title: String
+    var feedURL: URL
+    var siteURL: URL?
+    var category: String?
+}
+
 struct OPMLService {
-    func importFeedURLs(from fileURL: URL) throws -> [String] {
+    func importFeeds(from fileURL: URL) throws -> [OPMLFeed] {
         let data = try Data(contentsOf: fileURL)
-        let parser = OPMLFeedURLParser()
+        let parser = OPMLOutlineParser()
         return try parser.parse(data: data)
     }
 
@@ -55,16 +65,23 @@ struct OPMLDocument: FileDocument {
 }
 
 extension UTType {
+    /// The `.opml` extension usually has no registered UTI, so macOS types the
+    /// file as a dynamic type derived from the extension. Deriving our type the
+    /// same way (no forced `conformingTo:`) makes those files selectable in the
+    /// open panel; `.xml` still covers files typed as XML.
     static var opml: UTType {
-        UTType(filenameExtension: "opml", conformingTo: .xml) ?? .xml
+        UTType(filenameExtension: "opml") ?? .xml
     }
 }
 
-private final class OPMLFeedURLParser: NSObject, XMLParserDelegate {
+private final class OPMLOutlineParser: NSObject, XMLParserDelegate {
     private var parserError: Error?
-    private var feedURLs: [String] = []
+    private var feeds: [OPMLFeed] = []
+    private var seenFeedURLs: Set<String> = []
+    private var folderStack: [String] = []
+    private var outlineIsFolder: [Bool] = []
 
-    func parse(data: Data) throws -> [String] {
+    func parse(data: Data) throws -> [OPMLFeed] {
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.shouldProcessNamespaces = false
@@ -75,7 +92,7 @@ private final class OPMLFeedURLParser: NSObject, XMLParserDelegate {
             throw parser.parserError ?? parserError ?? CocoaError(.fileReadCorruptFile)
         }
 
-        return Array(Set(feedURLs)).sorted()
+        return feeds
     }
 
     func parser(
@@ -85,13 +102,37 @@ private final class OPMLFeedURLParser: NSObject, XMLParserDelegate {
         qualifiedName qName: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
-        guard elementName.lowercased() == "outline",
-              let feedURL = attributeDict["xmlUrl"] ?? attributeDict["xmlurl"],
-              !feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
-        }
+        guard elementName.lowercased() == "outline" else { return }
 
-        feedURLs.append(feedURL)
+        let rawFeedURL = (attributeDict["xmlUrl"] ?? attributeDict["xmlurl"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = (attributeDict["title"] ?? attributeDict["text"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let rawFeedURL, !rawFeedURL.isEmpty, let feedURL = URL(string: rawFeedURL) {
+            outlineIsFolder.append(false)
+            guard seenFeedURLs.insert(feedURL.absoluteString).inserted else { return }
+            let siteURL = (attributeDict["htmlUrl"] ?? attributeDict["htmlurl"]).flatMap(URL.init(string:))
+            feeds.append(
+                OPMLFeed(
+                    title: title.isEmpty ? (feedURL.host ?? feedURL.absoluteString) : title,
+                    feedURL: feedURL,
+                    siteURL: siteURL,
+                    category: folderStack.last
+                )
+            )
+        } else {
+            // A folder outline: remember its title as the category for children.
+            outlineIsFolder.append(true)
+            folderStack.append(title.isEmpty ? String(localized: "Ungrouped") : title)
+        }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        guard elementName.lowercased() == "outline", let wasFolder = outlineIsFolder.popLast() else { return }
+        if wasFolder, !folderStack.isEmpty {
+            folderStack.removeLast()
+        }
     }
 
     func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {

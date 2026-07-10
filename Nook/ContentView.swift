@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var isAddingFeed = false
     @State private var isImportingOPML = false
     @State private var isExportingOPML = false
+    @State private var opmlImport: OPMLImportRequest?
     @State private var columnVisibility: NavigationSplitViewVisibility
     @AppStorage("inspectorPresented") private var isInspectorPresented = true
     @AppStorage(ContentView.sidebarVisibleKey) private var sidebarVisible = true
@@ -118,7 +119,21 @@ struct ContentView: View {
             allowedContentTypes: [.opml, .xml],
             allowsMultipleSelection: false
         ) { result in
-            store.handleOPMLImport(result)
+            guard case .success(let urls) = result, let fileURL = urls.first else { return }
+            let candidates = store.parseOPML(at: fileURL)
+            if candidates.isEmpty {
+                store.errorMessage = String(localized: "No feeds found in the OPML file.")
+            } else {
+                opmlImport = OPMLImportRequest(feeds: candidates)
+            }
+        }
+        .sheet(item: $opmlImport) { request in
+            OPMLImportView(
+                feeds: request.feeds,
+                existingFeedURLs: Set(store.feeds.map(\.feedURL))
+            ) { selected in
+                store.importFeeds(selected)
+            }
         }
         .fileExporter(
             isPresented: $isExportingOPML,
@@ -931,6 +946,144 @@ private struct AddFeedSheet: View {
         }
         .padding(24)
         .frame(width: 440)
+    }
+}
+
+private struct OPMLImportRequest: Identifiable {
+    let id = UUID()
+    let feeds: [OPMLFeed]
+}
+
+/// A native import preview: pick which OPML feeds to bring in before merging.
+/// Styled to match the main window (inset list + sections) rather than the
+/// grouped Settings form.
+private struct OPMLImportView: View {
+    let feeds: [OPMLFeed]
+    let existingFeedURLs: Set<URL>
+    var onImport: ([OPMLFeed]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selection: Set<OPMLFeed.ID>
+
+    init(feeds: [OPMLFeed], existingFeedURLs: Set<URL>, onImport: @escaping ([OPMLFeed]) -> Void) {
+        self.feeds = feeds
+        self.existingFeedURLs = existingFeedURLs
+        self.onImport = onImport
+        // Default to the feeds that are not already subscribed.
+        _selection = State(initialValue: Set(feeds.filter { !existingFeedURLs.contains($0.feedURL) }.map(\.id)))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+
+            List {
+                ForEach(groupedFeeds, id: \.category) { group in
+                    Section(group.category ?? String(localized: "Ungrouped")) {
+                        ForEach(group.feeds) { feed in
+                            feedRow(feed)
+                        }
+                    }
+                }
+            }
+            .listStyle(.inset)
+
+            Divider()
+            footer
+        }
+        .frame(minWidth: 560, idealWidth: 620, minHeight: 520, idealHeight: 640)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Import Feeds")
+                    .font(.headline)
+                Text("Choose which feeds to import.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(allSelected ? "Deselect All" : "Select All") {
+                selection = allSelected ? [] : Set(feeds.map(\.id))
+            }
+        }
+        .padding(16)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 12) {
+            Text("\(selection.count) selected")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+
+            Spacer()
+
+            Button("Cancel", role: .cancel) { dismiss() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Import \(selection.count) Feeds") {
+                onImport(feeds.filter { selection.contains($0.id) })
+                dismiss()
+            }
+            .keyboardShortcut(.defaultAction)
+            .buttonStyle(.borderedProminent)
+            .disabled(selection.isEmpty)
+        }
+        .padding(16)
+        .background(.bar)
+    }
+
+    private var allSelected: Bool { selection.count == feeds.count }
+
+    private var groupedFeeds: [(category: String?, feeds: [OPMLFeed])] {
+        var order: [String?] = []
+        var map: [String?: [OPMLFeed]] = [:]
+        for feed in feeds {
+            if map[feed.category] == nil { order.append(feed.category) }
+            map[feed.category, default: []].append(feed)
+        }
+        return order.map { (category: $0, feeds: map[$0] ?? []) }
+    }
+
+    private func feedRow(_ feed: OPMLFeed) -> some View {
+        Toggle(isOn: binding(for: feed)) {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(feed.title)
+                            .lineLimit(1)
+                        if existingFeedURLs.contains(feed.feedURL) {
+                            Text("Already added")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.quaternary, in: Capsule())
+                        }
+                    }
+                    Text(feed.feedURL.absoluteString)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .toggleStyle(.checkbox)
+    }
+
+    private func binding(for feed: OPMLFeed) -> Binding<Bool> {
+        Binding {
+            selection.contains(feed.id)
+        } set: { isOn in
+            if isOn { selection.insert(feed.id) } else { selection.remove(feed.id) }
+        }
     }
 }
 

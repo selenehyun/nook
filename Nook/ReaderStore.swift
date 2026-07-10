@@ -139,20 +139,38 @@ final class ReaderStore {
         }
     }
 
-    func handleOPMLImport(_ result: Result<[URL], Error>) {
+    /// Parses an OPML file into feed candidates for the import preview. Returns
+    /// an empty array (and sets `errorMessage`) on failure.
+    func parseOPML(at fileURL: URL) -> [OPMLFeed] {
         guard isStorageConfigured else {
             errorMessage = ReaderStorageError.noDirectorySelected.localizedDescription
-            return
+            return []
         }
 
-        switch result {
-        case .success(let urls):
-            guard let fileURL = urls.first else { return }
-            Task {
-                await importOPML(from: fileURL)
+        let isAccessing = fileURL.startAccessingSecurityScopedResource()
+        defer {
+            if isAccessing {
+                fileURL.stopAccessingSecurityScopedResource()
             }
-        case .failure(let error):
+        }
+
+        do {
+            let candidates = try opmlService.importFeeds(from: fileURL)
+            errorMessage = nil
+            return candidates
+        } catch {
             errorMessage = error.localizedDescription
+            return []
+        }
+    }
+
+    /// Fetches and merges only the feeds the user chose in the import preview,
+    /// deduplicating against existing feeds (their read/starred state is kept).
+    func importFeeds(_ opmlFeeds: [OPMLFeed]) {
+        guard isStorageConfigured, !opmlFeeds.isEmpty else { return }
+
+        Task {
+            await importSelectedFeeds(opmlFeeds)
         }
     }
 
@@ -333,37 +351,28 @@ final class ReaderStore {
         }
     }
 
-    private func importOPML(from fileURL: URL) async {
-        let isAccessingFile = fileURL.startAccessingSecurityScopedResource()
-        defer {
-            if isAccessingFile {
-                fileURL.stopAccessingSecurityScopedResource()
-            }
-        }
+    private func importSelectedFeeds(_ opmlFeeds: [OPMLFeed]) async {
+        var failures: [String] = []
 
-        do {
-            let feedURLStrings = try opmlService.importFeedURLs(from: fileURL)
-            guard !feedURLStrings.isEmpty else {
-                errorMessage = String(localized: "No feeds found in the OPML file.")
-                return
-            }
+        for opmlFeed in opmlFeeds {
+            do {
+                let existingFeedID = feeds.first {
+                    $0.feedURL == opmlFeed.feedURL || $0.id == opmlFeed.feedURL.absoluteString
+                }?.id
+                let parsed = try await fetch(url: opmlFeed.feedURL, existingFeedID: existingFeedID)
 
-            var failures: [String] = []
-
-            for feedURLString in feedURLStrings {
-                do {
-                    let url = try feedService.normalizedFeedURL(from: feedURLString)
-                    let existingFeedID = feeds.first { $0.feedURL == url || $0.id == url.absoluteString }?.id
-                    _ = try await fetch(url: url, existingFeedID: existingFeedID)
-                } catch {
-                    failures.append(error.localizedDescription)
+                // Carry the OPML folder over as the feed's category.
+                if let category = opmlFeed.category,
+                   let index = feeds.firstIndex(where: { $0.id == parsed.feed.id }) {
+                    feeds[index].category = category
                 }
+            } catch {
+                failures.append(error.localizedDescription)
             }
-
-            errorMessage = failures.first
-        } catch {
-            errorMessage = error.localizedDescription
         }
+
+        errorMessage = failures.first
+        try? persistLibrary()
     }
 
     private func refreshAllFeeds() async {

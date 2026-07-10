@@ -69,6 +69,40 @@
         }
       }
     },
+    "%lld selected": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld selected"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld selected"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld개 선택됨"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld unread": {
       "localizations": {
         "en": {
@@ -195,6 +229,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "모든 글"
+          }
+        }
+      }
+    },
+    "Already added": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already added"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 추가됨"
           }
         }
       }
@@ -407,6 +457,22 @@
         }
       }
     },
+    "Choose which feeds to import.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose which feeds to import."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가져올 피드를 선택하세요."
+          }
+        }
+      }
+    },
     "Close Reader": {
       "localizations": {
         "en": {
@@ -419,6 +485,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "리더 닫기"
+          }
+        }
+      }
+    },
+    "Deselect All": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deselect All"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전체 해제"
           }
         }
       }
@@ -483,6 +565,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "일반"
+          }
+        }
+      }
+    },
+    "Import %lld Feeds": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Import %lld Feed"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Import %lld Feeds"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "피드 %lld개 가져오기"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Import Feeds": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Feeds"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드 가져오기"
           }
         }
       }
@@ -1321,6 +1453,22 @@
         }
       }
     },
+    "Select All": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전체 선택"
+          }
+        }
+      }
+    },
     "Select an Article": {
       "localizations": {
         "en": {
@@ -1621,6 +1769,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "인스펙터 표시/숨기기"
+          }
+        }
+      }
+    },
+    "Ungrouped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungrouped"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "분류 없음"
           }
         }
       }
