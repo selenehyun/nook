@@ -1,33 +1,52 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "%lld min": {
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld min"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "·" : {
+
+    },
+    "'%@' is not a valid URL." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "'%@' is not a valid URL."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유효한 URL이 아닙니다: '%@'"
+          }
+        }
+      }
+    },
+    "%lld min" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld min"
                 }
               },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld min"
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld min"
                 }
               }
             }
           }
         },
-        "ko": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld분"
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld분"
                 }
               }
             }
@@ -35,33 +54,33 @@
         }
       }
     },
-    "%lld min read": {
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld min read"
+    "%lld min read" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld min read"
                 }
               },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld min read"
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld min read"
                 }
               }
             }
           }
         },
-        "ko": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld분 분량"
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld분 분량"
                 }
               }
             }
@@ -69,33 +88,33 @@
         }
       }
     },
-    "%lld unread": {
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld unread"
+    "%lld unread" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unread"
                 }
               },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld unread"
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unread"
                 }
               }
             }
           }
         },
-        "ko": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "안 읽음 %lld개"
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "안 읽음 %lld개"
                 }
               }
             }
@@ -103,1089 +122,1063 @@
         }
       }
     },
-    "'%@' is not a valid URL.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "'%@' is not a valid URL."
+    "Add" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "유효한 URL이 아닙니다: '%@'"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가"
           }
         }
       }
     },
-    "Add": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add"
+    "Add an RSS or Atom feed, then refresh." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add an RSS or Atom feed, then refresh."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "추가"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSS나 Atom 피드를 추가한 뒤 새로 고쳐 보세요."
           }
         }
       }
     },
-    "Add Feed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Feed"
+    "Add an RSS or Atom feed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add an RSS or Atom feed."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 추가"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSS나 Atom 피드를 추가해 보세요."
           }
         }
       }
     },
-    "Add an RSS or Atom feed, then refresh.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add an RSS or Atom feed, then refresh."
+    "Add Feed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RSS나 Atom 피드를 추가한 뒤 새로 고쳐 보세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 추가"
           }
         }
       }
     },
-    "Add an RSS or Atom feed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add an RSS or Atom feed."
+    "All Articles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Articles"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RSS나 Atom 피드를 추가해 보세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 글"
           }
         }
       }
     },
-    "All Articles": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All Articles"
+    "Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "모든 글"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글"
           }
         }
       }
     },
-    "Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Article"
+    "Articles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Articles"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글"
           }
         }
       }
     },
-    "Articles": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Articles"
+    "Cancel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
           }
         }
       }
     },
-    "Cancel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel"
+    "Category" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "취소"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분류"
           }
         }
       }
     },
-    "Category": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Category"
+    "Choose" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "분류"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택"
           }
         }
       }
     },
-    "Choose": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose"
+    "Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Drive에서 폴더를 선택하면 여러 기기에서 피드가 동기화됩니다."
           }
         }
       }
     },
-    "Choose a Sync Folder": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a Sync Folder"
+    "Choose a story from the article list." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a story from the article list."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "동기화 폴더 선택"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 읽을 글을 골라 보세요."
           }
         }
       }
     },
-    "Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices."
+    "Choose a Sync Folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a Sync Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud Drive에서 폴더를 선택하면 여러 기기에서 피드가 동기화됩니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화 폴더 선택"
           }
         }
       }
     },
-    "Choose a story from the article list.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a story from the article list."
+    "Choose a sync folder first" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a sync folder first"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "목록에서 읽을 글을 골라 보세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 동기화 폴더를 선택하세요"
           }
         }
       }
     },
-    "Choose a sync folder first": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a sync folder first"
+    "Choose a sync folder first." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a sync folder first."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "먼저 동기화 폴더를 선택하세요"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 동기화 폴더를 선택하세요."
           }
         }
       }
     },
-    "Choose a sync folder first.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a sync folder first."
+    "Choose an iCloud Drive folder before adding feeds." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose an iCloud Drive folder before adding feeds."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "먼저 동기화 폴더를 선택하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 추가하려면 먼저 iCloud Drive 폴더를 선택하세요."
           }
         }
       }
     },
-    "Choose an iCloud Drive folder before adding feeds.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose an iCloud Drive folder before adding feeds."
+    "Choose iCloud Folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose iCloud Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드를 추가하려면 먼저 iCloud Drive 폴더를 선택하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 폴더 선택"
           }
         }
       }
     },
-    "Choose iCloud Folder": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose iCloud Folder"
+    "Choose iCloud Sync Folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose iCloud Sync Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud 폴더 선택"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 동기화 폴더 선택"
           }
         }
       }
     },
-    "Choose iCloud Sync Folder": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose iCloud Sync Folder"
+    "Close Reader" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Reader"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud 동기화 폴더 선택"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더 닫기"
           }
         }
       }
     },
-    "Close Reader": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close Reader"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "리더 닫기"
-          }
-        }
-      }
+    "Export OPML" : {
+
     },
-    "Feed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Feed"
+    "Feed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드"
           }
         }
       }
     },
-    "Feeds": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Feeds"
+    "Feeds" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeds"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드"
           }
         }
       }
     },
-    "General": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "General"
+    "General" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "일반"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일반"
           }
         }
       }
     },
-    "Import OPML": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Import OPML"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OPML 가져오기"
-          }
-        }
-      }
+    "https://example.com/feed.xml" : {
+
     },
-    "Import or Export Subscriptions": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Import or Export Subscriptions"
+    "Import OPML" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import OPML"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "구독 가져오기/내보내기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OPML 가져오기"
           }
         }
       }
     },
-    "Inspector": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inspector"
+    "Import or Export Subscriptions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import or Export Subscriptions"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "인스펙터"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독 가져오기/내보내기"
           }
         }
       }
     },
-    "Language": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Language"
+    "Inspector" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspector"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "언어"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인스펙터"
           }
         }
       }
     },
-    "Last Refresh": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last Refresh"
+    "Language" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "마지막 새로 고침"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "언어"
           }
         }
       }
     },
-    "Last refresh failed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last refresh failed."
+    "Last Refresh" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Refresh"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "마지막 새로 고침에 실패했습니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 새로 고침"
           }
         }
       }
     },
-    "Library": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Library"
+    "Last refresh failed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last refresh failed."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "라이브러리"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 새로 고침에 실패했습니다."
           }
         }
       }
     },
-    "Mark Feed as Read": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark Feed as Read"
+    "Library" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드를 모두 읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라이브러리"
           }
         }
       }
     },
-    "Mark Read": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark Read"
+    "Mark articles as read when opened" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark articles as read when opened"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글를 열면 읽음으로 표시"
           }
         }
       }
     },
-    "Mark Selected Article as Read": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark Selected Article as Read"
+    "Mark as Read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택한 글를 읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽음으로 표시"
           }
         }
       }
     },
-    "Mark Selected as Read": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark Selected as Read"
+    "Mark as Unread" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as Unread"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택한 글를 읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "안 읽음으로 표시"
           }
         }
       }
     },
-    "Mark articles as read when opened": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark articles as read when opened"
+    "Mark Feed as Read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark Feed as Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글를 열면 읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 모두 읽음으로 표시"
           }
         }
       }
     },
-    "Mark as Read": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark as Read"
+    "Mark Read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽음으로 표시"
           }
         }
       }
     },
-    "Mark as Unread": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mark as Unread"
+    "Mark Selected Article as Read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark Selected Article as Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "안 읽음으로 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 글를 읽음으로 표시"
           }
         }
       }
     },
-    "Never": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Never"
+    "Mark Selected as Read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark Selected as Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "없음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 글를 읽음으로 표시"
           }
         }
       }
     },
-    "Next Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Next Article"
+    "Never" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다음 글"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
           }
         }
       }
     },
-    "No Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Article"
+    "Next Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택된 글 없음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다음 글"
           }
         }
       }
     },
-    "No Articles": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Articles"
+    "No Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글 없음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택된 글 없음"
           }
         }
       }
     },
-    "No RSS or Atom entries were found at %@.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No RSS or Atom entries were found at %@."
+    "No article matches the current search." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No article matches the current search."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@에서 RSS나 Atom 항목을 찾지 못했습니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "검색 결과와 일치하는 글가 없습니다."
           }
         }
       }
     },
-    "No RSS or Atom feed link was found at %@.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No RSS or Atom feed link was found at %@."
+    "No Articles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Articles"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@에서 RSS나 Atom 피드 링크를 찾지 못했습니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 없음"
           }
         }
       }
     },
-    "No article matches the current search.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No article matches the current search."
+    "No feeds found in the OPML file." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No feeds found in the OPML file."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "검색 결과와 일치하는 글가 없습니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OPML 파일에서 피드를 찾지 못했습니다."
           }
         }
       }
     },
-    "No feeds found in the OPML file.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No feeds found in the OPML file."
+    "No RSS or Atom entries were found at %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No RSS or Atom entries were found at %@."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OPML 파일에서 피드를 찾지 못했습니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 RSS나 Atom 항목을 찾지 못했습니다."
           }
         }
       }
     },
-    "Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices."
+    "No RSS or Atom feed link was found at %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No RSS or Atom feed link was found at %@."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook은 피드를 iCloud Drive의 한 폴더에 보관해 여러 기기에서 동기화되도록 합니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 RSS나 Atom 피드 링크를 찾지 못했습니다."
           }
         }
       }
     },
-    "Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault."
+    "Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook은 여러분이 선택한 폴더에 RSS 라이브러리를 저장합니다. 그러면 iCloud Drive가 이 폴더를 보관함처럼 동기화합니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 피드를 iCloud Drive의 한 폴더에 보관해 여러 기기에서 동기화되도록 합니다."
           }
         }
       }
     },
-    "Not selected": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not selected"
+    "Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택 안 됨"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 여러분이 선택한 폴더에 RSS 라이브러리를 저장합니다. 그러면 iCloud Drive가 이 폴더를 보관함처럼 동기화합니다."
           }
         }
       }
     },
-    "Open": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open"
+    "Not selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not selected"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택 안 됨"
           }
         }
       }
     },
-    "Open Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Article"
+    "Open" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "열기"
           }
         }
       }
     },
-    "Open Feed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Feed"
+    "Open Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 열기"
           }
         }
       }
     },
-    "Open Original": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Original"
+    "Open Feed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "원문 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 열기"
           }
         }
       }
     },
-    "Open Site": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Site"
+    "Open in Browser" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Browser"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "사이트 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "브라우저에서 열기"
           }
         }
       }
     },
-    "Open in Browser": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open in Browser"
+    "Open in Reader — ⌘-click to open in browser" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Reader — ⌘-click to open in browser"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "브라우저에서 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더로 열기 — ⌘-클릭 시 브라우저로 열기"
           }
         }
       }
     },
-    "Open in Reader — ⌘-click to open in browser": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open in Reader — ⌘-click to open in browser"
+    "Open Original" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Original"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "리더로 열기 — ⌘-클릭 시 브라우저로 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 열기"
           }
         }
       }
     },
-    "Open original links in the default browser": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open original links in the default browser"
+    "Open original links in the default browser" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open original links in the default browser"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "원문 링크를 기본 브라우저에서 열기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 링크를 기본 브라우저에서 열기"
           }
         }
       }
     },
-    "Paste an RSS or Atom feed URL and Nook will fetch it right away.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste an RSS or Atom feed URL and Nook will fetch it right away."
+    "Open Site" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Site"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RSS나 Atom 피드 URL을 붙여 넣으면 Nook이 바로 가져옵니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사이트 열기"
           }
         }
       }
     },
-    "Pick a folder in iCloud Drive so Nook can keep your feeds in sync across your devices.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pick a folder in iCloud Drive so Nook can keep your feeds in sync across your devices."
+    "Paste an RSS or Atom feed URL and Nook will fetch it right away." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste an RSS or Atom feed URL and Nook will fetch it right away."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook이 여러 기기에서 피드를 동기화할 수 있도록 iCloud Drive에서 폴더를 선택하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSS나 Atom 피드 URL을 붙여 넣으면 Nook이 바로 가져옵니다."
           }
         }
       }
     },
-    "Previous Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Previous Article"
+    "Pick a folder in iCloud Drive so Nook can keep your feeds in sync across your devices." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a folder in iCloud Drive so Nook can keep your feeds in sync across your devices."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이전 글"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook이 여러 기기에서 피드를 동기화할 수 있도록 iCloud Drive에서 폴더를 선택하세요."
           }
         }
       }
     },
-    "Published": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Published"
+    "Previous Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "게시일"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 글"
           }
         }
       }
     },
-    "Read": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Read"
+    "Published" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "읽음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게시일"
           }
         }
       }
     },
-    "Reading": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading"
+    "Read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "읽기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽음"
           }
         }
       }
     },
-    "Reading Time": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading Time"
+    "Reading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "읽기 시간"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기"
           }
         }
       }
     },
-    "Refresh All": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh All"
+    "Reading Time" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading Time"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "모두 새로 고침"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기 시간"
           }
         }
       }
     },
-    "Refresh All Feeds": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh All Feeds"
+    "Refresh All" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh All"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "모든 피드 새로 고침"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 새로 고침"
           }
         }
       }
     },
-    "Refresh Feed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh Feed"
+    "Refresh All Feeds" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh All Feeds"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 새로 고침"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 피드 새로 고침"
           }
         }
       }
     },
-    "Refresh every %lld minutes": {
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Refresh every %lld minute"
+    "Refresh every %lld minutes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Refresh every %lld minute"
                 }
               },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "Refresh every %lld minutes"
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Refresh every %lld minutes"
                 }
               }
             }
           }
         },
-        "ko": {
-          "variations": {
-            "plural": {
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld분마다 새로 고침"
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld분마다 새로 고침"
                 }
               }
             }
@@ -1193,472 +1186,486 @@
         }
       }
     },
-    "Refresh feeds automatically": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh feeds automatically"
+    "Refresh Feed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 자동으로 새로 고침"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 새로 고침"
           }
         }
       }
     },
-    "Refreshing": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refreshing"
+    "Refresh feeds automatically" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh feeds automatically"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새로 고치는 중"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 자동으로 새로 고침"
           }
         }
       }
     },
-    "Relaunch": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relaunch"
+    "Refreshing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refreshing"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다시 시작"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로 고치는 중"
           }
         }
       }
     },
-    "Remove Star": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove Star"
+    "Relaunch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relaunch"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "별표 해제"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 시작"
           }
         }
       }
     },
-    "Restart Nook to apply the language change.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restart Nook to apply the language change."
+    "Remove Star" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Star"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "언어 변경 사항은 Nook을 다시 시작하면 적용됩니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표 해제"
           }
         }
       }
     },
-    "Search Articles": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search Articles"
+    "Restart Nook to apply the language change." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart Nook to apply the language change."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글 검색"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "언어 변경 사항은 Nook을 다시 시작하면 적용됩니다."
           }
         }
       }
     },
-    "Select an Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Select an Article"
+    "Search Articles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Articles"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글 선택"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 검색"
           }
         }
       }
     },
-    "Set Up iCloud Sync": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set Up iCloud Sync"
+    "Select an Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud 동기화 설정"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 선택"
           }
         }
       }
     },
-    "Share": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share"
+    "Set Up iCloud Sync" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Up iCloud Sync"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "공유"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 동기화 설정"
           }
         }
       }
     },
-    "Share Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share Article"
+    "Share" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글 공유"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유"
           }
         }
       }
     },
-    "Source": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Source"
+    "Share Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "출처"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 공유"
           }
         }
       }
     },
-    "Star": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Star"
+    "Source" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "별표 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출처"
           }
         }
       }
     },
-    "Star Article": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Star Article"
+    "Star" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Star"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글에 별표 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표 표시"
           }
         }
       }
     },
-    "Star Selected": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Star Selected"
+    "Star Article" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Star Article"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택한 글에 별표 표시"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글에 별표 표시"
           }
         }
       }
     },
-    "Starred": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Starred"
+    "Star Selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Star Selected"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "별표"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 글에 별표 표시"
           }
         }
       }
     },
-    "Status": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Status"
+    "Starred" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starred"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "상태"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표"
           }
         }
       }
     },
-    "Storage": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Storage"
+    "Status" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "저장소"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상태"
           }
         }
       }
     },
-    "Subscriptions": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subscriptions"
+    "Storage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "구독"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장소"
           }
         }
       }
     },
-    "Sync Folder": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sync Folder"
+    "Subscriptions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscriptions"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "동기화 폴더"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독"
           }
         }
       }
     },
-    "System Default": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "System Default"
+    "Sync Folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "시스템 설정 언어"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화 폴더"
           }
         }
       }
     },
-    "The feed could not be parsed: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The feed could not be parsed: %@"
+    "System Default" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System Default"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드를 읽을 수 없습니다: %@"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 설정 언어"
           }
         }
       }
     },
-    "The feed request failed with HTTP %lld.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The feed request failed with HTTP %lld."
+    "The feed could not be parsed: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The feed could not be parsed: %@"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드를 불러오지 못했습니다 (HTTP %lld)."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 읽을 수 없습니다: %@"
           }
         }
       }
     },
-    "The saved sync folder permission expired. Choose the folder again.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The saved sync folder permission expired. Choose the folder again."
+    "The feed request failed with HTTP %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The feed request failed with HTTP %lld."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "저장된 동기화 폴더 권한이 만료되었습니다. 폴더를 다시 선택하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 불러오지 못했습니다 (HTTP %lld)."
           }
         }
       }
     },
-    "Today": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Today"
+    "The saved sync folder permission expired. Choose the folder again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The saved sync folder permission expired. Choose the folder again."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "오늘"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장된 동기화 폴더 권한이 만료되었습니다. 폴더를 다시 선택하세요."
           }
         }
       }
     },
-    "Toggle Inspector": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle Inspector"
+    "Today" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "인스펙터 표시/숨기기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘"
           }
         }
       }
     },
-    "Unknown Feed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown Feed"
+    "Toggle Inspector" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle Inspector"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "알 수 없는 피드"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인스펙터 표시/숨기기"
           }
         }
       }
     },
-    "Unknown parser error": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown parser error"
+    "Unknown Feed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "알 수 없는 오류"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알 수 없는 피드"
           }
         }
       }
     },
-    "Unread": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unread"
+    "Unknown parser error" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown parser error"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "안 읽음"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알 수 없는 오류"
           }
         }
       }
     },
-    "Unstar": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unstar"
+    "Unread" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unread"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "별표 해제"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "안 읽음"
           }
         }
       }
     },
-    "https://example.com/feed.xml": {},
-    "·": {}
+    "Unstar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unstar"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표 해제"
+          }
+        }
+      }
+    }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }
