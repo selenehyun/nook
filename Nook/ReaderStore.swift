@@ -2,7 +2,6 @@ import AppKit
 import Foundation
 import Observation
 import SwiftUI
-import WidgetKit
 
 @MainActor
 @Observable
@@ -674,28 +673,5 @@ final class ReaderStore {
             folders: folders
         )
         try storage.save(library)
-        exportWidgetSnapshot()
-    }
-
-    /// Publishes a snapshot of unread articles to the App Group so the widget
-    /// can show them, and refreshes the widget timelines.
-    private func exportWidgetSnapshot() {
-        let unread = articles
-            .filter { !$0.isRead }
-            .sorted { $0.publishedAt > $1.publishedAt }
-
-        let items = unread.prefix(20).map { article in
-            WidgetArticle(
-                id: article.id,
-                title: article.title,
-                feedTitle: feed(for: article.feedID)?.title ?? "",
-                publishedAt: article.publishedAt
-            )
-        }
-
-        WidgetShared.writeSnapshot(
-            WidgetSnapshot(unreadCount: unread.count, generatedAt: .now, articles: Array(items))
-        )
-        WidgetCenter.shared.reloadAllTimelines()
     }
 }

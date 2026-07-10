@@ -1,96 +1,61 @@
 import Foundation
 
 /// Shared between the app and the widget extension (add this file to both
-/// targets' membership). The app writes a small snapshot of unread articles
-/// into the App Group container; the widget reads it and deep-links back into
-/// the app via the `nook://` URL scheme.
+/// targets' membership). This build shares no data — it only defines the
+/// `nook://` deep links the widget uses to open the app. No App Group needed.
 enum WidgetShared {
-    static let appGroupID = "group.com.tim.nook"
     static let urlScheme = "nook"
     static let widgetKind = "NookWidget"
 
-    private static let snapshotFileName = "widget-snapshot.json"
-
-    static var containerURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
-    }
-
-    private static var snapshotURL: URL? {
-        containerURL?.appending(path: snapshotFileName, directoryHint: .notDirectory)
-    }
-
-    static func writeSnapshot(_ snapshot: WidgetSnapshot) {
-        guard let snapshotURL, let data = try? JSONEncoder.shared.encode(snapshot) else { return }
-        try? data.write(to: snapshotURL, options: [.atomic])
-    }
-
-    static func readSnapshot() -> WidgetSnapshot {
-        guard let snapshotURL,
-              let data = try? Data(contentsOf: snapshotURL),
-              let snapshot = try? JSONDecoder.shared.decode(WidgetSnapshot.self, from: data) else {
-            return WidgetSnapshot(unreadCount: 0, generatedAt: nil, articles: [])
-        }
-        return snapshot
-    }
-
-    /// A deep link that opens a specific article in the app.
-    static func articleURL(id: String) -> URL {
-        var components = URLComponents()
-        components.scheme = urlScheme
-        components.host = "article"
-        components.queryItems = [URLQueryItem(name: "id", value: id)]
-        return components.url ?? URL(string: "\(urlScheme)://")!
-    }
-
-    /// A deep link that just opens the app.
+    /// Opens the app without changing the view.
     static var openAppURL: URL {
         URL(string: "\(urlScheme)://open")!
     }
 
-    static func articleID(from url: URL) -> String? {
-        guard url.scheme == urlScheme,
+    /// Opens the app focused on a smart source (Unread, Today, …).
+    static func sourceURL(_ source: WidgetSource) -> URL {
+        var components = URLComponents()
+        components.scheme = urlScheme
+        components.host = "source"
+        components.queryItems = [URLQueryItem(name: "smart", value: source.rawValue)]
+        return components.url ?? openAppURL
+    }
+
+    /// The `smart` value from a `nook://source?smart=…` deep link.
+    static func smartSourceRaw(from url: URL) -> String? {
+        guard url.scheme == urlScheme, url.host == "source",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
-        return components.queryItems?.first(where: { $0.name == "id" })?.value
+        return components.queryItems?.first(where: { $0.name == "smart" })?.value
     }
 }
 
-struct WidgetSnapshot: Codable {
-    var unreadCount: Int
-    var generatedAt: Date?
-    var articles: [WidgetArticle]
+/// The smart sources the widget can jump to. Raw values match the app's
+/// `SmartSource` so the app can map them back.
+enum WidgetSource: String, CaseIterable, Identifiable {
+    case unread
+    case today
+    case starred
+    case all
 
-    static let placeholder = WidgetSnapshot(
-        unreadCount: 3,
-        generatedAt: nil,
-        articles: [
-            WidgetArticle(id: "1", title: "A calm place to read your feeds", feedTitle: "Nook", publishedAt: .distantPast),
-            WidgetArticle(id: "2", title: "Your unread articles, at a glance", feedTitle: "Nook", publishedAt: .distantPast),
-            WidgetArticle(id: "3", title: "Tap an article to open it", feedTitle: "Nook", publishedAt: .distantPast)
-        ]
-    )
-}
+    var id: String { rawValue }
 
-struct WidgetArticle: Codable, Identifiable {
-    var id: String
-    var title: String
-    var feedTitle: String
-    var publishedAt: Date
-}
+    var title: String {
+        switch self {
+        case .unread: "Unread"
+        case .today: "Today"
+        case .starred: "Starred"
+        case .all: "All Articles"
+        }
+    }
 
-private extension JSONEncoder {
-    static let shared: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }()
-}
-
-private extension JSONDecoder {
-    static let shared: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
+    var systemImage: String {
+        switch self {
+        case .unread: "largecircle.fill.circle"
+        case .today: "calendar"
+        case .starred: "star"
+        case .all: "tray.full"
+        }
+    }
 }

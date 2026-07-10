@@ -151,9 +151,10 @@ struct ContentView: View {
             sidebarVisible = (newValue == .all)
         }
         .onOpenURL { url in
-            if let id = WidgetShared.articleID(from: url) {
-                store.openArticle(id: id)
+            if let raw = WidgetShared.smartSourceRaw(from: url), let source = SmartSource(rawValue: raw) {
+                store.selectSmartSource(source)
             }
+            // nook://open simply brings the app forward.
         }
         .focusedSceneValue(
             \.readerCommandActions,
