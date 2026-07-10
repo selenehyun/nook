@@ -14,6 +14,14 @@ final class ReaderStore {
     var feedSelection: Set<Feed.ID> = []
     /// Whether the window-wide in-app browser bottom sheet is showing.
     var isBrowserPresented = false
+    /// The in-app browser's current view mode (reader vs original). Toggled
+    /// instantly without changing the saved default.
+    var browserMode: ReaderViewMode = .reader
+
+    func toggleBrowserMode() {
+        guard isBrowserPresented else { return }
+        browserMode = (browserMode == .reader) ? .original : .reader
+    }
     // Articles kept visible in the current source even after being read, until
     // the user navigates to another source (Chrome-tab-close heuristic).
     private var retainedArticleIDs: Set<Article.ID> = []

@@ -18,7 +18,6 @@ struct ContentView: View {
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
 
     // In-app browser (window-wide bottom sheet).
-    @State private var browserMode: ReaderViewMode = .reader
     @State private var browserDragOffset: CGFloat = 0
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
@@ -202,7 +201,6 @@ struct ContentView: View {
                     InAppBrowserPanel(
                         store: store,
                         article: article,
-                        mode: $browserMode,
                         style: readerStyle,
                         linkOpensInApp: readerLinkBehavior == .inApp,
                         dragOffset: $browserDragOffset,
@@ -216,7 +214,7 @@ struct ContentView: View {
         }
         .onChange(of: store.isBrowserPresented) { _, presented in
             if presented {
-                browserMode = readerViewMode
+                store.browserMode = readerViewMode
                 browserDragOffset = 0
             }
         }
@@ -227,7 +225,8 @@ struct ContentView: View {
                 markSelectedRead: store.markSelectedRead,
                 toggleSelectedStarred: store.toggleSelectedStarred,
                 selectNextArticle: store.selectNextArticle,
-                selectPreviousArticle: store.selectPreviousArticle
+                selectPreviousArticle: store.selectPreviousArticle,
+                toggleReaderMode: store.toggleBrowserMode
             )
         )
     }
@@ -1143,7 +1142,6 @@ private struct CrumbWidthKey: PreferenceKey {
 private struct InAppBrowserPanel: View {
     @Bindable var store: ReaderStore
     let article: Article
-    @Binding var mode: ReaderViewMode
     let style: ReaderStyle
     let linkOpensInApp: Bool
     @Binding var dragOffset: CGFloat
@@ -1158,12 +1156,21 @@ private struct InAppBrowserPanel: View {
             Divider()
             ArticleWebView(
                 url: article.url,
-                useReaderMode: mode == .reader,
+                useReaderMode: store.browserMode == .reader,
                 style: style,
                 linkOpensInApp: linkOpensInApp,
-                onPullToDismiss: onClose
+                onOverscroll: { amount in
+                    dragOffset = amount
+                },
+                onOverscrollEnded: { amount in
+                    if amount > 140 {
+                        onClose()
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
+                    }
+                }
             )
-            .id("\(article.id)|\(mode.rawValue)|\(style.identity)")
+            .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
         }
         .frame(maxWidth: 980)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -1201,17 +1208,14 @@ private struct InAppBrowserPanel: View {
                 Spacer()
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        mode = (mode == .reader) ? .original : .reader
-                    }
+                    withAnimation(.easeInOut(duration: 0.2)) { store.toggleBrowserMode() }
                 } label: {
                     Label(
-                        mode == .reader ? "Reader Mode" : "Original Page",
-                        systemImage: mode == .reader ? "doc.plaintext" : "globe"
+                        store.browserMode == .reader ? "Reader Mode" : "Original Page",
+                        systemImage: store.browserMode == .reader ? "doc.plaintext" : "globe"
                     )
                 }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-                .help("Switch Reader / Original (⌘⇧R)")
+                .help("Switch Reader / Original (⌘⇧F)")
 
                 Spacer()
 
@@ -1844,6 +1848,7 @@ struct ReaderCommandActions {
     var toggleSelectedStarred: @MainActor () -> Void
     var selectNextArticle: @MainActor () -> Void
     var selectPreviousArticle: @MainActor () -> Void
+    var toggleReaderMode: @MainActor () -> Void
 }
 
 private struct ReaderCommandActionsKey: FocusedValueKey {
@@ -1894,6 +1899,14 @@ struct ReaderAppCommands: Commands {
                 actions?.selectPreviousArticle()
             }
             .keyboardShortcut(.upArrow, modifiers: [.command])
+            .disabled(actions == nil)
+
+            Divider()
+
+            Button("Switch Reader / Original") {
+                actions?.toggleReaderMode()
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
             .disabled(actions == nil)
         }
     }

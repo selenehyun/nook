@@ -2226,18 +2226,34 @@
         }
       }
     },
-    "Switch Reader / Original (⌘⇧R)" : {
+    "Switch Reader / Original" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Switch Reader / Original (⌘⇧R)"
+            "value" : "Switch Reader / Original"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "리더/원본 전환 (⌘⇧R)"
+            "value" : "리더/원본 전환"
+          }
+        }
+      }
+    },
+    "Switch Reader / Original (⌘⇧F)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch Reader / Original (⌘⇧F)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더/원본 전환 (⌘⇧F)"
           }
         }
       }

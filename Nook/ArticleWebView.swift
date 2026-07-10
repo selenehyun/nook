@@ -94,10 +94,13 @@ struct ArticleWebView: NSViewRepresentable {
     let useReaderMode: Bool
     let style: ReaderStyle
     let linkOpensInApp: Bool
-    var onPullToDismiss: () -> Void = {}
+    /// Live overscroll amount while pulling down at the top (sheet follows).
+    var onOverscroll: (CGFloat) -> Void = { _ in }
+    /// The gesture ended with the given overscroll amount (decide dismiss/snap).
+    var onOverscrollEnded: (CGFloat) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(linkOpensInApp: linkOpensInApp, onPullToDismiss: onPullToDismiss)
+        Coordinator(linkOpensInApp: linkOpensInApp, onOverscroll: onOverscroll, onOverscrollEnded: onOverscrollEnded)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -110,52 +113,97 @@ struct ArticleWebView: NSViewRepresentable {
             }
             controller.addUserScript(WKUserScript(source: readerScript(style: style), injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
-        controller.add(context.coordinator, name: "nookPullToDismiss")
-        controller.addUserScript(WKUserScript(source: Self.pullToDismissScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        controller.add(context.coordinator, name: "nookScroll")
+        controller.addUserScript(WKUserScript(source: Self.scrollReportScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        context.coordinator.attach(to: webView)
         webView.load(URLRequest(url: url))
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.linkOpensInApp = linkOpensInApp
-        context.coordinator.onPullToDismiss = onPullToDismiss
+        context.coordinator.onOverscroll = onOverscroll
+        context.coordinator.onOverscrollEnded = onOverscrollEnded
     }
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookPullToDismiss")
+        coordinator.detach()
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookScroll")
     }
 
-    /// At the top of the page, pulling further down dismisses the sheet.
-    private static let pullToDismissScript = """
+    /// Reports the page's scroll position so the native layer knows when the
+    /// content is at the very top.
+    private static let scrollReportScript = """
     (function () {
-      var accumulated = 0;
-      window.addEventListener('wheel', function (event) {
+      function report() {
         var top = window.scrollY || document.documentElement.scrollTop || 0;
-        if (top <= 0 && event.deltaY < 0) {
-          accumulated += -event.deltaY;
-          if (accumulated > 80) {
-            try { window.webkit.messageHandlers.nookPullToDismiss.postMessage(1); } catch (e) {}
-            accumulated = 0;
-          }
-        } else {
-          accumulated = 0;
-        }
-      }, { passive: true });
+        try { window.webkit.messageHandlers.nookScroll.postMessage(top); } catch (e) {}
+      }
+      window.addEventListener('scroll', report, { passive: true });
+      report();
     })();
     """
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var linkOpensInApp: Bool
-        var onPullToDismiss: () -> Void
+        var onOverscroll: (CGFloat) -> Void
+        var onOverscrollEnded: (CGFloat) -> Void
 
-        init(linkOpensInApp: Bool, onPullToDismiss: @escaping () -> Void) {
+        private weak var webView: WKWebView?
+        private var monitor: Any?
+        private var atTop = true
+        private var overscroll: CGFloat = 0
+        private var engaged = false
+
+        init(linkOpensInApp: Bool, onOverscroll: @escaping (CGFloat) -> Void, onOverscrollEnded: @escaping (CGFloat) -> Void) {
             self.linkOpensInApp = linkOpensInApp
-            self.onPullToDismiss = onPullToDismiss
+            self.onOverscroll = onOverscroll
+            self.onOverscrollEnded = onOverscrollEnded
+        }
+
+        func attach(to webView: WKWebView) {
+            self.webView = webView
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                self?.handle(event) == true ? nil : event
+            }
+        }
+
+        func detach() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        /// Returns true to consume the event (we are driving the sheet).
+        private func handle(_ event: NSEvent) -> Bool {
+            guard let webView, event.window === webView.window else { return false }
+            let point = webView.convert(event.locationInWindow, from: nil)
+            guard webView.bounds.contains(point) else { return false }
+
+            // Positive scrollingDeltaY at the top means pulling the page down
+            // (natural scrolling), i.e. an overscroll that should move the sheet.
+            let delta = event.scrollingDeltaY
+
+            if !engaged {
+                guard atTop, delta > 0, event.momentumPhase == [] else { return false }
+                engaged = true
+            }
+
+            overscroll = max(0, overscroll + delta)
+            onOverscroll(overscroll)
+
+            let finished = event.phase.contains(.ended) || event.phase.contains(.cancelled)
+            if finished || overscroll == 0 {
+                let amount = overscroll
+                engaged = false
+                overscroll = 0
+                onOverscrollEnded(amount)
+            }
+            return true
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -172,10 +220,9 @@ struct ArticleWebView: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == "nookPullToDismiss" else { return }
-            DispatchQueue.main.async { [weak self] in
-                self?.onPullToDismiss()
-            }
+            guard message.name == "nookScroll" else { return }
+            let top = (message.body as? NSNumber)?.doubleValue ?? 0
+            atTop = top <= 0.5
         }
     }
 
