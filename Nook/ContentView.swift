@@ -245,7 +245,7 @@ private struct FeedSidebar: View {
     var onChooseSyncFolder: () -> Void
 
     var body: some View {
-        List(selection: $store.selectedSource) {
+        List(selection: $store.selectedSources) {
             Section("Library") {
                 ForEach(SmartSource.allCases) { source in
                     SourceRow(
@@ -298,17 +298,44 @@ private struct FeedSidebar: View {
         )
         .tag(SourceSelection.feed(feed.id))
         .contextMenu {
-            Button("Refresh Feed") {
-                store.refresh(feedID: feed.id)
-            }
-            Button("Mark Feed as Read") {
-                store.markFeedRead(feedID: feed.id)
-            }
+            feedContextMenu(feed)
+        }
+    }
+
+    /// Acts on the whole feed selection when the right-clicked feed is part of
+    /// a multi-selection; otherwise just on that feed. "Open Site" is disabled
+    /// for multiple feeds; the rest run on all of them at once.
+    @ViewBuilder
+    private func feedContextMenu(_ feed: Feed) -> some View {
+        let selected = store.selectedFeedIDs
+        let targets = (selected.contains(feed.id) && selected.count > 1) ? selected : [feed.id]
+        let isMultiple = targets.count > 1
+
+        Button {
+            store.refreshFeeds(ids: targets)
+        } label: {
+            Text(isMultiple ? "Refresh \(targets.count) Feeds" : "Refresh Feed")
+        }
+
+        Button {
+            store.markFeedsRead(ids: targets)
+        } label: {
+            Text(isMultiple ? "Mark \(targets.count) Feeds as Read" : "Mark Feed as Read")
+        }
+
+        if isMultiple {
+            Button("Open Site") {}
+                .disabled(true)
+        } else {
             Link("Open Site", destination: feed.siteURL)
-            Divider()
-            Button("Remove Feed", role: .destructive) {
-                store.removeFeed(feedID: feed.id)
-            }
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            store.removeFeeds(ids: targets)
+        } label: {
+            Text(isMultiple ? "Remove \(targets.count) Feeds" : "Remove Feed")
         }
     }
 }
@@ -493,7 +520,7 @@ private struct ArticleListView: View {
         .safeAreaInset(edge: .bottom) {
             ArticleListStatusBar(store: store)
         }
-        .onChange(of: store.selectedSource) { _, _ in
+        .onChange(of: store.selectedSources) { _, _ in
             store.selectFirstVisibleArticleIfNeeded()
         }
         .onChange(of: store.searchText) { _, _ in

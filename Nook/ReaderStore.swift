@@ -8,7 +8,7 @@ import SwiftUI
 final class ReaderStore {
     var feeds: [Feed] = []
     var articles: [Article] = []
-    var selectedSource: SourceSelection? = .smart(.all)
+    var selectedSources: Set<SourceSelection> = [.smart(.all)]
     var selectedArticleID: Article.ID?
     var searchText = ""
     var lastRefreshedAt: Date?
@@ -55,13 +55,28 @@ final class ReaderStore {
     }
 
     var selectedSourceTitle: String {
-        switch selectedSource {
+        guard let only = singleSelectedSource else {
+            return selectedSources.isEmpty
+                ? String(localized: "Articles")
+                : String(localized: "\(selectedSources.count) selected")
+        }
+        switch only {
         case .smart(let source):
-            source.title
+            return source.title
         case .feed(let feedID):
-            feed(for: feedID)?.title ?? String(localized: "Feed")
-        case nil:
-            String(localized: "Articles")
+            return feed(for: feedID)?.title ?? String(localized: "Feed")
+        }
+    }
+
+    private var singleSelectedSource: SourceSelection? {
+        selectedSources.count == 1 ? selectedSources.first : nil
+    }
+
+    /// The feed IDs among the current selection, for batch feed actions.
+    var selectedFeedIDs: [Feed.ID] {
+        selectedSources.compactMap {
+            if case .feed(let id) = $0 { return id }
+            return nil
         }
     }
 
@@ -227,11 +242,29 @@ final class ReaderStore {
 
     func refresh(feedID: Feed.ID) {
         guard let feed = feed(for: feedID) else { return }
-        selectedSource = .feed(feedID)
+        selectedSources = [.feed(feedID)]
 
         Task {
             await refreshFeed(feed)
         }
+    }
+
+    func refreshFeeds(ids: [Feed.ID]) {
+        let targets = ids.compactMap(feed(for:))
+        guard !targets.isEmpty else { return }
+        Task {
+            for feed in targets {
+                await refreshFeed(feed)
+            }
+        }
+    }
+
+    func markFeedsRead(ids: [Feed.ID]) {
+        ids.forEach { markFeedRead(feedID: $0) }
+    }
+
+    func removeFeeds(ids: [Feed.ID]) {
+        ids.forEach { removeFeed(feedID: $0) }
     }
 
     func markArticleOpened(articleID: Article.ID) {
@@ -257,8 +290,8 @@ final class ReaderStore {
         feedIcons[feedID] = nil
         refreshingFeedIDs.remove(feedID)
 
-        if selectedSource == .feed(feedID) {
-            selectedSource = .smart(.all)
+        if selectedSources.remove(.feed(feedID)) != nil, selectedSources.isEmpty {
+            selectedSources = [.smart(.all)]
         }
 
         selectFirstVisibleArticleIfNeeded()
@@ -359,7 +392,7 @@ final class ReaderStore {
         do {
             let url = try feedService.normalizedFeedURL(from: urlString)
             let parsedFeed = try await fetch(url: url, existingFeedID: nil)
-            selectedSource = .feed(parsedFeed.feed.id)
+            selectedSources = [.feed(parsedFeed.feed.id)]
             selectedArticleID = parsedFeed.articles.first?.id
             errorMessage = nil
         } catch {
@@ -480,18 +513,8 @@ final class ReaderStore {
     }
 
     private func matchesSelectedSource(_ article: Article) -> Bool {
-        switch selectedSource {
-        case .smart(.all), nil:
-            true
-        case .smart(.unread):
-            !article.isRead
-        case .smart(.today):
-            Calendar.current.isDateInToday(article.publishedAt)
-        case .smart(.starred):
-            article.isStarred
-        case .feed(let feedID):
-            article.feedID == feedID
-        }
+        guard !selectedSources.isEmpty else { return true }
+        return selectedSources.contains { article.matches($0) }
     }
 
     private func matchesSearch(_ article: Article) -> Bool {

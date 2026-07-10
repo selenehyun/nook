@@ -765,6 +765,40 @@
         }
       }
     },
+    "Mark %lld Feeds as Read": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Mark %lld Feed as Read"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Mark %lld Feeds as Read"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "피드 %lld개를 읽음으로 표시"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Mark Feed as Read": {
       "localizations": {
         "en": {
@@ -1293,6 +1327,40 @@
         }
       }
     },
+    "Refresh %lld Feeds": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Refresh %lld Feed"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Refresh %lld Feeds"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "피드 %lld개 새로 고침"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Refresh All": {
       "localizations": {
         "en": {
@@ -1419,6 +1487,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "다시 시작"
+          }
+        }
+      }
+    },
+    "Remove %lld Feeds": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Remove %lld Feed"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Remove %lld Feeds"
+                }
+              }
+            }
+          }
+        },
+        "ko": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "피드 %lld개 제거"
+                }
+              }
+            }
           }
         }
       }

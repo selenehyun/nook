@@ -50,6 +50,18 @@ struct Article: Identifiable, Codable, Hashable {
     var contentHTML: String?
 }
 
+extension Article {
+    func matches(_ source: SourceSelection) -> Bool {
+        switch source {
+        case .smart(.all): true
+        case .smart(.unread): !isRead
+        case .smart(.today): Calendar.current.isDateInToday(publishedAt)
+        case .smart(.starred): isStarred
+        case .feed(let feedID): self.feedID == feedID
+        }
+    }
+}
+
 struct ParsedFeed {
     var feed: Feed
     var articles: [Article]
