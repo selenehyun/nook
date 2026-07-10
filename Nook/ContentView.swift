@@ -1073,36 +1073,92 @@ private struct CrumbWidthKey: PreferenceKey {
 private struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     @Environment(\.openURL) private var openURL
-    @State private var webReaderArticleID: Article.ID?
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
 
+    // In-app browser defaults (Settings).
+    @AppStorage("readerViewMode") private var defaultViewModeRaw = ReaderViewMode.reader.rawValue
+    @AppStorage("readerLinkBehavior") private var linkBehaviorRaw = ReaderLinkBehavior.inApp.rawValue
+    @AppStorage("readerFont") private var readerFontRaw = ReaderFont.system.rawValue
+    @AppStorage("readerFontSize") private var readerFontSize = 18
+    @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
+    @AppStorage("readerLetterSpacing") private var readerLetterSpacing = 0.0
+    @AppStorage("readerBackgroundOption") private var readerBackgroundOptionRaw = ReaderColorOption.automatic.rawValue
+    @AppStorage("readerBackgroundHex") private var readerBackgroundHex = "#FFFFFF"
+    @AppStorage("readerTextOption") private var readerTextOptionRaw = ReaderColorOption.automatic.rawValue
+    @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
+
+    // In-app browser (bottom panel) state.
+    @State private var isBrowserPresented = false
+    @State private var browserMode: ReaderViewMode = .reader
+    @State private var dragOffset: CGFloat = 0
+
+    private var defaultViewMode: ReaderViewMode { ReaderViewMode(rawValue: defaultViewModeRaw) ?? .reader }
+    private var linkOpensInApp: Bool { (ReaderLinkBehavior(rawValue: linkBehaviorRaw) ?? .inApp) == .inApp }
+    private var readerStyle: ReaderStyle {
+        ReaderStyle(
+            font: ReaderFont(rawValue: readerFontRaw) ?? .system,
+            fontSize: readerFontSize,
+            lineHeight: readerLineHeight,
+            letterSpacing: readerLetterSpacing,
+            backgroundOption: ReaderColorOption(rawValue: readerBackgroundOptionRaw) ?? .automatic,
+            backgroundHex: readerBackgroundHex,
+            textOption: ReaderColorOption(rawValue: readerTextOptionRaw) ?? .automatic,
+            textHex: readerTextHex
+        )
+    }
+
     var body: some View {
-        Group {
-            if !store.isStorageConfigured {
-                ContentUnavailableView {
-                    Label("Set Up iCloud Sync", systemImage: "icloud.and.arrow.up")
-                } description: {
-                    Text("Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices.")
-                }
-            } else if let article = store.selectedArticle {
-                articleReader(article)
-                    .overlay {
-                        if webReaderArticleID == article.id {
-                            webReader(article)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-            } else {
-                ContentUnavailableView {
-                    Label("Select an Article", systemImage: "newspaper")
-                } description: {
-                    Text("Choose a story from the article list.")
-                }
+        ZStack(alignment: .bottom) {
+            baseContent
+
+            if isBrowserPresented, let article = store.selectedArticle {
+                browserPanel(article)
+                    .transition(.move(edge: .bottom))
             }
         }
-        .onChange(of: store.selectedArticleID) { _, _ in
-            webReaderArticleID = nil
+        .onChange(of: store.selectedArticleID) { _, id in
+            if id == nil { closeBrowser() }
+        }
+    }
+
+    @ViewBuilder
+    private var baseContent: some View {
+        if !store.isStorageConfigured {
+            ContentUnavailableView {
+                Label("Set Up iCloud Sync", systemImage: "icloud.and.arrow.up")
+            } description: {
+                Text("Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices.")
+            }
+        } else if let article = store.selectedArticle {
+            articleReader(article)
+        } else {
+            ContentUnavailableView {
+                Label("Select an Article", systemImage: "newspaper")
+            } description: {
+                Text("Choose a story from the article list.")
+            }
+        }
+    }
+
+    private func openBrowser() {
+        browserMode = defaultViewMode
+        withAnimation(.easeInOut(duration: 0.3)) {
+            dragOffset = 0
+            isBrowserPresented = true
+        }
+    }
+
+    private func closeBrowser() {
+        withAnimation(.easeInOut(duration: 0.28)) {
+            isBrowserPresented = false
+            dragOffset = 0
+        }
+    }
+
+    private func toggleBrowserMode() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            browserMode = (browserMode == .reader) ? .original : .reader
         }
     }
 
@@ -1151,65 +1207,99 @@ private struct ReaderDetailView: View {
         }
     }
 
-    private func webReader(_ article: Article) -> some View {
-        ArticleWebView(url: article.url)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .textBackgroundColor))
-            .overlay(alignment: .topLeading) {
-                floatingReaderButton(systemImage: "xmark", label: "Close Reader") {
-                    closeWebReader()
+    /// The in-app browser as a non-modal bottom panel over the reader pane.
+    /// The sidebar and article list stay interactive, so selecting another
+    /// article switches this same panel to it (only one is ever open).
+    private func browserPanel(_ article: Article) -> some View {
+        VStack(spacing: 0) {
+            browserTopBar(article)
+            Divider()
+            ArticleWebView(
+                url: article.url,
+                useReaderMode: browserMode == .reader,
+                style: readerStyle,
+                linkOpensInApp: linkOpensInApp
+            )
+            .id("\(article.id)|\(browserMode.rawValue)|\(readerStyle.identity)")
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.28), radius: 22, y: -3)
+        .padding(.top, 44)
+        .offset(y: max(0, dragOffset))
+        .task(id: article.id) {
+            // Opening the in-app browser is an explicit read action.
+            store.retainArticle(id: article.id)
+            if markReadOnOpen {
+                store.markArticleOpened(articleID: article.id)
+            }
+        }
+    }
+
+    private func browserTopBar(_ article: Article) -> some View {
+        ZStack {
+            Capsule()
+                .fill(.quaternary)
+                .frame(width: 38, height: 5)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, 6)
+
+            HStack(spacing: 12) {
+                Button {
+                    closeBrowser()
+                } label: {
+                    Image(systemName: "xmark")
                 }
                 .keyboardShortcut("w", modifiers: .command)
-                .padding(16)
-            }
-            .overlay(alignment: .topTrailing) {
-                HStack(spacing: 10) {
-                    floatingReaderButton(systemImage: "safari", label: "Open Original") {
-                        openURL(article.url)
-                    }
+                .help("Close")
 
-                    ShareLink(item: article.url) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13, weight: .semibold))
-                            .frame(width: 30, height: 30)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
-                    .shadow(color: .black.opacity(0.15), radius: 5, y: 1)
-                    .help("Share")
+                Spacer()
+
+                Button {
+                    toggleBrowserMode()
+                } label: {
+                    Label(
+                        browserMode == .reader ? "Reader Mode" : "Original Page",
+                        systemImage: browserMode == .reader ? "doc.plaintext" : "globe"
+                    )
                 }
-                .padding(16)
-            }
-            .task(id: article.id) {
-                // Opening the full reader mode is an explicit "I'm reading
-                // this" action, so mark it read immediately.
-                store.retainArticle(id: article.id)
-                if markReadOnOpen {
-                    store.markArticleOpened(articleID: article.id)
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .help("Switch Reader / Original (⌘⇧R)")
+
+                Spacer()
+
+                Button {
+                    openURL(article.url)
+                } label: {
+                    Image(systemName: "safari")
                 }
+                .help("Open Original")
+
+                ShareLink(item: article.url) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .help("Share")
             }
-    }
-
-    private func floatingReaderButton(systemImage: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 30, height: 30)
-                .contentShape(Circle())
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .padding(.top, 6)
         }
-        .buttonStyle(.plain)
-        .background(.regularMaterial, in: Circle())
-        .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
-        .shadow(color: .black.opacity(0.15), radius: 5, y: 1)
-        .help(label)
-    }
-
-    private func closeWebReader() {
-        withAnimation(.easeInOut(duration: 0.28)) {
-            webReaderArticleID = nil
-        }
+        .background(.bar)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 4)
+                .onChanged { value in
+                    dragOffset = value.translation.height
+                }
+                .onEnded { value in
+                    if value.translation.height > 120 {
+                        closeBrowser()
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
+                    }
+                }
+        )
     }
 
     /// Keeps the article visible while reading, then marks it read only after
@@ -1274,9 +1364,7 @@ private struct ReaderDetailView: View {
                 if NSEvent.modifierFlags.contains(.command) {
                     openURL(article.url)
                 } else {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        webReaderArticleID = article.id
-                    }
+                    openBrowser()
                 }
             } label: {
                 Text(article.title)
@@ -1632,9 +1720,25 @@ struct ReaderSettingsView: View {
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
-    @AppStorage("openLinksInBrowser") private var openLinksInBrowser = true
+    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
+    @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
+    @AppStorage("readerFont") private var readerFont = ReaderFont.system
+    @AppStorage("readerFontSize") private var readerFontSize = 18
+    @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
+    @AppStorage("readerLetterSpacing") private var readerLetterSpacing = 0.0
+    @AppStorage("readerBackgroundOption") private var readerBackgroundOption = ReaderColorOption.automatic
+    @AppStorage("readerBackgroundHex") private var readerBackgroundHex = "#FFFFFF"
+    @AppStorage("readerTextOption") private var readerTextOption = ReaderColorOption.automatic
+    @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
+
+    private var backgroundColor: Binding<Color> {
+        Binding { Color(hex: readerBackgroundHex) } set: { readerBackgroundHex = $0.hexString }
+    }
+    private var textColor: Binding<Color> {
+        Binding { Color(hex: readerTextHex) } set: { readerTextHex = $0.hexString }
+    }
 
     var body: some View {
         Form {
@@ -1660,7 +1764,36 @@ struct ReaderSettingsView: View {
                 Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
                 Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
                     .disabled(!markReadOnOpen)
-                Toggle("Open original links in the default browser", isOn: $openLinksInBrowser)
+            }
+
+            Section("Reader") {
+                Picker("In-App Browser", selection: $readerViewMode) {
+                    ForEach(ReaderViewMode.allCases) { Text($0.label).tag($0) }
+                }
+                Picker("Links Open", selection: $readerLinkBehavior) {
+                    ForEach(ReaderLinkBehavior.allCases) { Text($0.label).tag($0) }
+                }
+
+                if readerViewMode == .reader {
+                    Picker("Font", selection: $readerFont) {
+                        ForEach(ReaderFont.allCases) { Text($0.label).tag($0) }
+                    }
+                    Stepper("Font Size: \(readerFontSize)", value: $readerFontSize, in: 12...28)
+                    Stepper("Line Spacing: \(String(format: "%.1f", readerLineHeight))", value: $readerLineHeight, in: 1.2...2.4, step: 0.1)
+                    Stepper("Letter Spacing: \(String(format: "%.2f", readerLetterSpacing))", value: $readerLetterSpacing, in: -0.02...0.15, step: 0.01)
+                    Picker("Background", selection: $readerBackgroundOption) {
+                        ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
+                    }
+                    if readerBackgroundOption == .custom {
+                        ColorPicker("Background Color", selection: backgroundColor, supportsOpacity: false)
+                    }
+                    Picker("Text", selection: $readerTextOption) {
+                        ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
+                    }
+                    if readerTextOption == .custom {
+                        ColorPicker("Text Color", selection: textColor, supportsOpacity: false)
+                    }
+                }
             }
 
             Section("Feeds") {
