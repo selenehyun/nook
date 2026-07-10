@@ -289,7 +289,6 @@ private struct SyncFolderFooter: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(store.isStorageConfigured ? "Sync Folder" : "Choose iCloud Folder")
                             .font(.callout)
-                            .foregroundStyle(.primary)
 
                         if let name = store.syncFolderName {
                             Text(name)
@@ -301,16 +300,52 @@ private struct SyncFolderFooter: View {
                     }
 
                     Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .imageScale(.small)
+                        .foregroundStyle(.tertiary)
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .buttonStyle(SidebarActionButtonStyle())
             // Full path is intentionally hidden; it reveals as a native tooltip on hover.
             .help(store.syncFolderDisplayPath ?? String(localized: "Choose iCloud Sync Folder"))
+            .padding(6)
         }
         .background(.bar)
+    }
+}
+
+/// A sidebar footer button style with native hover and pressed highlights so
+/// the control clearly reads as tappable.
+private struct SidebarActionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Row(configuration: configuration)
+    }
+
+    private struct Row: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(fillColor)
+                )
+                .onHover { isHovering = $0 }
+                .animation(.easeOut(duration: 0.12), value: isHovering)
+                .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+        }
+
+        private var fillColor: Color {
+            if configuration.isPressed { return Color.primary.opacity(0.14) }
+            if isHovering { return Color.primary.opacity(0.07) }
+            return .clear
+        }
     }
 }
 
