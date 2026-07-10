@@ -188,15 +188,17 @@ struct ContentView: View {
             // nook://open simply brings the app forward.
         }
         .overlay {
-            if store.isBrowserPresented, let article = store.selectedArticle {
-                ZStack(alignment: .bottom) {
+            ZStack(alignment: .bottom) {
+                if store.isBrowserPresented {
                     Color.black
                         .opacity(max(0, 0.32 - browserDragOffset / 1400))
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture { closeBrowser() }
                         .transition(.opacity)
+                }
 
+                if store.isBrowserPresented, let article = store.selectedArticle {
                     InAppBrowserPanel(
                         store: store,
                         article: article,
@@ -208,18 +210,14 @@ struct ContentView: View {
                     )
                     .transition(.move(edge: .bottom))
                 }
-                .zIndex(1)
             }
+            .animation(.spring(response: 0.38, dampingFraction: 0.85), value: store.isBrowserPresented)
+            .allowsHitTesting(store.isBrowserPresented)
         }
         .onChange(of: store.isBrowserPresented) { _, presented in
             if presented {
                 browserMode = readerViewMode
                 browserDragOffset = 0
-            }
-        }
-        .onChange(of: store.selectedArticleID) { _, id in
-            if id == nil, store.isBrowserPresented {
-                closeBrowser()
             }
         }
         .focusedSceneValue(
@@ -1167,10 +1165,17 @@ private struct InAppBrowserPanel: View {
             )
             .id("\(article.id)|\(mode.rawValue)|\(style.identity)")
         }
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.28), radius: 24, y: -3)
-        .padding(.top, 40)
+        .frame(maxWidth: 980)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
+        )
+        .shadow(color: .black.opacity(0.3), radius: 30, y: 6)
+        .padding(.top, 44)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 14)
         .offset(y: max(0, dragOffset))
         .task(id: article.id) {
             store.retainArticle(id: article.id)
