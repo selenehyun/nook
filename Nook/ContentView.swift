@@ -967,7 +967,6 @@ private struct MiddleCrumbSegment: View {
     @State private var intrinsicWidth: CGFloat = 0
 
     private var isTruncated: Bool { intrinsicWidth > collapsedMaxWidth + 0.5 }
-    private var showsFade: Bool { isTruncated && !expanded }
 
     var body: some View {
         Button(action: action) {
@@ -987,26 +986,46 @@ private struct MiddleCrumbSegment: View {
                 )
         }
         .onPreferenceChange(CrumbWidthKey.self) { intrinsicWidth = $0 }
-        .frame(maxWidth: (expanded || !isTruncated) ? nil : collapsedMaxWidth, alignment: .leading)
+        // The in-flow width is constant (capped when truncated), so expanding
+        // never shifts the following segments.
+        .frame(maxWidth: isTruncated ? collapsedMaxWidth : nil, alignment: .leading)
         .mask(
             LinearGradient(
                 stops: [
                     .init(color: .black, location: 0),
-                    .init(color: .black, location: showsFade ? 0.78 : 1),
-                    .init(color: showsFade ? .clear : .black, location: 1)
+                    .init(color: .black, location: isTruncated ? 0.78 : 1),
+                    .init(color: isTruncated ? .clear : .black, location: 1)
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
             )
         )
+        // On hover, reveal the full text as a floating pill overlaid on top of
+        // the following segments — no layout shift.
+        .overlay(alignment: .leading) {
+            if expanded && isTruncated {
+                content()
+                    .fixedSize()
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1)))
+                    .shadow(color: .black.opacity(0.18), radius: 6, y: 1)
+                    .offset(x: -8)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .leading)))
+                    .allowsHitTesting(false)
+            }
+        }
+        .zIndex(expanded ? 1 : 0)
         .onHover { isHovered in
             if isHovered {
-                withAnimation(.easeOut(duration: 0.2)) { expanded = true }
+                withAnimation(.easeOut(duration: 0.18)) { expanded = true }
             }
         }
         .onChange(of: breadcrumbHovered) { _, hovering in
             if !hovering {
-                withAnimation(.easeOut(duration: 0.2)) { expanded = false }
+                withAnimation(.easeOut(duration: 0.18)) { expanded = false }
             }
         }
     }
