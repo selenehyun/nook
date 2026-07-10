@@ -75,6 +75,33 @@ Open the project in Xcode:
 make open
 ```
 
+## Build & Install From Source
+
+If you'd rather build the app yourself instead of downloading the DMG, you
+can compile a Release build and copy it into `/Applications`. An app you build
+locally is **not** quarantined, so it launches without any Gatekeeper prompt.
+
+Using the command line:
+
+```sh
+git clone https://github.com/selenehyun/nook.git
+cd nook
+
+# Build a Release version (ad-hoc signed via the project's default settings)
+xcodebuild -project Nook.xcodeproj -scheme Nook -configuration Release \
+  -derivedDataPath build build
+
+# Copy the app into Applications
+cp -R build/Build/Products/Release/Nook.app /Applications/
+```
+
+Or from Xcode:
+
+1. Open `Nook.xcodeproj`.
+2. Choose **Product → Archive**.
+3. In the Organizer, click **Distribute App → Custom → Copy App**, then save
+   `Nook.app` and drag it into `/Applications`.
+
 ## RSS & iCloud Folder Storage
 
 1. Launch the app.
