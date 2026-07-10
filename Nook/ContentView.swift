@@ -863,6 +863,65 @@ private struct ReaderTitleButtonStyle: ButtonStyle {
     }
 }
 
+/// A native, Xcode-jump-bar-style breadcrumb pinned to the top of the reader:
+/// Source › Feed › Article. The feed segment jumps to that feed.
+private struct ReaderBreadcrumbBar: View {
+    @Bindable var store: ReaderStore
+    let article: Article
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(store.selectedSourceTitle)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(1)
+
+            if let feed = store.feed(for: article.feedID) {
+                chevron
+                Button {
+                    store.feedSelection = [feed.id]
+                } label: {
+                    HStack(spacing: 4) {
+                        if let icon = store.faviconImage(for: feed) {
+                            icon
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 13, height: 13)
+                                .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                        }
+                        Text(feed.title).lineLimit(1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .layoutPriority(1)
+            }
+
+            chevron
+
+            Text(article.title)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 0)
+        }
+        .font(.callout)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(.bar)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+    }
+}
+
 private struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     @Environment(\.openURL) private var openURL
@@ -939,6 +998,9 @@ private struct ReaderDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
+        .safeAreaInset(edge: .top, spacing: 0) {
+            ReaderBreadcrumbBar(store: store, article: article)
+        }
         .task(id: article.id) {
             await markReadAfterDwell(article)
         }
@@ -1094,12 +1156,6 @@ private struct ReaderDetailView: View {
                     store.toggleStarred(articleID: article.id)
                 } label: {
                     Label(article.isStarred ? "Starred" : "Star", systemImage: article.isStarred ? "star.fill" : "star")
-                }
-
-                Button {
-                    openURL(article.url)
-                } label: {
-                    Label("Open", systemImage: "arrow.up.forward")
                 }
             }
             .buttonStyle(.bordered)
