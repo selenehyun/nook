@@ -248,6 +248,7 @@ private struct FeedSidebar: View {
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderPendingDeletion: String?
+    @State private var dropTargetFolder: String?
 
     var body: some View {
         List(selection: $store.feedSelection) {
@@ -357,18 +358,23 @@ private struct FeedSidebar: View {
             }
         }
         .contentShape(Rectangle())
-        .foregroundStyle(isActive ? Color.white : Color.primary)
+        .foregroundStyle((isActive && dropTargetFolder != folder) ? Color.white : Color.primary)
         .onTapGesture {
             store.selectFolder(folder)
         }
-        .listRowBackground(
-            isActive
-                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor)
-                : nil
-        )
+        .listRowBackground(folderRowBackground(folder: folder, isActive: isActive))
         .dropDestination(for: String.self) { droppedIDs, _ in
             for id in droppedIDs { store.moveFeed(id, toFolder: folder) }
+            dropTargetFolder = nil
             return true
+        } isTargeted: { targeted in
+            withAnimation(.easeOut(duration: 0.1)) {
+                if targeted {
+                    dropTargetFolder = folder
+                } else if dropTargetFolder == folder {
+                    dropTargetFolder = nil
+                }
+            }
         }
         .contextMenu {
             Button(role: .destructive) {
@@ -376,6 +382,23 @@ private struct FeedSidebar: View {
             } label: {
                 Text("Remove Folder")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func folderRowBackground(folder: String, isActive: Bool) -> some View {
+        if dropTargetFolder == folder {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.accentColor.opacity(0.2))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(Color.accentColor, lineWidth: 1.5)
+                )
+        } else if isActive {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.accentColor)
+        } else {
+            Color.clear
         }
     }
 
