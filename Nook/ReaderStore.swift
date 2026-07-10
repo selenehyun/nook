@@ -519,7 +519,11 @@ final class ReaderStore {
 
     private func merge(_ parsedFeed: ParsedFeed) {
         if let feedIndex = feeds.firstIndex(where: { $0.id == parsedFeed.feed.id }) {
-            feeds[feedIndex] = parsedFeed.feed
+            var updated = parsedFeed.feed
+            // Preserve the user's folder assignment across refreshes; a freshly
+            // parsed feed always has an empty category.
+            updated.category = feeds[feedIndex].category
+            feeds[feedIndex] = updated
         } else {
             feeds.append(parsedFeed.feed)
         }
