@@ -29,19 +29,9 @@ struct Article: Identifiable, Codable, Hashable {
     var estimatedReadMinutes: Int
     var isRead: Bool
     var isStarred: Bool
-    /// Full article text extracted from the web page, cached for offline
-    /// reading. `nil` means not yet attempted; an empty array means extraction
-    /// was attempted but the RSS content is used instead.
-    var fullContentParagraphs: [String]?
-
-    /// The paragraphs to render: the extracted web content when available,
-    /// otherwise the RSS content.
-    var readerParagraphs: [String] {
-        if let fullContentParagraphs, !fullContentParagraphs.isEmpty {
-            return fullContentParagraphs
-        }
-        return bodyParagraphs
-    }
+    /// The item's content as HTML when the feed declares (or ships) HTML, so
+    /// the reader can render it richly. `nil` for plain-text content.
+    var contentHTML: String?
 }
 
 struct ParsedFeed {

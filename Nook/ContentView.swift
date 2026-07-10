@@ -570,23 +570,16 @@ private struct ReaderDetailView: View {
 
                         Divider()
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            ForEach(article.readerParagraphs, id: \.self) { paragraph in
-                                Text(paragraph)
-                                    .font(.body)
-                                    .lineSpacing(4)
-                                    .textSelection(.enabled)
-                            }
-
-                            if store.isLoadingContent(articleID: article.id) {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text("Loading full article…")
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
+                        if let html = article.contentHTML {
+                            HTMLContentText(html: html)
+                        } else {
+                            VStack(alignment: .leading, spacing: 16) {
+                                ForEach(article.bodyParagraphs, id: \.self) { paragraph in
+                                    Text(paragraph)
+                                        .font(.body)
+                                        .lineSpacing(4)
+                                        .textSelection(.enabled)
                                 }
-                                .padding(.top, 4)
                             }
                         }
 
@@ -613,7 +606,6 @@ private struct ReaderDetailView: View {
                 .task(id: article.id) {
                     await Task.yield()
                     store.markArticleOpened(articleID: article.id)
-                    store.loadFullContentIfNeeded(articleID: article.id)
                 }
             } else {
                 ContentUnavailableView {
@@ -630,7 +622,7 @@ private struct ReaderDetailView: View {
     private func shouldShowSummary(_ article: Article) -> Bool {
         let summary = article.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !summary.isEmpty else { return false }
-        let firstParagraph = article.readerParagraphs.first?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstParagraph = article.bodyParagraphs.first?.trimmingCharacters(in: .whitespacesAndNewlines)
         return summary != firstParagraph
     }
 
@@ -692,6 +684,67 @@ private struct ReaderDetailView: View {
             }
             .buttonStyle(.bordered)
         }
+    }
+}
+
+/// Renders HTML feed content natively via the AppKit text system (no web
+/// view), normalizing fonts and colors to match the app.
+private struct HTMLContentText: View {
+    let html: String
+    @State private var attributed: AttributedString?
+
+    var body: some View {
+        Group {
+            if let attributed {
+                Text(attributed)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .tint(.accentColor)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: html) {
+            attributed = Self.render(html)
+        }
+    }
+
+    private static func render(_ html: String) -> AttributedString? {
+        guard let data = html.data(using: .utf8) else { return nil }
+
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ]
+        guard let mutable = try? NSMutableAttributedString(data: data, options: options, documentAttributes: nil) else {
+            return nil
+        }
+
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        let baseSize = NSFont.preferredFont(forTextStyle: .body).pointSize
+
+        // Replace the HTML importer's default fonts with the system font while
+        // preserving bold/italic emphasis.
+        mutable.enumerateAttribute(.font, in: fullRange, options: []) { value, range, _ in
+            let existingTraits = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+            var traits: NSFontDescriptor.SymbolicTraits = []
+            if existingTraits.contains(.bold) { traits.insert(.bold) }
+            if existingTraits.contains(.italic) { traits.insert(.italic) }
+            let descriptor = NSFont.systemFont(ofSize: baseSize).fontDescriptor.withSymbolicTraits(traits)
+            let font = NSFont(descriptor: descriptor, size: baseSize) ?? NSFont.systemFont(ofSize: baseSize)
+            mutable.addAttribute(.font, value: font, range: range)
+        }
+
+        // Keep link runs their own color; make everything else adapt to light/dark.
+        mutable.enumerateAttribute(.link, in: fullRange, options: []) { link, range, _ in
+            if link == nil {
+                mutable.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
+            }
+        }
+
+        return try? AttributedString(mutable, including: \.appKit)
     }
 }
 

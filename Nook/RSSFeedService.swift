@@ -149,6 +149,7 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
         var guid = ""
         var summary = ""
         var content = ""
+        var contentType = ""
         var published = ""
         var updated = ""
     }
@@ -204,6 +205,9 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
             let idSeed = draft.guid.cleanedFeedText(fallback: linkURL.absoluteString)
             let articleID = "\(feed.id)#\(idSeed)"
 
+            let rawContent = draft.content.isEmpty ? draft.summary : draft.content
+            let contentHTML = Self.htmlContent(raw: rawContent, declaredType: draft.contentType)
+
             return Article(
                 id: articleID,
                 feedID: feed.id,
@@ -214,7 +218,8 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
                 url: linkURL,
                 estimatedReadMinutes: Article.readingMinutes(for: paragraphs),
                 isRead: false,
-                isStarred: false
+                isStarred: false,
+                contentHTML: contentHTML
             )
         }
 
@@ -242,6 +247,9 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
             currentArticle = ArticleDraft()
         } else if format == .atom, key == "link" {
             handleAtomLink(attributeDict)
+        } else if key == "content", currentArticle != nil, let type = attributeDict["type"] {
+            // Atom declares the content type explicitly (e.g. "html", "xhtml", "text").
+            currentArticle?.contentType = type
         }
     }
 
@@ -370,6 +378,26 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
 
         return URL(string: trimmed, relativeTo: feedURL)?.absoluteURL ?? fallback
     }
+
+    /// Returns the raw content as HTML when the feed declares an HTML type
+    /// (Atom `type="html"`/`"xhtml"`) or, when unspecified (RSS), when the
+    /// content actually contains markup. Returns `nil` for plain text.
+    private static func htmlContent(raw: String, declaredType: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let type = declaredType.lowercased()
+        let isHTML: Bool
+        if type.contains("html") {
+            isHTML = true
+        } else if type == "text" {
+            isHTML = false
+        } else {
+            isHTML = trimmed.containsHTMLMarkup
+        }
+
+        return isHTML ? trimmed : nil
+    }
 }
 
 private enum FeedDateParser {
@@ -467,5 +495,9 @@ private extension String {
         }
 
         return "\(prefix(maxLength).trimmingCharacters(in: .whitespacesAndNewlines))..."
+    }
+
+    var containsHTMLMarkup: Bool {
+        range(of: "<[a-zA-Z/][^>]*>", options: .regularExpression) != nil
     }
 }

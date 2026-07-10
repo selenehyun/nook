@@ -567,22 +567,6 @@
         }
       }
     },
-    "Loading full article…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading full article…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "본문 전체를 불러오는 중…"
-          }
-        }
-      }
-    },
     "Mark Feed as Read": {
       "localizations": {
         "en": {
