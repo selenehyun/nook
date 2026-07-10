@@ -208,6 +208,15 @@ struct ContentView: View {
                     )
                     .transition(.move(edge: .bottom))
                 }
+
+                // Grabber lives outside the sheet (does not move with it) so its
+                // drag gesture isn't cancelled as the sheet slides down.
+                if store.isBrowserPresented {
+                    browserGrabber
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 52)
+                        .transition(.opacity)
+                }
             }
             .animation(.spring(response: 0.38, dampingFraction: 0.85), value: store.isBrowserPresented)
             .allowsHitTesting(store.isBrowserPresented)
@@ -238,6 +247,28 @@ private extension ContentView {
             store.isBrowserPresented = false
             browserDragOffset = 0
         }
+    }
+
+    /// The sheet's drag handle. Kept outside the sheet's `.offset` so the drag
+    /// gesture's own view never moves — otherwise macOS cancels the in-flight
+    /// gesture as the view slides, producing jitter.
+    var browserGrabber: some View {
+        Capsule()
+            .fill(.quaternary)
+            .frame(width: 38, height: 5)
+            .frame(width: 160, height: 22)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 2, coordinateSpace: .global)
+                    .onChanged { value in browserDragOffset = max(0, value.translation.height) }
+                    .onEnded { value in
+                        if value.translation.height > 120 {
+                            closeBrowser()
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) { browserDragOffset = 0 }
+                        }
+                    }
+            )
     }
 
     @MainActor
@@ -1193,12 +1224,7 @@ private struct InAppBrowserPanel: View {
     }
 
     private var topBar: some View {
-        VStack(spacing: 8) {
-            Capsule()
-                .fill(.quaternary)
-                .frame(width: 38, height: 5)
-
-            HStack(spacing: 12) {
+        HStack(spacing: 12) {
                 Button { onClose() } label: {
                     Image(systemName: "xmark")
                 }
@@ -1230,25 +1256,10 @@ private struct InAppBrowserPanel: View {
                 .help("Share")
             }
             .buttonStyle(.borderless)
-        }
-        .padding(.top, 7)
+        .padding(.top, 22)
         .padding(.bottom, 9)
         .padding(.horizontal, 14)
         .background(.bar)
-        .contentShape(Rectangle())
-        .gesture(
-            // Global coordinate space so translation tracks the pointer even as
-            // the sheet (and this header) moves down with dragOffset.
-            DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                .onChanged { value in dragOffset = max(0, value.translation.height) }
-                .onEnded { value in
-                    if value.translation.height > 120 {
-                        onClose()
-                    } else {
-                        withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
-                    }
-                }
-        )
     }
 }
 

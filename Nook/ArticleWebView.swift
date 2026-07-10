@@ -180,29 +180,42 @@ struct ArticleWebView: NSViewRepresentable {
 
         /// Returns true to consume the event (we are driving the sheet).
         private func handle(_ event: NSEvent) -> Bool {
-            guard let webView, event.window === webView.window else { return false }
-            let point = webView.convert(event.locationInWindow, from: nil)
-            guard webView.bounds.contains(point) else { return false }
+            guard let webView else { return false }
 
             // Positive scrollingDeltaY at the top means pulling the page down
             // (natural scrolling), i.e. an overscroll that should move the sheet.
             let delta = event.scrollingDeltaY
 
             if !engaged {
-                guard atTop, delta > 0, event.momentumPhase == [] else { return false }
+                // Engage only when starting a top overscroll over the web view.
+                guard atTop, delta > 0, event.momentumPhase == [],
+                      event.window === webView.window,
+                      webView.bounds.contains(webView.convert(event.locationInWindow, from: nil)) else {
+                    return false
+                }
                 engaged = true
+                overscroll = 0
             }
 
+            // Once engaged, keep driving the sheet regardless of where the
+            // pointer is (the sheet slides out from under it).
             overscroll = max(0, overscroll + delta)
             onOverscroll(overscroll)
 
-            let finished = event.phase.contains(.ended) || event.phase.contains(.cancelled)
-            if finished || overscroll == 0 {
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
                 let amount = overscroll
                 engaged = false
                 overscroll = 0
                 onOverscrollEnded(amount)
+                return true
             }
+
+            if overscroll == 0 {
+                // Pulled back to the top: hand scrolling back to the web view.
+                engaged = false
+                return false
+            }
+
             return true
         }
 
