@@ -1237,8 +1237,10 @@ private struct InAppBrowserPanel: View {
         .background(.bar)
         .contentShape(Rectangle())
         .gesture(
-            DragGesture(minimumDistance: 4)
-                .onChanged { value in dragOffset = value.translation.height }
+            // Global coordinate space so translation tracks the pointer even as
+            // the sheet (and this header) moves down with dragOffset.
+            DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                .onChanged { value in dragOffset = max(0, value.translation.height) }
                 .onEnded { value in
                     if value.translation.height > 120 {
                         onClose()
