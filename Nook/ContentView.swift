@@ -175,6 +175,9 @@ struct ContentView: View {
             store.handleOPMLExport(result)
         }
         .task {
+            // Mirror the badge preference into the store before loading, so the
+            // first badge update (driven by the store) already respects it.
+            store.showsUnreadBadge = showUnreadBadge
             store.bootstrap()
             // Sync immediately on launch so the reader opens on fresh articles.
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: false) }
@@ -204,9 +207,7 @@ struct ContentView: View {
                 browserDragOffset = 0
             }
         }
-        .onChange(of: store.totalUnreadCount) { _, _ in updateDockBadge() }
-        .onChange(of: showUnreadBadge) { _, _ in updateDockBadge() }
-        .onAppear { updateDockBadge() }
+        .onChange(of: showUnreadBadge) { _, newValue in store.showsUnreadBadge = newValue }
         .focusedSceneValue(
             \.readerCommandActions,
             ReaderCommandActions(
@@ -261,13 +262,6 @@ struct ContentView: View {
 }
 
 private extension ContentView {
-    /// Shows the total unread count on the Dock icon, or clears it when the
-    /// option is off or there is nothing unread.
-    func updateDockBadge() {
-        let count = store.totalUnreadCount
-        NSApp.dockTile.badgeLabel = (showUnreadBadge && count > 0) ? String(count) : nil
-    }
-
     func closeBrowser() {
         withAnimation(.easeInOut(duration: 0.28)) {
             store.isBrowserPresented = false

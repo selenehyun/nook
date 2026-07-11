@@ -7,7 +7,7 @@ import SwiftUI
 @Observable
 final class ReaderStore {
     var feeds: [Feed] = [] { didSet { scheduleArticleFilter() } }
-    var articles: [Article] = [] { didSet { scheduleArticleFilter() } }
+    var articles: [Article] = [] { didSet { scheduleArticleFilter(); updateDockBadge() } }
     // Library and Feeds are independent selection scopes: a single smart
     // source acts as navigation, while feeds support multiple selection.
     var smartSelection: SmartSource? = .all { didSet { scheduleArticleFilter() } }
@@ -41,6 +41,10 @@ final class ReaderStore {
     private static let backgroundFilterThreshold = 600
     var lastRefreshedAt: Date?
     var errorMessage: String?
+    /// Mirrors the "show unread badge" preference. Held in the store (not only
+    /// the view) so the Dock badge is a deterministic function of store state
+    /// rather than of SwiftUI view-lifecycle timing.
+    var showsUnreadBadge = true { didSet { updateDockBadge() } }
     private(set) var syncFolderDisplayPath: String?
     private(set) var feedIcons: [Feed.ID: NSImage] = [:]
     private(set) var folders: [String] = []
@@ -305,6 +309,15 @@ final class ReaderStore {
     /// Total unread across every feed, used for the app icon badge.
     var totalUnreadCount: Int {
         articles.reduce(0) { $1.isRead ? $0 : $0 + 1 }
+    }
+
+    /// The single writer of the Dock badge. Invoked automatically whenever the
+    /// article set or the preference changes (via their `didSet`), so the badge
+    /// can never drift out of sync with the unread count — on launch, during a
+    /// refresh, or when read state changes — regardless of view timing.
+    private func updateDockBadge() {
+        let count = totalUnreadCount
+        NSApp.dockTile.badgeLabel = (showsUnreadBadge && count > 0) ? String(count) : nil
     }
 
     func unreadCount(feedID: Feed.ID? = nil) -> Int {
