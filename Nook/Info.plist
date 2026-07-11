@@ -46,6 +46,11 @@
 	<true/>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
+	<!-- Background check cadence. 3600s (1h, Sparkle's enforced minimum) keeps
+	     the gentle sidebar banner reasonably responsive instead of the 24h
+	     default. Scheduled checks — not manual "Check Now" — drive the banner. -->
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- RSS feeds are arbitrary, user-chosen URLs; many are served over
