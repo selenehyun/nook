@@ -174,7 +174,16 @@ struct ContentView: View {
         ) { result in
             store.handleOPMLExport(result)
         }
-        .task { store.bootstrap() }
+        .task {
+            store.bootstrap()
+            // Sync immediately on launch so the reader opens on fresh articles.
+            if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: false) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // Refresh when Nook returns to the foreground, throttled so rapid
+            // app switching doesn't refetch every feed each time.
+            if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
+        }
         .task(id: "\(autoRefreshEnabled)-\(refreshIntervalMinutes)-\(store.isStorageConfigured)") {
             guard autoRefreshEnabled, store.isStorageConfigured else { return }
             await store.runAutoRefreshLoop(intervalMinutes: refreshIntervalMinutes)

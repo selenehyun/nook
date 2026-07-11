@@ -407,6 +407,35 @@ final class ReaderStore {
         }
     }
 
+    /// Shortest gap between activation-triggered syncs. Prevents rapidly
+    /// switching focus back to Nook from hammering feed servers.
+    private static let activationRefreshThrottle: TimeInterval = 60
+
+    private var activationRefreshInFlight = false
+
+    /// Syncs all feeds in response to the app launching or returning to the
+    /// foreground. `honorThrottle` skips the sync when the last refresh was very
+    /// recent, so refocusing Nook repeatedly doesn't refetch every feed each
+    /// time. Launch passes `false` so opening the app always fetches.
+    ///
+    /// `activationRefreshInFlight` is set synchronously before the async work
+    /// starts so the launch sync and the initial `didBecomeActive` (which both
+    /// fire at startup) coalesce into a single refresh instead of two.
+    func refreshOnActivation(honorThrottle: Bool) {
+        guard isStorageConfigured, !feeds.isEmpty, !isRefreshing, !activationRefreshInFlight else { return }
+
+        if honorThrottle, let lastRefreshedAt,
+           Date.now.timeIntervalSince(lastRefreshedAt) < Self.activationRefreshThrottle {
+            return
+        }
+
+        activationRefreshInFlight = true
+        Task {
+            await refreshAllFeeds()
+            activationRefreshInFlight = false
+        }
+    }
+
     func runAutoRefreshLoop(intervalMinutes: Int) async {
         let seconds = max(5, intervalMinutes * 60)
 
