@@ -861,6 +861,15 @@ private struct ArticleListView: View {
                     }
                 }
                 .listStyle(.inset)
+                .onKeyPress(.return) {
+                    // Enter on the selected row opens the web view, mirroring a
+                    // click on the reader's title.
+                    guard store.selectedArticle != nil else { return .ignored }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        store.isBrowserPresented = true
+                    }
+                    return .handled
+                }
             }
         }
         // The source is shown by the toolbar breadcrumb instead, so no column
