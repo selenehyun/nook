@@ -65,22 +65,64 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           APP="$RUNNER_TEMP/Nook.xcarchive/Products/Applications/Nook.app"
+          ICNS="$APP/Contents/Resources/AppIcon.icns"
+          VOL="Nook ${VERSION}"
           STAGING="$RUNNER_TEMP/dmg-staging"
+          RW="$RUNNER_TEMP/Nook-rw.dmg"
           DMG="Nook-${VERSION}.dmg"
+          SETFILE="$(xcrun --find SetFile)"
 
-          rm -rf "$STAGING"
+          rm -rf "$STAGING" "$RW" "$DMG"
           mkdir -p "$STAGING"
           cp -R "$APP" "$STAGING/"
           # Classic "drag to Applications" layout.
           ln -s /Applications "$STAGING/Applications"
+          # Volume icon (shown for the mounted disk) uses the app icon.
+          cp "$ICNS" "$STAGING/.VolumeIcon.icns"
 
-          hdiutil create \
-            -volname "Nook ${VERSION}" \
-            -srcfolder "$STAGING" \
-            -fs HFS+ \
-            -format UDZO \
-            -ov \
-            "$DMG"
+          # Build a read-write image we can style in Finder, then compress it.
+          hdiutil create -volname "$VOL" -srcfolder "$STAGING" -fs HFS+ -format UDRW -ov "$RW"
+          MP="$(hdiutil attach "$RW" -nobrowse -noautoopen | grep -o '/Volumes/.*' | head -1)"
+          VOLNAME="$(basename "$MP")"
+
+          # Mark the volume as having a custom icon (picks up .VolumeIcon.icns).
+          "$SETFILE" -a C "$MP"
+
+          # Window layout: icon view, hidden chrome, app on the left dragging
+          # onto the Applications shortcut on the right. Best-effort — a Finder
+          # hiccup on the runner must not fail the release (icons still apply).
+          osascript <<OSA || echo "::warning::Finder DMG layout failed; shipping default window"
+          tell application "Finder"
+            tell disk "$VOLNAME"
+              open
+              set current view of container window to icon view
+              set toolbar visible of container window to false
+              set statusbar visible of container window to false
+              set the bounds of container window to {200, 120, 720, 480}
+              set vo to the icon view options of container window
+              set arrangement of vo to not arranged
+              set icon size of vo to 104
+              set position of item "Nook.app" of container window to {140, 190}
+              set position of item "Applications" of container window to {380, 190}
+              update without registering applications
+              delay 1
+              close
+            end tell
+          end tell
+          OSA
+
+          sync
+          hdiutil detach "$MP"
+          hdiutil convert "$RW" -format UDZO -o "$DMG"
+
+          # Give the .dmg file itself the app icon in Finder.
+          osascript - "$ICNS" "$DMG" <<'OSA' || echo "::warning::Setting .dmg file icon failed"
+          use framework "AppKit"
+          on run argv
+            set img to (current application's NSImage's alloc()'s initWithContentsOfFile:(item 1 of argv))
+            (current application's NSWorkspace's sharedWorkspace()'s setIcon:img forFile:(item 2 of argv) options:0)
+          end run
+          OSA
 
           echo "path=$DMG" >> "$GITHUB_OUTPUT"
 
