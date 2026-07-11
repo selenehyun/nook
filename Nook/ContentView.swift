@@ -962,11 +962,11 @@ private struct ArticleListView: View {
         }
         .onChange(of: store.feedSelection) { _, _ in
             store.clearRetainedArticles()
-            store.selectFirstVisibleArticleIfNeeded()
+            store.pruneSelectionIfHidden()
         }
         .onChange(of: store.smartSelection) { _, _ in
             store.clearRetainedArticles()
-            store.selectFirstVisibleArticleIfNeeded()
+            store.pruneSelectionIfHidden()
         }
         .onChange(of: store.searchText) { _, _ in
             store.debounceSearch()

@@ -140,7 +140,7 @@ final class ReaderStore {
 
     private func applyDisplayed(_ result: [Article]) {
         displayedArticles = result
-        selectFirstVisibleArticleIfNeeded()
+        pruneSelectionIfHidden()
     }
 
     /// Pure filtering + sorting over a snapshot. `nonisolated` so it can run on
@@ -206,7 +206,7 @@ final class ReaderStore {
         smartSelection = source
         feedSelection = []
         clearRetainedArticles()
-        selectFirstVisibleArticleIfNeeded()
+        pruneSelectionIfHidden()
     }
 
     func handleSyncFolderSelection(_ result: Result<[URL], Error>) {
@@ -235,7 +235,7 @@ final class ReaderStore {
             }
 
             errorMessage = nil
-            selectFirstVisibleArticleIfNeeded()
+            pruneSelectionIfHidden()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -285,7 +285,7 @@ final class ReaderStore {
             feedSelection.remove(id)
         }
         folders.removeAll { $0 == name }
-        selectFirstVisibleArticleIfNeeded()
+        pruneSelectionIfHidden()
         saveAfterMutation()
     }
 
@@ -336,7 +336,7 @@ final class ReaderStore {
     func selectFolder(_ folder: String) {
         feedSelection = Set(feeds.filter { $0.folderName == folder }.map(\.id))
         clearRetainedArticles()
-        selectFirstVisibleArticleIfNeeded()
+        pruneSelectionIfHidden()
     }
 
     func isFolderSelected(_ folder: String) -> Bool {
@@ -544,7 +544,7 @@ final class ReaderStore {
 
         feedSelection.remove(feedID)
 
-        selectFirstVisibleArticleIfNeeded()
+        pruneSelectionIfHidden()
         saveAfterMutation()
     }
 
@@ -573,13 +573,17 @@ final class ReaderStore {
         }
     }
 
-    func selectFirstVisibleArticleIfNeeded() {
-        let visibleIDs = Set(visibleArticles.map(\.id))
-        if let selectedArticleID, visibleIDs.contains(selectedArticleID) {
-            return
+    /// Clears the article selection if it is no longer in the visible list.
+    ///
+    /// It deliberately does NOT auto-select the first article. Launching the app
+    /// (or changing source/filter) should show the list with the reader empty
+    /// until the user picks an article — otherwise an article opens on its own
+    /// and gets marked read via `markReadOnOpen` every time the app starts.
+    func pruneSelectionIfHidden() {
+        guard let selectedArticleID else { return }
+        if !visibleArticles.contains(where: { $0.id == selectedArticleID }) {
+            self.selectedArticleID = nil
         }
-
-        selectedArticleID = visibleArticles.first?.id
     }
 
     func selectNextArticle() {
@@ -702,7 +706,7 @@ final class ReaderStore {
         ensureFavicon(for: parsedFeed.feed)
         lastRefreshedAt = Date.now
         try persistLibrary()
-        selectFirstVisibleArticleIfNeeded()
+        pruneSelectionIfHidden()
         return parsedFeed
     }
 
