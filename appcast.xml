@@ -6,6 +6,15 @@
     <description>Nook software updates</description>
     <language>en</language>
     <item>
+      <title>Version 0.1.5</title>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>0.1.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/selenehyun/nook/releases/tag/v0.1.5</sparkle:releaseNotesLink>
+      <pubDate>Sat, 11 Jul 2026 14:52:08 +0000</pubDate>
+      <enclosure url="https://github.com/selenehyun/nook/releases/download/v0.1.5/Nook-0.1.5.dmg" sparkle:edSignature="RFmAYi3kGXAC3wqnS1IECRBp+TPlhbnLEPBMF5mu/Gcxsq700WXrhlav7hRSibBFqnIGJ3yy5v82UN2sJzBxAA==" length="3814543" type="application/octet-stream"/>
+    </item>
+    <item>
       <title>Version 0.1.4</title>
       <sparkle:version>5</sparkle:version>
       <sparkle:shortVersionString>0.1.4</sparkle:shortVersionString>
