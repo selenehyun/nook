@@ -138,7 +138,10 @@ jobs:
           tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
 
           # sign_update prints: sparkle:edSignature="..." length="..."
-          SIGN_OUT="$("$RUNNER_TEMP/sparkle/bin/sign_update" -s "$SPARKLE_PRIVATE_KEY" "$DMG_PATH")"
+          # The private key is passed via a file (-s is removed in Sparkle 2.9+).
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_ed_key"
+          SIGN_OUT="$("$RUNNER_TEMP/sparkle/bin/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle_ed_key" "$DMG_PATH")"
+          rm -f "$RUNNER_TEMP/sparkle_ed_key"
           echo "sign_update: $SIGN_OUT"
           ED_SIG="$(printf '%s' "$SIGN_OUT" | sed -n 's/.*edSignature="\([^"]*\)".*/\1/p')"
           ED_LEN="$(printf '%s' "$SIGN_OUT" | sed -n 's/.*length="\([^"]*\)".*/\1/p')"
