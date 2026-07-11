@@ -35,6 +35,17 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<!-- Sparkle auto-update. SUPublicEDKey is the EdDSA public key from Sparkle's
+	     `generate_keys`; the matching private key lives in the developer's login
+	     Keychain and must be added to the CI secret SPARKLE_PRIVATE_KEY. -->
+	<key>SUFeedURL</key>
+	<string>https://selenehyun.github.io/nook/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Hvkd44ObuI4lj6qYYiYddQs19Yd7+m1/BSIP37yd8zQ=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- RSS feeds are arbitrary, user-chosen URLs; many are served over

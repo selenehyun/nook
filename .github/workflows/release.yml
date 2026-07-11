@@ -51,6 +51,7 @@ jobs:
             -destination 'generic/platform=macOS' \
             -archivePath "$RUNNER_TEMP/Nook.xcarchive" \
             MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="-" \
             DEVELOPMENT_TEAM="" \
@@ -110,3 +111,114 @@ jobs:
                  ```
 
             Requires macOS 26 or later.
+
+      # --- Sparkle auto-update: sign the DMG and publish an appcast ---
+      # Requires repo secret SPARKLE_PRIVATE_KEY (from Sparkle's generate_keys)
+      # and GitHub Pages served from the gh-pages branch. The app's Info.plist
+      # SUFeedURL must point at <owner>.github.io/<repo>/appcast.xml.
+      - name: Sign update and build appcast
+        if: github.event_name == 'push'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
+            echo "SPARKLE_PRIVATE_KEY secret not set — skipping appcast."
+            echo "skip_appcast=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          SPARKLE_VER=2.9.4
+          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VER}/Sparkle-${SPARKLE_VER}.tar.xz" -o "$RUNNER_TEMP/sparkle.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+
+          # sign_update prints: sparkle:edSignature="..." length="..."
+          SIGN_OUT="$("$RUNNER_TEMP/sparkle/bin/sign_update" -s "$SPARKLE_PRIVATE_KEY" "$DMG_PATH")"
+          echo "sign_update: $SIGN_OUT"
+          ED_SIG="$(printf '%s' "$SIGN_OUT" | sed -n 's/.*edSignature="\([^"]*\)".*/\1/p')"
+          ED_LEN="$(printf '%s' "$SIGN_OUT" | sed -n 's/.*length="\([^"]*\)".*/\1/p')"
+
+          OWNER="${REPO%%/*}"
+          NAME="${REPO##*/}"
+          PAGES_URL="https://${OWNER}.github.io/${NAME}"
+
+          mkdir -p public
+          # Fetch the existing appcast so release history is preserved.
+          curl -fsSL "${PAGES_URL}/appcast.xml" -o public/appcast.xml || echo "No existing appcast; creating a new one."
+
+          BUILD="$BUILD" VERSION="$VERSION" ED_SIG="$ED_SIG" ED_LEN="$ED_LEN" \
+          REPO="$REPO" DMG_NAME="$(basename "$DMG_PATH")" PAGES_URL="$PAGES_URL" \
+          PUBDATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')" \
+          python3 - <<'PY'
+          import os, re
+
+          build   = os.environ["BUILD"]
+          version = os.environ["VERSION"]
+          sig     = os.environ["ED_SIG"]
+          length  = os.environ["ED_LEN"]
+          repo    = os.environ["REPO"]
+          dmg     = os.environ["DMG_NAME"]
+          pubdate = os.environ["PUBDATE"]
+          pages   = os.environ["PAGES_URL"]
+          path    = "public/appcast.xml"
+
+          dmg_url   = f"https://github.com/{repo}/releases/download/v{version}/{dmg}"
+          notes_url = f"https://github.com/{repo}/releases/tag/v{version}"
+
+          item = (
+              "    <item>\n"
+              f"      <title>Version {version}</title>\n"
+              f"      <sparkle:version>{build}</sparkle:version>\n"
+              f"      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>\n"
+              "      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>\n"
+              f"      <sparkle:releaseNotesLink>{notes_url}</sparkle:releaseNotesLink>\n"
+              f"      <pubDate>{pubdate}</pubDate>\n"
+              f'      <enclosure url="{dmg_url}" sparkle:edSignature="{sig}" length="{length}" type="application/octet-stream"/>\n'
+              "    </item>\n"
+          )
+
+          content = None
+          if os.path.exists(path):
+              with open(path, encoding="utf-8") as f:
+                  content = f.read()
+
+          if content and "<item>" in content:
+              # Drop any existing item with the same build so re-runs stay idempotent.
+              content = re.sub(
+                  r"[ \t]*<item>(?:(?!</item>).)*?<sparkle:version>%s</sparkle:version>.*?</item>\n?" % re.escape(build),
+                  "", content, flags=re.S,
+              )
+              idx = content.find("<item>")
+              line_start = content.rfind("\n", 0, idx) + 1
+              content = content[:line_start] + item + content[line_start:]
+          else:
+              content = (
+                  '<?xml version="1.0" encoding="utf-8"?>\n'
+                  '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+                  "  <channel>\n"
+                  "    <title>Nook</title>\n"
+                  f"    <link>{pages}/appcast.xml</link>\n"
+                  "    <description>Nook software updates</description>\n"
+                  "    <language>en</language>\n"
+                  f"{item}"
+                  "  </channel>\n"
+                  "</rss>\n"
+              )
+
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+          print(content)
+          PY
+
+      - name: Publish appcast to GitHub Pages
+        if: github.event_name == 'push' && env.skip_appcast != 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          keep_files: true

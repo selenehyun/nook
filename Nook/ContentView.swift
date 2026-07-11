@@ -7,6 +7,7 @@ struct ContentView: View {
     private static let sidebarVisibleKey = "sidebarVisible"
 
     @State private var store = ReaderStore()
+    private let updateController = UpdateController.shared
     @State private var isAddingFeed = false
     @State private var isImportingOPML = false
     @State private var isExportingOPML = false
@@ -52,7 +53,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            FeedSidebar(store: store) {
+            FeedSidebar(store: store, updateController: updateController) {
                 chooseSyncFolder()
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 270, max: 340)
@@ -369,6 +370,7 @@ private struct ReaderWorkspaceView: View {
 
 private struct FeedSidebar: View {
     @Bindable var store: ReaderStore
+    var updateController: UpdateController
     var onChooseSyncFolder: () -> Void
 
     @AppStorage("collapsedFolders") private var collapsedFoldersData = Data()
@@ -453,7 +455,10 @@ private struct FeedSidebar: View {
         .listStyle(.sidebar)
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
+            VStack(spacing: 0) {
+                UpdateBanner(updateController: updateController)
+                SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
+            }
         }
         .alert("New Folder", isPresented: $isCreatingFolder) {
             TextField("Folder Name", text: $newFolderName)
@@ -701,6 +706,50 @@ private struct SyncFolderFooter: View {
             .padding(6)
         }
         .background(.bar)
+    }
+}
+
+/// A quiet, non-modal "update available" banner shown at the bottom of the
+/// sidebar (above the sync-folder footer). It only appears once a background
+/// check finds an update; it never interrupts the user. Tapping "Update" opens
+/// Sparkle's standard dialog (release notes + install). Mirrors the
+/// `SyncFolderFooter` visual style.
+private struct UpdateBanner: View {
+    let updateController: UpdateController
+
+    var body: some View {
+        if let update = updateController.availableUpdate {
+            VStack(spacing: 0) {
+                Divider()
+
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(.tint)
+                        .imageScale(.large)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Update Available")
+                            .font(.callout)
+                        Text("Version \(update.displayVersionString)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button("Later") { updateController.dismissAvailableUpdate() }
+                        .controlSize(.small)
+                    Button("Update") { updateController.checkForUpdates() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+            }
+            .background(.bar)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
     }
 }
 
@@ -1804,6 +1853,7 @@ struct ReaderSettingsView: View {
 private struct GeneralSettingsTab: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
+    @Bindable private var updateController = UpdateController.shared
 
     var body: some View {
         Form {
@@ -1827,6 +1877,17 @@ private struct GeneralSettingsTab: View {
 
             Section("App Icon") {
                 Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
+            }
+
+            Section("Software Update") {
+                Toggle("Automatically check for updates", isOn: $updateController.automaticallyChecksForUpdates)
+                LabeledContent {
+                    Button("Check Now") { updateController.checkForUpdates() }
+                } label: {
+                    Text("Nook checks quietly in the background and shows a notice in the sidebar when an update is ready.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

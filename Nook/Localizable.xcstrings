@@ -364,6 +364,9 @@
         }
       }
     },
+    "Automatically check for updates" : {
+
+    },
     "Background" : {
       "localizations" : {
         "en" : {
@@ -427,6 +430,9 @@
           }
         }
       }
+    },
+    "Check Now" : {
+
     },
     "Choose" : {
       "localizations" : {
@@ -1029,6 +1035,9 @@
         }
       }
     },
+    "Later" : {
+
+    },
     "Letter Spacing: %@" : {
       "localizations" : {
         "en" : {
@@ -1528,6 +1537,9 @@
           }
         }
       }
+    },
+    "Nook checks quietly in the background and shows a notice in the sidebar when an update is ready." : {
+
     },
     "Nook Feedback" : {
       "localizations" : {
@@ -2320,6 +2332,9 @@
         }
       }
     },
+    "Software Update" : {
+
+    },
     "Source" : {
       "localizations" : {
         "en" : {
@@ -2767,6 +2782,15 @@
           }
         }
       }
+    },
+    "Update" : {
+
+    },
+    "Update Available" : {
+
+    },
+    "Version %@" : {
+
     },
     "Version %@ (%@)" : {
       "localizations" : {
