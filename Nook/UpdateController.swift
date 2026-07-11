@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import Sparkle
 
@@ -5,29 +6,53 @@ import Sparkle
 ///
 /// Uses Sparkle's standard updater and user driver, but opts into "gentle
 /// reminders" so scheduled update checks never interrupt with a modal — not
-/// even near launch. When a background check finds an update, it is surfaced as
-/// ``availableUpdate`` and rendered by the quiet sidebar banner. The standard
-/// update dialog (release notes + install + progress) appears only when the
-/// user explicitly acts, via the banner's "Update" button or Settings.
+/// even near launch. When a check finds an update, it is remembered (and
+/// persisted) as ``pendingUpdateVersion`` and rendered by the quiet sidebar
+/// chip. The standard update dialog (release notes + install + progress)
+/// appears only when the user acts, via the chip's popover or Settings.
 ///
-/// This is an app-global singleton: Sparkle allows one updater per app, and the
-/// same live state must back both the main-window banner and the separate
-/// Settings scene (which the codebase's explicit-argument passing can't reach).
+/// The found-update state is persisted and keyed by build number, so the chip
+/// keeps appearing on every launch — immediately, without waiting for the next
+/// scheduled check — until the update is actually installed (at which point the
+/// running build catches up to the pending build and the chip clears).
+///
+/// App-global singleton: Sparkle allows one updater per app, and the same live
+/// state must back both the main-window chip and the separate Settings scene.
 @MainActor
 @Observable
 final class UpdateController: NSObject {
     static let shared = UpdateController()
 
-    /// The update Sparkle found during a background check, if any. Non-nil means
-    /// the sidebar banner should offer it; cleared once handled or dismissed.
-    private(set) var availableUpdate: SUAppcastItem?
+    private static let pendingBuildKey = "PendingUpdateBuild"
+    private static let pendingVersionKey = "PendingUpdateVersion"
+
+    /// Short version string ("1.2.3") of a known-available update, or nil when
+    /// up to date. Non-nil keeps the sidebar chip visible.
+    private(set) var pendingUpdateVersion: String?
 
     @ObservationIgnored private var updaterController: SPUStandardUpdaterController!
 
+    /// The running app's build number (CFBundleVersion).
+    private static var currentBuild: Int {
+        Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0
+    }
+
     private override init() {
         super.init()
+
+        // Restore a previously-found update so the chip shows immediately on
+        // launch, but only if it is still newer than what's running. Once the
+        // update has been installed and relaunched, the running build reaches
+        // the pending build and the stale state is cleared here.
+        let defaults = UserDefaults.standard
+        if defaults.integer(forKey: Self.pendingBuildKey) > Self.currentBuild {
+            pendingUpdateVersion = defaults.string(forKey: Self.pendingVersionKey)
+        } else {
+            clearPending()
+        }
+
         // `startingUpdater: true` schedules background checks immediately. It
-        // does not block launch and shows no UI on its own — our delegate below
+        // does not block launch and shows no UI on its own — the delegate below
         // decides how anything surfaces.
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
@@ -43,20 +68,37 @@ final class UpdateController: NSObject {
     }
 
     /// Runs a user-initiated check. Sparkle presents its standard, focused
-    /// dialog (version, release notes, install + progress). Used by the banner's
-    /// "Update" button and Settings' "Check Now".
+    /// dialog (version, release notes, install + progress). Used by the chip's
+    /// popover and Settings' "Check Now".
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
     }
 
-    /// Hides the banner ("Later"). Sparkle re-surfaces the update on its next
-    /// scheduled background check.
-    func dismissAvailableUpdate() {
-        availableUpdate = nil
+    private func recordPending(_ item: SUAppcastItem) {
+        let build = Int(item.versionString) ?? 0
+        guard build > Self.currentBuild else { return }
+        pendingUpdateVersion = item.displayVersionString
+        let defaults = UserDefaults.standard
+        defaults.set(build, forKey: Self.pendingBuildKey)
+        defaults.set(item.displayVersionString, forKey: Self.pendingVersionKey)
+    }
+
+    private func clearPending() {
+        pendingUpdateVersion = nil
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Self.pendingBuildKey)
+        defaults.removeObject(forKey: Self.pendingVersionKey)
     }
 }
 
-extension UpdateController: @MainActor SPUUpdaterDelegate {}
+extension UpdateController: @MainActor SPUUpdaterDelegate {
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        // A check confirmed we're up to date (e.g. after installing): stop
+        // showing the chip. Errors don't call this, so a transient network
+        // failure won't clear a real pending update.
+        clearPending()
+    }
+}
 
 extension UpdateController: @MainActor SPUStandardUserDriverDelegate {
     var supportsGentleScheduledUpdateReminders: Bool { true }
@@ -66,7 +108,7 @@ extension UpdateController: @MainActor SPUStandardUserDriverDelegate {
         andInImmediateFocus immediateFocus: Bool
     ) -> Bool {
         // Never let Sparkle show a scheduled update modally — not even near
-        // launch. We always surface it through the quiet sidebar banner instead.
+        // launch. We always surface it through the quiet sidebar chip instead.
         false
     }
 
@@ -75,17 +117,14 @@ extension UpdateController: @MainActor SPUStandardUserDriverDelegate {
         forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState
     ) {
-        if handleShowingUpdate {
-            // Sparkle is presenting its own dialog (e.g. a user-initiated
-            // check), so the banner isn't needed.
-            availableUpdate = nil
-        } else {
-            // A scheduled update we suppressed — offer it via the banner.
-            availableUpdate = update
-        }
+        // An update exists — remember it so the chip persists across launches
+        // until it's installed, whether or not Sparkle shows its own UI.
+        recordPending(update)
     }
 
     func standardUserDriverWillFinishUpdateSession() {
-        availableUpdate = nil
+        // Intentionally keep the persisted pending state: the chip should
+        // return on the next launch unless the update was actually installed,
+        // which `updaterDidNotFindUpdate` / the launch build check will clear.
     }
 }

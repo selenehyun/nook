@@ -719,7 +719,7 @@ private struct UpdateBanner: View {
     @State private var showDetails = false
 
     var body: some View {
-        if let update = updateController.availableUpdate {
+        if let version = updateController.pendingUpdateVersion {
             VStack(spacing: 0) {
                 Divider()
 
@@ -730,7 +730,7 @@ private struct UpdateBanner: View {
                         Text("Update available")
                             .fontWeight(.medium)
                         Spacer(minLength: 0)
-                        Text(update.displayVersionString)
+                        Text(version)
                             .opacity(0.9)
                     }
                     .font(.caption)
@@ -746,7 +746,7 @@ private struct UpdateBanner: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .popover(isPresented: $showDetails, arrowEdge: .top) {
-                    UpdatePopover(version: update.displayVersionString, controller: updateController) {
+                    UpdatePopover(version: version, controller: updateController) {
                         showDetails = false
                     }
                 }
@@ -777,10 +777,7 @@ private struct UpdatePopover: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
-                Button("Later") {
-                    onDismiss()
-                    controller.dismissAvailableUpdate()
-                }
+                Button("Later") { onDismiss() }
                 Spacer()
                 Button("Update") {
                     onDismiss()
