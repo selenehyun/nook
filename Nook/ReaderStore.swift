@@ -60,7 +60,25 @@ final class ReaderStore {
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
-    init() {
+    private var didBootstrap = false
+
+    init() {}
+
+    /// Loads the persisted library and starts filtering. Runs its heavy work
+    /// only once, no matter how often it is called.
+    ///
+    /// This is intentionally kept out of `init()`. `ContentView` holds the store
+    /// in `@State`, and SwiftUI re-evaluates the app/window body many times while
+    /// the graph settles. Each evaluation re-runs `ContentView.init()`, which the
+    /// compiler expands to `_store = State(wrappedValue: ReaderStore())` — so a
+    /// throwaway `ReaderStore` is allocated every time even though `@State` keeps
+    /// only the first. With the JSON load in `init()`, every one of those
+    /// throwaway allocations decoded `NookLibrary.json` synchronously on the main
+    /// thread, pinning the CPU near 100%. Deferring it here to a one-time call
+    /// from `.task` makes the throwaway allocations cheap.
+    func bootstrap() {
+        guard !didBootstrap else { return }
+        didBootstrap = true
         restoreStorageIfPossible()
         scheduleArticleFilter()
     }

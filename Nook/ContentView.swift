@@ -174,6 +174,7 @@ struct ContentView: View {
         ) { result in
             store.handleOPMLExport(result)
         }
+        .task { store.bootstrap() }
         .task(id: "\(autoRefreshEnabled)-\(refreshIntervalMinutes)-\(store.isStorageConfigured)") {
             guard autoRefreshEnabled, store.isStorageConfigured else { return }
             await store.runAutoRefreshLoop(intervalMinutes: refreshIntervalMinutes)
