@@ -4,15 +4,58 @@
     {
       "layers" : [
         {
-          "image-name" : "9bc987d9-8840-4762-b50f-8af009ba994a-removebg-preview.png",
-          "name" : "9bc987d9-8840-4762-b50f-8af009ba994a-removebg-preview",
-          "position" : {
-            "scale" : 2.3000000000000003,
-            "translation-in-points" : [
-              0,
-              41
-            ]
-          }
+          "blend-mode-specializations" : [
+            {
+              "value" : "hard-light"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "normal"
+            }
+          ],
+          "fill-specializations" : [
+            {
+              "value" : {
+                "automatic-gradient" : "display-p3:0.36525,0.21225,0.07019,1.00000",
+                "orientation" : {
+                  "start" : {
+                    "x" : 0.5,
+                    "y" : 0
+                  },
+                  "stop" : {
+                    "x" : 0.5,
+                    "y" : 0.7
+                  }
+                }
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "automatic-gradient" : "display-p3:1.00000,0.99382,0.99478,1.00000",
+                "orientation" : {
+                  "start" : {
+                    "x" : 0.5,
+                    "y" : 0
+                  },
+                  "stop" : {
+                    "x" : 0.5,
+                    "y" : 0.7
+                  }
+                }
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : {
+                "solid" : "display-p3:0.98842,0.97666,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "Adobe Express - file.png",
+          "name" : "Adobe Express - file"
         }
       ],
       "shadow" : {
