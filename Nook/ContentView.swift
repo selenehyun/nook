@@ -456,8 +456,8 @@ private struct FeedSidebar: View {
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                UpdateBanner(updateController: updateController)
                 SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
+                UpdateBanner(updateController: updateController)
             }
         }
         .alert("New Folder", isPresented: $isCreatingFolder) {
@@ -709,47 +709,89 @@ private struct SyncFolderFooter: View {
     }
 }
 
-/// A quiet, non-modal "update available" banner shown at the bottom of the
-/// sidebar (above the sync-folder footer). It only appears once a background
-/// check finds an update; it never interrupts the user. Tapping "Update" opens
-/// Sparkle's standard dialog (release notes + install). Mirrors the
-/// `SyncFolderFooter` visual style.
+/// A quiet, non-modal "update available" chip pinned to the very bottom of the
+/// sidebar, below the sync-folder footer. It only appears once a background
+/// check finds an update and never interrupts the user. Tapping the chip opens
+/// a small popover where the user can start the update (which hands off to
+/// Sparkle's standard release-notes/install flow).
 private struct UpdateBanner: View {
     let updateController: UpdateController
+    @State private var showDetails = false
 
     var body: some View {
         if let update = updateController.availableUpdate {
             VStack(spacing: 0) {
                 Divider()
 
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(.tint)
-                        .imageScale(.large)
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Update Available")
-                            .font(.callout)
-                        Text("Version \(update.displayVersionString)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                Button { showDetails = true } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .imageScale(.small)
+                        Text("Update available")
+                            .fontWeight(.medium)
+                        Spacer(minLength: 0)
+                        Text(update.displayVersionString)
+                            .opacity(0.9)
                     }
-
-                    Spacer(minLength: 0)
-
-                    Button("Later") { updateController.dismissAvailableUpdate() }
-                        .controlSize(.small)
-                    Button("Update") { updateController.checkForUpdates() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .frame(height: 26)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 7))
+                    .contentShape(RoundedRectangle(cornerRadius: 7))
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .buttonStyle(.plain)
+                .help("A new version of Nook is available")
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .popover(isPresented: $showDetails, arrowEdge: .top) {
+                    UpdatePopover(version: update.displayVersionString, controller: updateController) {
+                        showDetails = false
+                    }
+                }
             }
             .background(.bar)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
+    }
+}
+
+/// The tooltip-style popover shown when the update chip is tapped: version info
+/// plus the actions. "Update" hands off to Sparkle's standard install flow.
+private struct UpdatePopover: View {
+    let version: String
+    let controller: UpdateController
+    var onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "sparkles").foregroundStyle(.tint)
+                Text("New Version Available").font(.headline)
+            }
+
+            Text("Nook \(version) is ready to install.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Button("Later") {
+                    onDismiss()
+                    controller.dismissAvailableUpdate()
+                }
+                Spacer()
+                Button("Update") {
+                    onDismiss()
+                    controller.checkForUpdates()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(width: 260)
     }
 }
 
