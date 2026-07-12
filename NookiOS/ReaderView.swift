@@ -23,6 +23,11 @@ struct ReaderDetailView: View {
     @State private var isShowingInfo = false
     @State private var haptics = ReaderHaptics()
 
+    // Double-tap star "burst" overlay.
+    @State private var starBurstOn = true
+    @State private var starBurstScale: CGFloat = 0.4
+    @State private var starBurstOpacity: Double = 0
+
     private var readerStyle: ReaderStyle {
         ReaderStyle(
             font: readerFont,
@@ -81,6 +86,7 @@ struct ReaderDetailView: View {
                 let willStar = !article.isStarred
                 store.toggleStarred(articleID: article.id)
                 haptics.star(on: willStar)
+                triggerStarBurst(on: willStar)
             }
             .onLongPressGesture(minimumDuration: ReaderHaptics.buildupDuration, maximumDistance: 24) {
                 openBrowser(for: article)
@@ -91,6 +97,15 @@ struct ReaderDetailView: View {
                     haptics.cancelLongPressBuildup()
                 }
             }
+        }
+        .overlay {
+            Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
+                .font(.system(size: 104, weight: .bold))
+                .foregroundStyle(starBurstOn ? .yellow : .white)
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+                .scaleEffect(starBurstScale)
+                .opacity(starBurstOpacity)
+                .allowsHitTesting(false)
         }
         .task(id: article.id) { await markReadAfterDwell(article) }
         .toolbar {
@@ -106,6 +121,7 @@ struct ReaderDetailView: View {
                     store.toggleStarred(articleID: article.id)
                 } label: {
                     Image(systemName: article.isStarred ? "star.fill" : "star")
+                        .contentTransition(.symbolEffect(.replace))
                 }
 
                 Menu {
@@ -160,6 +176,25 @@ struct ReaderDetailView: View {
             Text(article.title)
                 .font(.title.bold())
                 .textSelection(.enabled)
+        }
+    }
+
+    /// Pops a large star over the article that springs in, holds, then fades
+    /// out and drifts up — the visual counterpart to the double-tap star.
+    private func triggerStarBurst(on: Bool) {
+        starBurstOn = on
+        starBurstScale = 0.4
+        starBurstOpacity = 0
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+            starBurstScale = 1.0
+            starBurstOpacity = 1.0
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(0.45))
+            withAnimation(.easeOut(duration: 0.35)) {
+                starBurstOpacity = 0
+                starBurstScale = 1.3
+            }
         }
     }
 
