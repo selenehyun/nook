@@ -17,9 +17,7 @@
         }
       }
     },
-    "·" : {
-
-    },
+    "·" : {},
     "'%@' is not a valid URL." : {
       "localizations" : {
         "en" : {
@@ -57,15 +55,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld분"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분"
           }
         }
       }
@@ -91,15 +83,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld분 분량"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분 분량"
           }
         }
       }
@@ -125,15 +111,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld개 선택됨"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 선택됨"
           }
         }
       }
@@ -159,15 +139,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "안 읽음 %lld개"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 안 읽음"
           }
         }
       }
@@ -200,6 +174,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS를 위한 네이티브 RSS 리더."
+          }
+        }
+      }
+    },
+    "A new version of Nook is available" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook 새 버전이 있습니다"
           }
         }
       }
@@ -365,7 +349,14 @@
       }
     },
     "Automatically check for updates" : {
-
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동으로 업데이트 확인"
+          }
+        }
+      }
     },
     "Background" : {
       "localizations" : {
@@ -432,7 +423,14 @@
       }
     },
     "Check Now" : {
-
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 확인"
+          }
+        }
+      }
     },
     "Choose" : {
       "localizations" : {
@@ -542,6 +540,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "피드를 추가하려면 먼저 iCloud Drive 폴더를 선택하세요."
+          }
+        }
+      }
+    },
+    "Choose how each feed's articles open in the web view. “Default” follows the reader setting in the Reader tab." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "각 피드의 글을 웹뷰에서 여는 방식을 선택하세요. “기본값”은 Reader 탭의 리더 설정을 따릅니다."
           }
         }
       }
@@ -664,15 +672,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "피드 %lld개를 추가하지 못했습니다"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개를 추가하지 못했습니다"
           }
         }
       }
@@ -709,6 +711,16 @@
         }
       }
     },
+    "Current" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재"
+          }
+        }
+      }
+    },
     "Custom" : {
       "localizations" : {
         "en" : {
@@ -721,6 +733,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "직접 지정"
+          }
+        }
+      }
+    },
+    "Default" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값"
           }
         }
       }
@@ -870,9 +892,7 @@
         }
       }
     },
-    "https://example.com/feed.xml" : {
-
-    },
+    "https://example.com/feed.xml" : {},
     "Import %lld Feeds" : {
       "localizations" : {
         "en" : {
@@ -894,15 +914,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "피드 %lld개 가져오기"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 가져오기"
           }
         }
       }
@@ -1036,7 +1050,14 @@
       }
     },
     "Later" : {
-
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나중에"
+          }
+        }
+      }
     },
     "Letter Spacing: %@" : {
       "localizations" : {
@@ -1123,15 +1144,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "피드 %lld개를 읽음으로 표시"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 읽음으로 표시"
           }
         }
       }
@@ -1189,15 +1204,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld초 후 읽음으로 표시"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld초 후 읽음으로 표시"
           }
         }
       }
@@ -1362,6 +1371,16 @@
         }
       }
     },
+    "New" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전"
+          }
+        }
+      }
+    },
     "New Folder" : {
       "localizations" : {
         "en" : {
@@ -1374,6 +1393,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "새 폴더"
+          }
+        }
+      }
+    },
+    "New Version Available" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전이 있습니다"
           }
         }
       }
@@ -1454,6 +1483,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OPML 파일에서 피드를 찾지 못했습니다."
+          }
+        }
+      }
+    },
+    "No feeds yet. Add feeds from the main window." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 피드가 없습니다. 메인 창에서 피드를 추가하세요."
           }
         }
       }
@@ -1539,7 +1578,14 @@
       }
     },
     "Nook checks quietly in the background and shows a notice in the sidebar when an update is ready." : {
-
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 백그라운드에서 조용히 확인하고, 업데이트가 준비되면 사이드바에 알려 줍니다."
+          }
+        }
+      }
     },
     "Nook Feedback" : {
       "localizations" : {
@@ -1910,6 +1956,16 @@
         }
       }
     },
+    "Reading View" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기 화면"
+          }
+        }
+      }
+    },
     "Refresh %lld Feeds" : {
       "localizations" : {
         "en" : {
@@ -1931,15 +1987,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "피드 %lld개 새로 고침"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 새로고침"
           }
         }
       }
@@ -1997,15 +2047,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld분마다 새로 고침"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분마다 새로고침"
           }
         }
       }
@@ -2074,6 +2118,16 @@
         }
       }
     },
+    "Released" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출시일"
+          }
+        }
+      }
+    },
     "Remove %lld Feeds" : {
       "localizations" : {
         "en" : {
@@ -2095,15 +2149,9 @@
           }
         },
         "ko" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "피드 %lld개 제거"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 제거"
           }
         }
       }
@@ -2333,7 +2381,14 @@
       }
     },
     "Software Update" : {
-
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소프트웨어 업데이트"
+          }
+        }
+      }
     },
     "Source" : {
       "localizations" : {
@@ -2784,13 +2839,34 @@
       }
     },
     "Update" : {
-
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트"
+          }
+        }
+      }
     },
-    "Update Available" : {
-
+    "Update available" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 있음"
+          }
+        }
+      }
     },
-    "Version %@" : {
-
+    "Use Default" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값 사용"
+          }
+        }
+      }
     },
     "Version %@ (%@)" : {
       "localizations" : {
