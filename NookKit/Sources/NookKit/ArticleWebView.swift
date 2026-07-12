@@ -18,6 +18,10 @@ public struct ArticleWebView {
     let useReaderMode: Bool
     let style: ReaderStyle
     let linkOpensInApp: Bool
+    /// When true, translate the page's text in place into `translationLanguage`.
+    let translate: Bool
+    /// The English name of the target language (e.g. "Korean") for translation.
+    let translationLanguage: String
     /// Live overscroll amount while pulling down at the top (sheet follows).
     /// macOS only; ignored on iOS where the sheet has native drag-to-dismiss.
     var onOverscroll: (CGFloat) -> Void
@@ -29,6 +33,8 @@ public struct ArticleWebView {
         useReaderMode: Bool,
         style: ReaderStyle,
         linkOpensInApp: Bool,
+        translate: Bool = false,
+        translationLanguage: String = "",
         onOverscroll: @escaping (CGFloat) -> Void = { _ in },
         onOverscrollEnded: @escaping (CGFloat) -> Void = { _ in }
     ) {
@@ -36,6 +42,8 @@ public struct ArticleWebView {
         self.useReaderMode = useReaderMode
         self.style = style
         self.linkOpensInApp = linkOpensInApp
+        self.translate = translate
+        self.translationLanguage = translationLanguage
         self.onOverscroll = onOverscroll
         self.onOverscrollEnded = onOverscrollEnded
     }
@@ -141,6 +149,8 @@ extension ArticleWebView: NSViewRepresentable {
         context.coordinator.linkOpensInApp = linkOpensInApp
         context.coordinator.onOverscroll = onOverscroll
         context.coordinator.onOverscrollEnded = onOverscrollEnded
+        context.coordinator.webView = webView
+        context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
     public static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
@@ -168,6 +178,8 @@ extension ArticleWebView: UIViewRepresentable {
 
     public func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.linkOpensInApp = linkOpensInApp
+        context.coordinator.webView = webView
+        context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
     public static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
@@ -179,15 +191,21 @@ extension ArticleWebView: UIViewRepresentable {
 // MARK: - Coordinator
 
 extension ArticleWebView {
-    public final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    public final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, @unchecked Sendable {
         var linkOpensInApp: Bool
         var onOverscroll: (CGFloat) -> Void
         var onOverscrollEnded: (CGFloat) -> Void
 
+        weak var webView: WKWebView?
         private var atTop = true
 
+        // In-place translation state.
+        private var translationApplied = false
+        private var translationInFlight = false
+        private var wantsTranslation = false
+        private var translationLanguage = ""
+
         #if canImport(AppKit)
-        private weak var webView: WKWebView?
         private var monitor: Any?
         private var overscroll: CGFloat = 0
         private var engaged = false
@@ -197,6 +215,97 @@ extension ArticleWebView {
             self.linkOpensInApp = linkOpensInApp
             self.onOverscroll = onOverscroll
             self.onOverscrollEnded = onOverscrollEnded
+        }
+
+        // MARK: Translation
+
+        /// Applies or removes in-place translation of the page content. Runs the
+        /// translation once per toggle-on; toggling off reloads the original.
+        @MainActor
+        func applyTranslation(translate: Bool, languageName: String) {
+            translationLanguage = languageName
+            if translate {
+                wantsTranslation = true
+                runTranslationIfNeeded()
+            } else {
+                wantsTranslation = false
+                if translationApplied {
+                    translationApplied = false
+                    webView?.reload()
+                }
+            }
+        }
+
+        /// Translates once the page is loaded; safe to call repeatedly (guards
+        /// against re-entry and re-translation).
+        @MainActor
+        private func runTranslationIfNeeded() {
+            guard wantsTranslation, !translationApplied, !translationInFlight,
+                  !translationLanguage.isEmpty, let webView else { return }
+            translationInFlight = true
+            collectAndTranslate(webView, languageName: translationLanguage)
+        }
+
+        @MainActor
+        private func collectAndTranslate(_ webView: WKWebView, languageName: String) {
+            webView.evaluateJavaScript(Self.collectTextScript) { [weak self] result, _ in
+                guard let self else { return }
+                guard let text = (result as? String), !text.isEmpty else {
+                    self.translationInFlight = false
+                    return
+                }
+                Task { [weak self] in
+                    let translated = try? await NaturalTranslator.translate(text, into: languageName)
+                    await MainActor.run {
+                        guard let self else { return }
+                        self.translationInFlight = false
+                        guard let translated, !translated.isEmpty, let webView = self.webView else { return }
+                        webView.evaluateJavaScript(Self.injectTranslationScript(translated))
+                        self.translationApplied = true
+                    }
+                }
+            }
+        }
+
+        /// Collects the main content's block text, joined by blank lines.
+        private static let collectTextScript = """
+        (function () {
+          var root = document.querySelector('#nook-reader') || document.body;
+          var nodes = root.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption');
+          var parts = [];
+          nodes.forEach(function (n) {
+            var t = (n.innerText || '').trim();
+            if (t) parts.push(t);
+          });
+          if (parts.length === 0) {
+            var all = (root.innerText || '').trim();
+            if (all) parts.push(all);
+          }
+          return parts.join('\\n\\n');
+        })();
+        """
+
+        /// Rebuilds the main content as translated paragraphs, keeping the
+        /// reader styling. Returns the JS to run.
+        private static func injectTranslationScript(_ translated: String) -> String {
+            let json: String
+            if let data = try? JSONSerialization.data(withJSONObject: translated, options: [.fragmentsAllowed]),
+               let string = String(data: data, encoding: .utf8) {
+                json = string
+            } else {
+                json = "\"\""
+            }
+            return """
+            (function () {
+              var root = document.querySelector('#nook-reader') || document.body;
+              var text = \(json);
+              var parts = text.split('\\n\\n');
+              function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+              root.innerHTML = parts.map(function (p) {
+                return '<p style="margin:0 0 1.1em; line-height:1.7;">' + esc(p) + '</p>';
+              }).join('');
+            })();
+            """
         }
 
         #if canImport(AppKit)
@@ -269,6 +378,12 @@ extension ArticleWebView {
                 return
             }
             decisionHandler(.allow)
+        }
+
+        public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // Translate after the page (and reader script) has loaded, if the
+            // user toggled translation on.
+            runTranslationIfNeeded()
         }
 
         public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

@@ -296,7 +296,7 @@ struct ReaderDetailView: View {
     // MARK: - Translation
 
     /// Detects the dominant language of an article's text (e.g. "en", "ko").
-    private static func detectLanguage(for article: Article) -> String? {
+    static func detectLanguage(for article: Article) -> String? {
         let sample = (article.bodyParagraphs.prefix(4).joined(separator: " ") + " " + article.title)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sample.isEmpty else { return nil }
@@ -420,6 +420,27 @@ struct InAppBrowserSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+    @State private var isTranslating = false
+
+    /// Web-view translation uses Apple Intelligence; offer it only when that's
+    /// available and the article's language differs from the app's.
+    private var canTranslate: Bool {
+        guard NaturalTranslator.isAvailable,
+              let detected = ReaderDetailView.detectLanguage(for: article),
+              let target = targetLanguage.languageCode?.identifier else { return false }
+        return detected != target
+    }
+
+    private var targetLanguage: Locale.Language {
+        let locale = appLanguage == .system ? Locale.current : appLanguage.locale
+        return locale.language
+    }
+
+    private var targetLanguageName: String {
+        let code = targetLanguage.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+    }
 
     var body: some View {
         NavigationStack {
@@ -427,7 +448,9 @@ struct InAppBrowserSheet: View {
                 url: article.url,
                 useReaderMode: store.browserMode == .reader,
                 style: style,
-                linkOpensInApp: linkOpensInApp
+                linkOpensInApp: linkOpensInApp,
+                translate: isTranslating,
+                translationLanguage: targetLanguageName
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
             .ignoresSafeArea(edges: .bottom)
@@ -447,6 +470,13 @@ struct InAppBrowserSheet: View {
                     }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    if canTranslate {
+                        Button {
+                            isTranslating.toggle()
+                        } label: {
+                            Image(systemName: isTranslating ? "character.bubble.fill" : "character.bubble")
+                        }
+                    }
                     Button {
                         openURL(article.url)
                     } label: {
