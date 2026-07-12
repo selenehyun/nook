@@ -16,6 +16,9 @@ struct NookApp: App {
         // window instead of opening a new one each time.
         Window("Nook", id: "main") {
             ContentView()
+                // Format dates/numbers with the chosen UI language, not the OS
+                // locale (`Text(_, format:)` otherwise follows the environment).
+                .environment(\.locale, AppLanguage.formattingLocale)
         }
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
@@ -27,6 +30,7 @@ struct NookApp: App {
 
         Settings {
             ReaderSettingsView()
+                .environment(\.locale, AppLanguage.formattingLocale)
         }
     }
 }
