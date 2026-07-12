@@ -24,8 +24,20 @@ struct RootView: View {
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @State private var isReady = false
 
     var body: some View {
+        ZStack {
+            content
+            if !isReady {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+    }
+
+    private var content: some View {
         NavigationSplitView {
             Sidebar(
                 store: store,
@@ -53,7 +65,12 @@ struct RootView: View {
             // Warm up WebKit so the first article web view opens without the
             // ~2-3s cold-start delay.
             WebViewWarmer.warmUp()
-            // Only ask for the badge permission when the feature is actually on.
+            // Hold the splash just long enough to read as a deliberate launch,
+            // then reveal the loaded UI.
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation(.easeOut(duration: 0.35)) { isReady = true }
+            // Only ask for the badge permission when the feature is actually on
+            // (after the UI is shown, so the prompt doesn't cover the splash).
             if showUnreadBadge { await requestBadgeAuthorizationIfNeeded() }
         }
         .onChange(of: showUnreadBadge) { _, newValue in
@@ -171,6 +188,65 @@ struct RootView: View {
               !feed.isEmpty else { return }
         store.addFeed(urlString: feed)
     }
+}
+
+/// The launch/loading screen. Shown instantly over the app on start so there's
+/// no black flash, with the Nook wordmark and a spinner to signal that it's
+/// starting up and loading, then it fades to the content once ready.
+struct SplashView: View {
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                appIcon
+
+                Text("Nook")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text("Loading your feeds…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 6)
+            }
+            .opacity(appeared ? 1 : 0)
+            .scaleEffect(appeared ? 1 : 0.96)
+            .animation(.easeOut(duration: 0.3), value: appeared)
+        }
+        .task { appeared = true }
+    }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        if let icon = Self.appIconImage {
+            Image(uiImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 88, height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        } else {
+            Image(systemName: "tray.full.fill")
+                .font(.system(size: 60, weight: .semibold))
+                .foregroundStyle(.tint)
+        }
+    }
+
+    /// The app's own icon, read from the bundle (works with the Icon Composer
+    /// AppIcon), for a branded splash.
+    private static let appIconImage: UIImage? = {
+        guard let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String],
+              let name = files.last else { return nil }
+        return UIImage(named: name)
+    }()
 }
 
 /// A selectable sidebar entry. Binding the List selection to this (rather than
