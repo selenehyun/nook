@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     private static let sidebarVisibleKey = "sidebarVisible"
 
-    @State private var store = ReaderStore()
+    @State private var store = ReaderStore.shared
     private let updateController = UpdateController.shared
     @State private var isAddingFeed = false
     @State private var isImportingOPML = false
@@ -2045,9 +2045,16 @@ private struct ReaderSettingsTab: View {
 }
 
 private struct FeedsSettingsTab: View {
+    @Bindable private var store = ReaderStore.shared
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
+
+    private var sortedFeeds: [Feed] {
+        store.feeds.sorted {
+            $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+        }
+    }
 
     var body: some View {
         Form {
@@ -2055,6 +2062,29 @@ private struct FeedsSettingsTab: View {
                 Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
                     .disabled(!autoRefreshEnabled)
+            }
+
+            Section {
+                if sortedFeeds.isEmpty {
+                    Text("No feeds yet. Add feeds from the main window.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(sortedFeeds) { feed in
+                        Picker(selection: viewModeBinding(for: feed)) {
+                            Text("Default").tag(ReaderViewMode?.none)
+                            Text(ReaderViewMode.reader.label).tag(ReaderViewMode?.some(.reader))
+                            Text(ReaderViewMode.original.label).tag(ReaderViewMode?.some(.original))
+                        } label: {
+                            Text(feed.title).lineLimit(1)
+                        }
+                    }
+                }
+            } header: {
+                Text("Reading View")
+            } footer: {
+                Text("Choose how each feed's articles open in the web view. “Default” follows the reader setting in the Reader tab.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -2068,6 +2098,13 @@ private struct FeedsSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func viewModeBinding(for feed: Feed) -> Binding<ReaderViewMode?> {
+        Binding(
+            get: { store.feed(for: feed.id)?.preferredViewMode },
+            set: { store.setPreferredViewMode($0, feedIDs: [feed.id]) }
+        )
     }
 }
 

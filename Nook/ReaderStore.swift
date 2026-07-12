@@ -64,22 +64,23 @@ final class ReaderStore {
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
+    /// App-global instance. A singleton so the separate Settings scene can reach
+    /// the same feeds/state as the main window (SwiftUI scenes can't share a
+    /// view's `@State`).
+    static let shared = ReaderStore()
+
     private var didBootstrap = false
 
-    init() {}
+    private init() {}
 
     /// Loads the persisted library and starts filtering. Runs its heavy work
     /// only once, no matter how often it is called.
     ///
-    /// This is intentionally kept out of `init()`. `ContentView` holds the store
-    /// in `@State`, and SwiftUI re-evaluates the app/window body many times while
-    /// the graph settles. Each evaluation re-runs `ContentView.init()`, which the
-    /// compiler expands to `_store = State(wrappedValue: ReaderStore())` — so a
-    /// throwaway `ReaderStore` is allocated every time even though `@State` keeps
-    /// only the first. With the JSON load in `init()`, every one of those
-    /// throwaway allocations decoded `NookLibrary.json` synchronously on the main
-    /// thread, pinning the CPU near 100%. Deferring it here to a one-time call
-    /// from `.task` makes the throwaway allocations cheap.
+    /// Kept out of `init()` on purpose: SwiftUI re-evaluates the app/window body
+    /// many times while the graph settles, re-running `ContentView.init()`. With
+    /// the JSON load in `init()`, that decoded `NookLibrary.json` synchronously on
+    /// the main thread repeatedly and pinned the CPU near 100%. Deferring it to a
+    /// one-time call from `.task` keeps those re-evaluations cheap.
     func bootstrap() {
         guard !didBootstrap else { return }
         didBootstrap = true
