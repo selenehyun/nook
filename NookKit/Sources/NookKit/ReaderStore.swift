@@ -60,6 +60,12 @@ public final class ReaderStore {
     private let opmlService = OPMLService()
     private var storage: ReaderStorage?
     private var securityScopedDirectoryURL: URL?
+
+    // Live cross-device sync: watch the library file for external (iCloud)
+    // changes and reload, ignoring the app's own writes by modification date.
+    private var libraryObserver: LibraryFileObserver?
+    private var lastKnownLibraryModDate: Date?
+    private var externalReloadTask: Task<Void, Never>?
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
@@ -236,9 +242,60 @@ public final class ReaderStore {
 
             errorMessage = nil
             pruneSelectionIfHidden()
+            lastKnownLibraryModDate = storage.libraryModificationDate
+            startObservingLibrary()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // MARK: - Cross-device sync
+
+    /// Begins watching the library file so another device's edits (arriving via
+    /// iCloud) are applied while the app is open, and asks iCloud to download
+    /// the latest copy now.
+    private func startObservingLibrary() {
+        guard let storage else { return }
+        storage.startDownloadingLibraryIfNeeded()
+
+        libraryObserver?.stop()
+        let fileURL = storage.libraryURL
+        libraryObserver = LibraryFileObserver(fileURL: fileURL) { [weak self] in
+            Task { @MainActor in self?.scheduleExternalReload() }
+        }
+    }
+
+    /// Coalesces a burst of file-change notifications into a single reload.
+    private func scheduleExternalReload() {
+        externalReloadTask?.cancel()
+        externalReloadTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            self?.reloadFromDiskIfChanged()
+        }
+    }
+
+    /// Re-reads the library from disk and applies it when the file is newer than
+    /// what we last loaded or wrote — so it reflects another device's changes
+    /// but ignores our own saves. UI state (selection, search) is preserved.
+    public func reloadFromDiskIfChanged() {
+        guard let storage, !isRefreshing else { return }
+        let diskDate = storage.libraryModificationDate
+        if let diskDate, let known = lastKnownLibraryModDate, diskDate <= known {
+            return
+        }
+        guard let library = try? storage.load() else { return }
+        apply(library)
+        pruneSelectionIfHidden()
+        lastKnownLibraryModDate = storage.libraryModificationDate
+    }
+
+    /// Pulls the latest library from iCloud and reloads it. Call this when the
+    /// app returns to the foreground so device switches sync promptly.
+    public func syncFromDisk() {
+        guard let storage else { return }
+        storage.startDownloadingLibraryIfNeeded()
+        reloadFromDiskIfChanged()
     }
 
     public func feed(for feedID: Feed.ID) -> Feed? {
@@ -679,6 +736,8 @@ public final class ReaderStore {
             if let library = try storage.load() {
                 apply(library)
             }
+            lastKnownLibraryModDate = storage.libraryModificationDate
+            startObservingLibrary()
         } catch {
             errorMessage = error.localizedDescription
             syncFolderDisplayPath = UserDefaults.standard.string(forKey: ReaderStorage.displayPathDefaultsKey)
@@ -974,5 +1033,8 @@ public final class ReaderStore {
             folders: folders
         )
         try storage.save(library)
+        // Record our own write so the file observer doesn't treat it as an
+        // external (another-device) change and reload it back.
+        lastKnownLibraryModDate = storage.libraryModificationDate
     }
 }

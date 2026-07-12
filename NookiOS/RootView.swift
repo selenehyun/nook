@@ -7,6 +7,8 @@ import UserNotifications
 /// presentation differs from the macOS app.
 struct RootView: View {
     @Bindable private var store = ReaderStore.shared
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
 
     /// A single file importer backs both the sync-folder picker and OPML import;
     /// stacking two `.fileImporter` modifiers on one view makes only one work.
@@ -56,6 +58,13 @@ struct RootView: View {
             if newValue {
                 Task { await requestBadgeAuthorizationIfNeeded() }
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            // Returning to the foreground: pull another device's changes from
+            // the sync folder, then refresh feeds over the network.
+            store.syncFromDisk()
+            if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
         }
         // Mark-read dwell lives here on the always-present root, keyed on the
         // selected article, so it isn't cancelled by the detail column being

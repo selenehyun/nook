@@ -83,19 +83,51 @@ public struct ReaderStorage {
         try? Data().write(to: faviconMissURL(forKey: key), options: [.atomic])
     }
 
+    /// The library file's last-modified date, or nil if it doesn't exist. Used
+    /// to detect when another device (via iCloud) has written a newer version.
+    public var libraryModificationDate: Date? {
+        modificationDate(of: libraryURL)
+    }
+
     public func load() throws -> ReaderLibrary? {
         guard FileManager.default.fileExists(atPath: libraryURL.path(percentEncoded: false)) else {
             return nil
         }
 
-        let data = try Data(contentsOf: libraryURL)
+        // Coordinate the read so it waits for any in-flight iCloud write and
+        // sees a consistent file rather than a half-written one.
+        var readData: Data?
+        var readError: Error?
+        var coordinatorError: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: libraryURL, options: [.withoutChanges], error: &coordinatorError) { url in
+            do { readData = try Data(contentsOf: url) } catch { readError = error }
+        }
+        if let coordinatorError { throw coordinatorError }
+        if let readError { throw readError }
+        guard let data = readData else { return nil }
         return try JSONDecoder.nook.decode(ReaderLibrary.self, from: data)
     }
 
     public func save(_ library: ReaderLibrary) throws {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let data = try JSONEncoder.nook.encode(library)
-        try data.write(to: libraryURL, options: [.atomic])
+
+        // Coordinate the write so iCloud picks it up promptly and two devices
+        // writing don't produce conflict copies.
+        var writeError: Error?
+        var coordinatorError: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: libraryURL, options: [.forReplacing], error: &coordinatorError) { url in
+            do { try data.write(to: url, options: [.atomic]) } catch { writeError = error }
+        }
+        if let coordinatorError { throw coordinatorError }
+        if let writeError { throw writeError }
+    }
+
+    /// Asks iCloud to download the latest library file if it isn't already
+    /// local, so a freshly-launched or foregrounded app pulls another device's
+    /// changes instead of waiting for iCloud to push them opportunistically.
+    public func startDownloadingLibraryIfNeeded() {
+        try? FileManager.default.startDownloadingUbiquitousItem(at: libraryURL)
     }
 
     // Security-scoped bookmarks: macOS requires the `.withSecurityScope`

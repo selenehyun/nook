@@ -189,8 +189,9 @@ struct ContentView: View {
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: false) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            // Refresh when Nook returns to the foreground, throttled so rapid
-            // app switching doesn't refetch every feed each time.
+            // Pull another device's changes (read/star/feeds) from the sync
+            // folder first, then refresh feeds over the network (throttled).
+            store.syncFromDisk()
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
         }
         .task(id: "\(autoRefreshEnabled)-\(refreshIntervalMinutes)-\(store.isStorageConfigured)") {
