@@ -20,6 +20,8 @@ struct RootView: View {
     @State private var newFolderName = ""
     @State private var isShowingSettings = false
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
+    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
 
     var body: some View {
         NavigationSplitView {
@@ -53,6 +55,24 @@ struct RootView: View {
             store.showsUnreadBadge = newValue
             if newValue {
                 Task { await requestBadgeAuthorizationIfNeeded() }
+            }
+        }
+        // Mark-read dwell lives here on the always-present root, keyed on the
+        // selected article, so it isn't cancelled by the detail column being
+        // pushed/popped in the collapsed split view on iPhone.
+        .task(id: store.selectedArticleID) {
+            guard let id = store.selectedArticleID else { return }
+            store.retainArticle(id: id)
+            guard markReadOnOpen else { return }
+            do {
+                if markReadDelaySeconds > 0 {
+                    try await Task.sleep(for: .seconds(Double(markReadDelaySeconds)))
+                } else {
+                    await Task.yield()
+                }
+                store.markArticleOpened(articleID: id)
+            } catch {
+                // Navigated away before the dwell completed — leave it unread.
             }
         }
         .fileImporter(
@@ -241,15 +261,8 @@ private struct Sidebar: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    store.refreshAll()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(store.feeds.isEmpty || store.isRefreshing)
-            }
         }
+        .refreshable { await store.refreshAllAndWait() }
         .safeAreaInset(edge: .bottom) {
             Button {
                 chooseFolder()
@@ -391,10 +404,21 @@ private struct ArticleList: View {
         .navigationTitle(store.selectedSourceTitle)
         .searchable(text: $store.searchText, prompt: "Search Articles")
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
+        .refreshable { await refreshCurrent() }
         .overlay {
             if store.visibleArticles.isEmpty {
                 ContentUnavailableView("No Articles", systemImage: "newspaper")
             }
+        }
+    }
+
+    /// Pull-to-refresh: when viewing a specific feed, refresh just that feed;
+    /// otherwise (a smart source like Unread/Today/All) refresh everything.
+    private func refreshCurrent() async {
+        if store.smartSelection == nil, !store.feedSelection.isEmpty {
+            await store.refreshFeedsAndWait(ids: Array(store.feedSelection))
+        } else {
+            await store.refreshAllAndWait()
         }
     }
 

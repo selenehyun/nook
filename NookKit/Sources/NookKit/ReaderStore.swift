@@ -522,6 +522,22 @@ public final class ReaderStore {
         }
     }
 
+    /// Awaitable refresh of all feeds, for pull-to-refresh (the spinner stays
+    /// until the fetch actually finishes).
+    public func refreshAllAndWait() async {
+        guard !feeds.isEmpty else { return }
+        await refreshAllFeeds()
+    }
+
+    /// Awaitable refresh of specific feeds, for pull-to-refresh in a single
+    /// feed's article list.
+    public func refreshFeedsAndWait(ids: [Feed.ID]) async {
+        let targets = ids.compactMap(feed(for:))
+        for feed in targets {
+            await refreshFeed(feed)
+        }
+    }
+
     public func markFeedsRead(ids: [Feed.ID]) {
         ids.forEach { markFeedRead(feedID: $0) }
     }

@@ -7,8 +7,6 @@ import SwiftUI
 struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
 
-    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
-    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
@@ -22,6 +20,12 @@ struct ReaderDetailView: View {
 
     @State private var isShowingInfo = false
     @State private var haptics = ReaderHaptics()
+    @State private var pendingBuildup: Task<Void, Never>?
+
+    /// The press must stay put this long before the haptic build-up begins, so a
+    /// swipe or scroll (which moves past the gesture's maximumDistance well
+    /// within this window) never kicks off a stray vibration.
+    private let hapticStartDelay: Double = 0.16
 
     // Double-tap star "burst" overlay.
     @State private var starBurstOn = true
@@ -93,12 +97,21 @@ struct ReaderDetailView: View {
                     haptics.star(on: willStar)
                     triggerStarBurst(on: willStar)
                 }
-                .onLongPressGesture(minimumDuration: ReaderHaptics.buildupDuration, maximumDistance: 24) {
+                .onLongPressGesture(minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration, maximumDistance: 10) {
+                    pendingBuildup?.cancel()
+                    pendingBuildup = nil
                     openBrowser(for: article)
                 } onPressingChanged: { pressing in
                     if pressing {
-                        haptics.startLongPressBuildup()
+                        // Defer the haptic; if the finger moves (swipe/scroll),
+                        // the gesture cancels and pressing flips false first.
+                        pendingBuildup = Task {
+                            try? await Task.sleep(for: .seconds(hapticStartDelay))
+                            if !Task.isCancelled { haptics.startLongPressBuildup() }
+                        }
                     } else {
+                        pendingBuildup?.cancel()
+                        pendingBuildup = nil
                         haptics.cancelLongPressBuildup()
                     }
                 }
@@ -113,7 +126,6 @@ struct ReaderDetailView: View {
                 .opacity(starBurstOpacity)
                 .allowsHitTesting(false)
         }
-        .task(id: article.id) { await markReadAfterDwell(article) }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
@@ -210,23 +222,6 @@ struct ReaderDetailView: View {
         store.isBrowserPresented = true
     }
 
-    /// Keeps the article visible while reading, then marks it read only after
-    /// the user dwells for the configured delay. Navigating away cancels this
-    /// task before the delay elapses, so the article stays unread.
-    private func markReadAfterDwell(_ article: Article) async {
-        store.retainArticle(id: article.id)
-        guard markReadOnOpen else { return }
-        do {
-            if markReadDelaySeconds > 0 {
-                try await Task.sleep(for: .seconds(Double(markReadDelaySeconds)))
-            } else {
-                await Task.yield()
-            }
-            store.markArticleOpened(articleID: article.id)
-        } catch {
-            // Cancelled before the dwell completed — leave it unread.
-        }
-    }
 }
 
 /// Article metadata, mirroring the macOS inspector: status, published date,

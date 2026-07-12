@@ -12,9 +12,9 @@ final class ReaderHaptics {
     private var player: CHHapticPatternPlayer?
     private let supportsHaptics = CHHapticEngine.capabilitiesForHardware().supportsHaptics
 
-    /// The build-up length. The long-press gesture should use the same duration
-    /// so the final pulse lands exactly as it completes.
-    static let buildupDuration: Double = 0.55
+    /// The build-up length. The long-press gesture waits a short delay and then
+    /// this duration, so the final pulse lands exactly as the press completes.
+    static let buildupDuration: Double = 0.42
 
     init() {
         guard supportsHaptics else { return }
