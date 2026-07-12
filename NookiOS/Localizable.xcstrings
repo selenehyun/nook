@@ -2818,6 +2818,34 @@
         }
       }
     },
+    "Translating with Apple Intelligence…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translating with Apple Intelligence…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence로 번역 중…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence で翻訳中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在用 Apple Intelligence 翻译…"
+          }
+        }
+      }
+    },
     "Translating…": {
       "localizations": {
         "en": {

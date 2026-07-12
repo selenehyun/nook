@@ -163,6 +163,12 @@ struct ReaderDetailView: View {
                 .opacity(starBurstOpacity)
                 .allowsHitTesting(false)
         }
+        .overlay(alignment: .top) {
+            if isTranslating {
+                TranslationProgressBanner()
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isTranslating)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
@@ -421,7 +427,8 @@ struct InAppBrowserSheet: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
-    @State private var isTranslating = false
+    @State private var isTranslationOn = false
+    @State private var translationInFlight = false
 
     /// Web-view translation uses Apple Intelligence; offer it only when that's
     /// available and the article's language differs from the app's.
@@ -449,11 +456,18 @@ struct InAppBrowserSheet: View {
                 useReaderMode: store.browserMode == .reader,
                 style: style,
                 linkOpensInApp: linkOpensInApp,
-                translate: isTranslating,
-                translationLanguage: targetLanguageName
+                translate: isTranslationOn,
+                translationLanguage: targetLanguageName,
+                onTranslatingChange: { translationInFlight = $0 }
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
             .ignoresSafeArea(edges: .bottom)
+            .overlay(alignment: .top) {
+                if translationInFlight {
+                    TranslationProgressBanner()
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: translationInFlight)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -472,9 +486,9 @@ struct InAppBrowserSheet: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if canTranslate {
                         Button {
-                            isTranslating.toggle()
+                            isTranslationOn.toggle()
                         } label: {
-                            Image(systemName: isTranslating ? "character.bubble.fill" : "character.bubble")
+                            Image(systemName: isTranslationOn ? "character.bubble.fill" : "character.bubble")
                         }
                     }
                     Button {
@@ -494,5 +508,24 @@ struct InAppBrowserSheet: View {
                 store.markArticleOpened(articleID: article.id)
             }
         }
+    }
+}
+
+/// A small "translating" banner shown while Apple Intelligence works, so a slow
+/// translation reads as in-progress rather than stuck.
+struct TranslationProgressBanner: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Translating with Apple Intelligence…")
+                .font(.subheadline)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .padding(.top, 10)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

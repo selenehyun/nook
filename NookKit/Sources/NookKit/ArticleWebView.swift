@@ -22,6 +22,8 @@ public struct ArticleWebView {
     let translate: Bool
     /// The English name of the target language (e.g. "Korean") for translation.
     let translationLanguage: String
+    /// Reports when in-place translation is running so the UI can show progress.
+    var onTranslatingChange: (Bool) -> Void
     /// Live overscroll amount while pulling down at the top (sheet follows).
     /// macOS only; ignored on iOS where the sheet has native drag-to-dismiss.
     var onOverscroll: (CGFloat) -> Void
@@ -35,6 +37,7 @@ public struct ArticleWebView {
         linkOpensInApp: Bool,
         translate: Bool = false,
         translationLanguage: String = "",
+        onTranslatingChange: @escaping (Bool) -> Void = { _ in },
         onOverscroll: @escaping (CGFloat) -> Void = { _ in },
         onOverscrollEnded: @escaping (CGFloat) -> Void = { _ in }
     ) {
@@ -44,6 +47,7 @@ public struct ArticleWebView {
         self.linkOpensInApp = linkOpensInApp
         self.translate = translate
         self.translationLanguage = translationLanguage
+        self.onTranslatingChange = onTranslatingChange
         self.onOverscroll = onOverscroll
         self.onOverscrollEnded = onOverscrollEnded
     }
@@ -150,6 +154,7 @@ extension ArticleWebView: NSViewRepresentable {
         context.coordinator.onOverscroll = onOverscroll
         context.coordinator.onOverscrollEnded = onOverscrollEnded
         context.coordinator.webView = webView
+        context.coordinator.onTranslatingChange = onTranslatingChange
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
@@ -179,6 +184,7 @@ extension ArticleWebView: UIViewRepresentable {
     public func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.linkOpensInApp = linkOpensInApp
         context.coordinator.webView = webView
+        context.coordinator.onTranslatingChange = onTranslatingChange
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
@@ -195,6 +201,7 @@ extension ArticleWebView {
         var linkOpensInApp: Bool
         var onOverscroll: (CGFloat) -> Void
         var onOverscrollEnded: (CGFloat) -> Void
+        var onTranslatingChange: (Bool) -> Void = { _ in }
 
         weak var webView: WKWebView?
         private var atTop = true
@@ -243,6 +250,7 @@ extension ArticleWebView {
             guard wantsTranslation, !translationApplied, !translationInFlight,
                   !translationLanguage.isEmpty, let webView else { return }
             translationInFlight = true
+            onTranslatingChange(true)
             collectAndTranslate(webView, languageName: translationLanguage)
         }
 
@@ -252,6 +260,7 @@ extension ArticleWebView {
                 guard let self else { return }
                 guard let text = (result as? String), !text.isEmpty else {
                     self.translationInFlight = false
+                    self.onTranslatingChange(false)
                     return
                 }
                 Task { [weak self] in
@@ -259,6 +268,7 @@ extension ArticleWebView {
                     await MainActor.run {
                         guard let self else { return }
                         self.translationInFlight = false
+                        self.onTranslatingChange(false)
                         guard let translated, !translated.isEmpty, let webView = self.webView else { return }
                         webView.evaluateJavaScript(Self.injectTranslationScript(translated))
                         self.translationApplied = true
