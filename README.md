@@ -3,7 +3,7 @@
   Nook
 </h1>
 
-<p align="center">A native macOS RSS reader that keeps your feeds in a plain folder — on whatever cloud you already use.</p>
+<p align="center">A native RSS reader for macOS and iOS that keeps your feeds in a plain folder — on whatever cloud you already use.</p>
 
 <p align="center">
   <a href="https://github.com/selenehyun/nook/releases/latest">
@@ -14,6 +14,7 @@
 <p align="center">
   <a href="https://github.com/selenehyun/nook/releases/latest"><img src="https://img.shields.io/github/v/release/selenehyun/nook?label=latest&color=4c71f2" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white" alt="macOS 26+" />
+  <img src="https://img.shields.io/badge/iOS-18%2B-000000?logo=apple&logoColor=white" alt="iOS 18+" />
   <img src="https://img.shields.io/badge/built%20with-SwiftUI-fa7343?logo=swift&logoColor=white" alt="Built with SwiftUI" />
   <a href="https://github.com/selenehyun/nook/stargazers"><img src="https://img.shields.io/github/stars/selenehyun/nook?style=flat&logo=github&label=stars&color=4c71f2" alt="GitHub stars" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4c71f2" alt="MIT License" /></a>
@@ -25,28 +26,35 @@
 
 ## Why Nook
 
-Most RSS readers are either a web app behind a login or an Electron shell pretending to be native. Nook is neither. It's a real SwiftUI/AppKit Mac app, and it stores **all** of your data in a plain folder you choose.
+Most RSS readers are either a web app behind a login or an Electron shell pretending to be native. Nook is neither. It's a real SwiftUI/AppKit app on Mac and a real SwiftUI app on iPhone and iPad — and it stores **all** of your data in a plain folder you choose.
 
 That one decision means **no lock-in**:
 
 - **Any cloud you like.** It's just a folder, so sync it however you already do — iCloud Drive, Dropbox, Google Drive, OneDrive, Syncthing, even a Git repo. Nook doesn't run a server or ask for an account.
+- **One library, every device.** Point the Mac and iOS apps at the same folder and your feeds, read state, and stars stay in step — Nook watches the file and pulls another device's changes the moment they arrive.
 - **Come and go via OPML.** Import your subscriptions from Reeder, NetNewsWire, Feedly, or anywhere else in seconds — and export them back out any time. Your feed list is always yours to take with you.
 
 ## Features
 
-- 🪶 **Truly native.** SwiftUI + AppKit — `NavigationSplitView`, native toolbars, menus, commands, and share sheets. Not a webview wrapper, not Electron.
+- 🪶 **Truly native, everywhere.** One shared Swift core (`NookKit`) under a SwiftUI + AppKit Mac app and a SwiftUI iPhone/iPad app — `NavigationSplitView`, native toolbars, menus, commands, swipe actions, and share sheets. Not a webview wrapper, not Electron.
 - 🗂️ **Your data, your folder — any cloud.** Feeds, articles, read/starred state, and refresh metadata live as plain JSON (`NookLibrary.json`) in a folder you pick, Obsidian-vault style. Point it at iCloud Drive, Dropbox, Google Drive, OneDrive — whatever syncs folders for you. No account, no telemetry.
+- 🔁 **Fast cross-device sync.** Reads and writes are file-coordinated so edits reach the cloud promptly and don't create conflicts, and each app watches the library file to apply another device's changes live — no relaunch needed.
 - 📥 **Painless migration, no lock-in.** Bring subscriptions in from any reader with **OPML import**, and **export** them whenever you want to move on.
 - 📰 **Real feeds.** Add an RSS/Atom URL, or just paste a website — Nook auto-discovers the feed from the page's `<link rel="alternate">`.
-- 📚 **Smart sources & folders.** Jump between **Unread**, **Today**, **Starred**, and **All Articles**, or organize feeds into your own folders.
-- 📖 **Two ways to read.** A clean, fast native reader by default; opt into a full-page reader (a `WKWebView` with an injected readability script) or pop the original page open in an in-app browser sheet.
-- 🔎 **Instant search** across titles, summaries, and feed names, with keyboard-first navigation.
+- 📲 **Add from anywhere (iOS).** Share a page from Safari with **“Add Feed to Nook”** and it finds and subscribes to that site's feed.
+- 🌏 **Natural translation (iOS).** When an article isn't in your language, translate it in place — powered by **Apple Intelligence** on-device for fluent, idiomatic results (with the system Translation engine as a fallback). Works in both the native reader and the in-app web view.
+- 📚 **Smart sources & folders.** Jump between **Unread**, **Today**, **Starred**, and **All Articles**, or organize feeds into your own folders (create, rename, delete).
+- 📖 **Two ways to read.** A clean, fast native reader by default; opt into a full-page reader (a `WKWebView` with an injected readability script) or pop the original page open in an in-app browser — per feed, if you like.
+- ✋ **Gesture-friendly (iOS).** Swipe to read/star, pull to refresh (all feeds or just the one you're viewing), and use the article body itself — double-tap to star, press-and-hold (with a haptic build-up) to open the web view.
+- 🔎 **Instant search** across titles, summaries, and feed names, with keyboard-first navigation on the Mac.
 - 🔄 **Quiet auto-sync.** Refreshes on a schedule and whenever the app launches or returns to the foreground — throttled so it never hammers your feeds.
-- 🔴 **Unread badge & widget.** A Dock badge for total unread and a home-screen widget with smart-source shortcuts.
-- 🌓 **Adaptive icon** (light/dark) and a **bilingual UI** (English / 한국어).
-- ⬆️ **Auto-updates** via [Sparkle](https://sparkle-project.org) — quiet, never a modal.
+- 🔴 **Unread badges.** A Dock badge on the Mac and an app-icon badge on iOS, plus a home-screen widget with smart-source shortcuts.
+- 🌓 **Adaptive icon** (light/dark) and a **localized UI** — English, 한국어, 日本語, 简体中文.
+- ⬆️ **Auto-updates** on macOS via [Sparkle](https://sparkle-project.org) — quiet, never a modal.
 
 ## Install
+
+### macOS
 
 1. Download the latest **[Nook DMG](https://github.com/selenehyun/nook/releases/latest)**.
 2. Open it and drag **Nook** into **Applications**.
@@ -60,13 +68,23 @@ That one decision means **no lock-in**:
 
 > Requires **macOS 26 (Tahoe)** or later. Universal binary (Apple Silicon + Intel).
 
+### iOS / iPadOS
+
+There's no App Store build yet (that needs a paid Apple Developer account). To run it on your own device, build from source in Xcode:
+
+1. Open `Nook.xcodeproj`, select the **NookiOS** scheme and your device.
+2. Set your team under **Signing & Capabilities**, then press **⌘R**.
+3. Point it at the **same sync folder** as your Mac (via the Files app — iCloud Drive works well) to share one library.
+
+> Requires **iOS/iPadOS 18** or later. On-device Apple Intelligence translation needs a supported device running **iOS 26**.
+
 ## Moving in (and out)
 
 Nook is built so you're never trapped:
 
-- **Switching to Nook?** Export an OPML from your current reader, then **Subscriptions → Import OPML** in Nook. Your feeds and folders come across in one step.
-- **Switching away?** **Subscriptions → Export OPML** and take your list anywhere.
-- **Moving Macs or clouds?** Just move the sync folder. Because everything is in `NookLibrary.json`, there's nothing else to migrate.
+- **Switching to Nook?** Export an OPML from your current reader, then **Import OPML** in Nook. Your feeds and folders come across in one step.
+- **Switching away?** **Export OPML** and take your list anywhere.
+- **Moving devices or clouds?** Just move the sync folder. Because everything is in `NookLibrary.json`, there's nothing else to migrate.
 
 ## How your data is stored
 
@@ -74,16 +92,17 @@ Nook is folder-first. Pick any folder — on any cloud, or none — and Nook kee
 
 ```
 YourSyncFolder/
-└── NookLibrary.json      # feeds, articles, read & starred state, refresh metadata
+├── NookLibrary.json      # feeds, articles, read & starred state, refresh metadata
+└── Icons/                # cached feed favicons
 ```
 
-Since it's just a file in a folder you control, "sync" is whatever your folder already does: iCloud Drive across your Macs, Dropbox/Google Drive/OneDrive across platforms, or your own backup. `NookLibrary.json` is treated as user data and evolves with backward-compatible migrations.
+Since it's just a file in a folder you control, "sync" is whatever your folder already does: iCloud Drive across your Apple devices, Dropbox/Google Drive/OneDrive across platforms, or your own backup. Nook coordinates its reads and writes (via `NSFileCoordinator`) and watches the file, so a change on one device shows up on the others as soon as the cloud delivers it — no relaunch. `NookLibrary.json` is treated as user data and evolves with backward-compatible migrations.
 
-## Auto-updates
+## Auto-updates (macOS)
 
-Nook updates itself with [Sparkle](https://sparkle-project.org), tuned to stay out of your way: background checks **never** pop a modal — not even at launch. When a new version is ready, a small blue chip appears at the bottom of the sidebar. Click it to see what's new and install; keep reading if you don't. Updates are EdDSA-signed and published automatically from GitHub Releases.
+Nook updates itself with [Sparkle](https://sparkle-project.org), tuned to stay out of your way: background checks **never** pop a modal — not even at launch. When a new version is ready, a small blue chip appears at the bottom of the sidebar. Click it to see what's new and install; keep reading if you don't. Updates are EdDSA-signed and published automatically from GitHub Releases. (On iOS, updates come from rebuilding in Xcode or, in future, the App Store.)
 
-## Keyboard shortcuts
+## Keyboard shortcuts (macOS)
 
 | Shortcut | Action |
 | --- | --- |
@@ -102,23 +121,29 @@ Nook updates itself with [Sparkle](https://sparkle-project.org), tuned to stay o
 ```sh
 git clone https://github.com/selenehyun/nook
 cd nook
-make build          # or: open Nook.xcodeproj and press ⌘R
+make build          # macOS — or open Nook.xcodeproj and press ⌘R
+
+# iOS (simulator)
+xcodebuild -project Nook.xcodeproj -scheme NookiOS \
+  -destination 'generic/platform=iOS Simulator' build
 ```
 
-**Toolchain:** Xcode 26.5+, Swift 6, deployment target macOS 26. A build you compile locally isn't quarantined, so it launches without the Gatekeeper prompt.
+**Toolchain:** Xcode 26.5+, Swift 6, deployment targets macOS 26 / iOS 18. A macOS build you compile locally isn't quarantined, so it launches without the Gatekeeper prompt.
 
 ## Tech
 
-- **UI:** SwiftUI + AppKit (native split view, toolbars, menus, commands, widget)
-- **Networking & parsing:** `URLSession` + `XMLParser` for RSS/Atom and OPML
-- **Reader mode:** `WKWebView` with a self-contained injected readability script
-- **Widget:** WidgetKit
-- **Updates:** Sparkle (EdDSA-signed appcast, built and published by GitHub Actions)
+- **Shared core:** `NookKit`, a local Swift package with the store, models, RSS/Atom + OPML parsing, storage, and the reader — used by both apps.
+- **UI:** SwiftUI + AppKit on macOS, SwiftUI on iOS/iPadOS (native split view, toolbars, menus, commands, widget, share extension).
+- **Networking & parsing:** `URLSession` + `XMLParser` for RSS/Atom and OPML.
+- **Reader mode:** `WKWebView` with a self-contained injected readability script.
+- **Translation (iOS):** Apple's on-device **Foundation Models** (Apple Intelligence) with a **Translation** framework fallback; language detection via **NaturalLanguage**.
+- **Sync:** `NSFileCoordinator` + `NSFilePresenter` for coordinated, live-updating file access.
+- **Widget:** WidgetKit. **Updates (macOS):** Sparkle (EdDSA-signed appcast, built and published by GitHub Actions).
 - No third-party UI frameworks. No Electron.
 
 ## Releasing (maintainers)
 
-Pushing a version tag builds, signs, and publishes everything via `.github/workflows/release.yml`:
+Pushing a version tag builds, signs, and publishes the macOS app via `.github/workflows/release.yml`:
 
 ```sh
 git tag v0.1.8
