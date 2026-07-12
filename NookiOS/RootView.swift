@@ -14,7 +14,7 @@ struct RootView: View {
         } content: {
             ArticleList(store: store)
         } detail: {
-            ReaderDetail(store: store)
+            ReaderDetailView(store: store)
         }
         .task { store.bootstrap() }
         .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
@@ -143,51 +143,6 @@ private struct ArticleList: View {
             if store.visibleArticles.isEmpty {
                 ContentUnavailableView("No Articles", systemImage: "newspaper")
             }
-        }
-    }
-}
-
-private struct ReaderDetail: View {
-    @Bindable var store: ReaderStore
-
-    var body: some View {
-        if let article = store.selectedArticle {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(article.title).font(.title.bold())
-                    HStack(spacing: 6) {
-                        Text(store.feed(for: article.feedID)?.title ?? "")
-                        Text("·")
-                        Text(article.publishedAt.formatted(date: .abbreviated, time: .shortened))
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                    let paragraphs = article.bodyParagraphs.isEmpty ? [article.summary] : article.bodyParagraphs
-                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                        Text(paragraph).font(.body)
-                    }
-
-                    Link(destination: article.url) {
-                        Label("Open Original", systemImage: "safari")
-                    }
-                    .padding(.top, 8)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .task(id: article.id) { store.markArticleOpened(articleID: article.id) }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        store.toggleStarred(articleID: article.id)
-                    } label: {
-                        Image(systemName: article.isStarred ? "star.fill" : "star")
-                    }
-                }
-            }
-        } else {
-            ContentUnavailableView("Select an Article", systemImage: "newspaper")
         }
     }
 }

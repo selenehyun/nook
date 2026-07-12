@@ -15,8 +15,6 @@
 		2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */; };
 		2D0E3A1F2D8A4A4700A00001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */; };
 		2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */; };
-		2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */; };
-		2D0E3A382D8A4A4700A00001 /* Readability.js in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A372D8A4A4700A00001 /* Readability.js */; };
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2DA1C0DF2D8A4A4700A00001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */; };
 		2DAAAAAA000000000000CAFE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA000000000000BEEF /* Sparkle */; };
@@ -24,6 +22,7 @@
 		2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAAAAAA000000000000D001 /* UpdateController.swift */; };
 		2D105000000000000000000B /* NookiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000A /* NookiOSApp.swift */; };
 		2D105000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000C /* RootView.swift */; };
+		2D1051CD906D767ED4F5EA6C /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D10517EDF4172A50DC4DC2C /* ReaderView.swift */; };
 		2D105000000000000000000F /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2D105000000000000000000E /* NookKit */; };
 /* End PBXBuildFile section */
 
@@ -63,14 +62,13 @@
 		2D0E3A202D8A4A4700A00001 /* Nook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nook.entitlements; sourceTree = "<group>"; };
 		2D0E3A302D8A4A4700A00001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
-		2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleWebView.swift; sourceTree = "<group>"; };
-		2D0E3A372D8A4A4700A00001 /* Readability.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Readability.js; sourceTree = "<group>"; };
 		2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShared.swift; sourceTree = "<group>"; };
 		2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		2DAAAAAA000000000000D001 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
 		2D1050000000000000000002 /* NookiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NookiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D105000000000000000000A /* NookiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NookiOSApp.swift; sourceTree = "<group>"; };
 		2D105000000000000000000C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2D10517EDF4172A50DC4DC2C /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -143,6 +141,7 @@
 			children = (
 				2D105000000000000000000A /* NookiOSApp.swift */,
 				2D105000000000000000000C /* RootView.swift */,
+				2D10517EDF4172A50DC4DC2C /* ReaderView.swift */,
 			);
 			path = NookiOS;
 			sourceTree = "<group>";
@@ -163,9 +162,7 @@
 				2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */,
 				2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */,
 				2DAAAAAA000000000000D001 /* UpdateController.swift */,
-				2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */,
 				2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */,
-				2D0E3A372D8A4A4700A00001 /* Readability.js */,
 				2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */,
 				2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */,
 				2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */,
@@ -306,7 +303,6 @@
 				2D0E3A1F2D8A4A4700A00001 /* Assets.xcassets in Resources */,
 				2DA1C0DF2D8A4A4700A00001 /* AppIcon.icon in Resources */,
 				2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */,
-				2D0E3A382D8A4A4700A00001 /* Readability.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -335,7 +331,6 @@
 				2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */,
 				2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */,
 				2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */,
-				2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */,
 				2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -346,6 +341,7 @@
 			files = (
 				2D105000000000000000000B /* NookiOSApp.swift in Sources */,
 				2D105000000000000000000D /* RootView.swift in Sources */,
+				2D1051CD906D767ED4F5EA6C /* ReaderView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

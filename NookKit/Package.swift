@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "NookKit",
-            resources: [.process("Localizable.xcstrings")]
+            resources: [
+                .process("Localizable.xcstrings"),
+                .copy("Readability.js"),
+            ]
         ),
     ]
 )
