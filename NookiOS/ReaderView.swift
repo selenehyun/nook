@@ -133,7 +133,7 @@ struct ReaderDetailView: View {
                     Text(feed.title)
                 }
                 Text("·")
-                Text(article.publishedAt.formatted(date: .abbreviated, time: .shortened))
+                Text(article.publishedAt.localized(date: .abbreviated, time: .shortened))
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -182,7 +182,7 @@ struct ArticleInfoView: View {
             Form {
                 Section("Article") {
                     LabeledContent("Status", value: article.isRead ? String(localized: "Read") : String(localized: "Unread"))
-                    LabeledContent("Published", value: article.publishedAt.formatted(date: .abbreviated, time: .shortened))
+                    LabeledContent("Published", value: article.publishedAt.localized(date: .abbreviated, time: .shortened))
                     LabeledContent("Reading Time", value: String(localized: "\(article.estimatedReadMinutes) min"))
                     Toggle("Starred", isOn: store.starredBinding(articleID: article.id))
                     Toggle("Read", isOn: store.readBinding(articleID: article.id))
@@ -196,7 +196,7 @@ struct ArticleInfoView: View {
                         }
                         LabeledContent(
                             "Last Refresh",
-                            value: feed.lastFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? String(localized: "Never")
+                            value: feed.lastFetchedAt?.localized(date: .abbreviated, time: .shortened) ?? String(localized: "Never")
                         )
                         Link("Open Site", destination: feed.siteURL)
                         Link("Open Feed", destination: feed.feedURL)

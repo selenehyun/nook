@@ -31,6 +31,7 @@ struct SettingsView: View {
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
     // General
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
 
     private var backgroundColor: Binding<Color> {
@@ -61,6 +62,9 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: appLanguage) { _, newValue in
+                AppLanguage.apply(newValue)
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -157,7 +161,21 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var generalSection: some View {
+        Section("Language") {
+            Picker("Language", selection: $appLanguage) {
+                ForEach(AppLanguage.allCases) { language in
+                    Text(language.label).tag(language)
+                }
+            }
+            if appLanguage != AppLanguage.launchLanguage {
+                Text("Restart Nook to apply the language change.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
         Section("App Icon") {
             Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
         }
