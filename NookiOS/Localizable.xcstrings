@@ -121,16 +121,16 @@
             "value": "Added"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이미 추가됨"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "追加済み"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 추가됨"
           }
         },
         "zh-Hans": {
@@ -205,16 +205,16 @@
             "value": "Article Info"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "글 정보"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "記事の情報"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "글 정보"
           }
         },
         "zh-Hans": {
@@ -345,16 +345,16 @@
             "value": "Change Sync Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "동기화 폴더 변경"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "同期フォルダを変更"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동기화 폴더 변경"
           }
         },
         "zh-Hans": {
@@ -373,16 +373,16 @@
             "value": "Choose Sync Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "동기화 폴더 선택"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "同期フォルダを選択"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동기화 폴더 선택"
           }
         },
         "zh-Hans": {
@@ -401,16 +401,16 @@
             "value": "Choose a sync folder so Nook keeps your feeds in sync across your devices."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "동기화 폴더를 선택하면 Nook이 여러 기기에서 피드를 동기화합니다."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "同期フォルダを選ぶと、Nook がデバイス間でフィードを同期します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동기화 폴더를 선택하면 Nook이 여러 기기에서 피드를 동기화합니다."
           }
         },
         "zh-Hans": {
@@ -429,16 +429,16 @@
             "value": "Choose how each feed's articles open in the web view. “Default” follows the In-App Browser setting above."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "각 피드의 글을 웹뷰에서 여는 방식을 선택하세요. “기본값”은 위의 인앱 브라우저 설정을 따릅니다."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "各フィードの記事を Web ビューでどう開くかを選びます。「デフォルト」は上の App 内ブラウザの設定に従います。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "각 피드의 글을 웹뷰에서 여는 방식을 선택하세요. “기본값”은 위의 인앱 브라우저 설정을 따릅니다."
           }
         },
         "zh-Hans": {
@@ -507,6 +507,12 @@
     },
     "Default": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -524,12 +530,6 @@
             "state": "translated",
             "value": "默认"
           }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Default"
-          }
         }
       }
     },
@@ -541,16 +541,16 @@
             "value": "Delete"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "삭제"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제"
           }
         },
         "zh-Hans": {
@@ -569,16 +569,16 @@
             "value": "Delete Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 삭제"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フィードを削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드 삭제"
           }
         },
         "zh-Hans": {
@@ -597,16 +597,16 @@
             "value": "Delete Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "폴더 삭제"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フォルダを削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 삭제"
           }
         },
         "zh-Hans": {
@@ -653,16 +653,16 @@
             "value": "Done"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "완료"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "完了"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "완료"
           }
         },
         "zh-Hans": {
@@ -681,16 +681,16 @@
             "value": "Enter a new name for the folder."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "폴더의 새 이름을 입력하세요."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フォルダの新しい名前を入力してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더의 새 이름을 입력하세요."
           }
         },
         "zh-Hans": {
@@ -905,16 +905,16 @@
             "value": "Import %lld"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld개 가져오기"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld 件を読み込む"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 가져오기"
           }
         },
         "zh-Hans": {
@@ -1185,16 +1185,16 @@
             "value": "Mark All as Read"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "모두 읽음으로 표시"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "すべて既読にする"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모두 읽음으로 표시"
           }
         },
         "zh-Hans": {
@@ -1493,16 +1493,16 @@
             "value": "No feeds yet. Add feeds from the sidebar."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "아직 피드가 없습니다. 사이드바에서 피드를 추가하세요."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "まだフィードがありません。サイドバーから追加してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 피드가 없습니다. 사이드바에서 피드를 추가하세요."
           }
         },
         "zh-Hans": {
@@ -1565,16 +1565,16 @@
             "value": "Nook %@ (%@) · iOS %@"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook %@ (%@) · iOS %@"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Nook %@（%@）· iOS %@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook %@ (%@) · iOS %@"
           }
         },
         "zh-Hans": {
@@ -1621,16 +1621,16 @@
             "value": "Nook keeps your feeds in a folder in the cloud so they stay in sync across your devices."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook은 피드를 클라우드의 한 폴더에 보관해 여러 기기에서 동기화되도록 합니다."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Nook はクラウド上のフォルダにフィードを保存し、デバイス間で同期します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook은 피드를 클라우드의 한 폴더에 보관해 여러 기기에서 동기화되도록 합니다."
           }
         },
         "zh-Hans": {
@@ -1677,16 +1677,16 @@
             "value": "OK"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "확인"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "OK"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인"
           }
         },
         "zh-Hans": {
@@ -1789,16 +1789,16 @@
             "value": "Open Reader / Original"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "리더/원본 열기"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "リーダー／元のページを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "리더/원본 열기"
           }
         },
         "zh-Hans": {
@@ -1873,16 +1873,16 @@
             "value": "Original"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "원본"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "元のページ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원본"
           }
         },
         "zh-Hans": {
@@ -1901,16 +1901,16 @@
             "value": "Paste an RSS or Atom feed URL, or a website address — Nook will find the feed."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "RSS나 Atom 피드 URL 또는 웹사이트 주소를 붙여 넣으면 Nook이 피드를 찾아줍니다."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "RSS / Atom フィードの URL、または Web サイトのアドレスを貼り付けると、Nook がフィードを見つけます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RSS나 Atom 피드 URL 또는 웹사이트 주소를 붙여 넣으면 Nook이 피드를 찾아줍니다."
           }
         },
         "zh-Hans": {
@@ -2091,6 +2091,12 @@
     },
     "Reading View": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading View"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2107,12 +2113,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "阅读视图"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading View"
           }
         }
       }
@@ -2181,16 +2181,16 @@
             "value": "Rename"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "변경"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "変更"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변경"
           }
         },
         "zh-Hans": {
@@ -2209,16 +2209,16 @@
             "value": "Rename Folder"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "폴더 이름 변경"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フォルダ名を変更"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 이름 변경"
           }
         },
         "zh-Hans": {
@@ -2377,16 +2377,16 @@
             "value": "Set Up Sync"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "동기화 설정"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "同期を設定"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동기화 설정"
           }
         },
         "zh-Hans": {
@@ -2405,16 +2405,16 @@
             "value": "Settings"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "설정"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "設定"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정"
           }
         },
         "zh-Hans": {
@@ -2489,16 +2489,16 @@
             "value": "Something Went Wrong"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "문제가 발생했습니다"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "問題が発生しました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문제가 발생했습니다"
           }
         },
         "zh-Hans": {
@@ -2761,6 +2761,7 @@
         }
       }
     },
+    "Translate": {},
     "Typography": {
       "localizations": {
         "en": {
@@ -2881,16 +2882,16 @@
             "value": "Version"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "버전"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "バージョン"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버전"
           }
         },
         "zh-Hans": {
@@ -2909,13 +2910,13 @@
             "value": "https://example.com/feed.xml"
           }
         },
-        "ko": {
+        "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "https://example.com/feed.xml"
           }
         },
-        "ja": {
+        "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "https://example.com/feed.xml"
@@ -2937,13 +2938,13 @@
             "value": "·"
           }
         },
-        "ko": {
+        "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "·"
           }
         },
-        "ja": {
+        "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "·"

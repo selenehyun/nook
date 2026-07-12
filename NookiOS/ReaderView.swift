@@ -1,5 +1,7 @@
+import NaturalLanguage
 import NookKit
 import SwiftUI
+import Translation
 
 /// The iOS article reader. Mirrors the macOS reader: a native, selectable body
 /// (system typography) with a toggle into the styled `WKWebView` reader/original
@@ -7,6 +9,7 @@ import SwiftUI
 struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
 
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
@@ -31,6 +34,26 @@ struct ReaderDetailView: View {
     @State private var starBurstOn = true
     @State private var starBurstScale: CGFloat = 0.4
     @State private var starBurstOpacity: Double = 0
+
+    // On-device translation via the system Translation overlay. Offered only
+    // when the detected content language differs from the app's language.
+    @State private var detectedLanguage: String?
+    @State private var isShowingTranslation = false
+
+    /// The language to translate into: the app's chosen language, or the system
+    /// language when set to "System".
+    private var targetLanguage: Locale.Language {
+        let locale = appLanguage == .system ? Locale.current : appLanguage.locale
+        return locale.language
+    }
+
+    /// True when the article's detected language differs from the target, so
+    /// translation is worth offering.
+    private var canTranslate: Bool {
+        guard let detected = detectedLanguage,
+              let target = targetLanguage.languageCode?.identifier else { return false }
+        return detected != target
+    }
 
     private var readerStyle: ReaderStyle {
         ReaderStyle(
@@ -148,6 +171,13 @@ struct ReaderDetailView: View {
                     } label: {
                         Label("Article Info", systemImage: "info.circle")
                     }
+                    if canTranslate {
+                        Button {
+                            isShowingTranslation = true
+                        } label: {
+                            Label("Translate", systemImage: "character.bubble")
+                        }
+                    }
                     ShareLink(item: article.url) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
@@ -159,6 +189,16 @@ struct ReaderDetailView: View {
                 }
             }
         }
+        .task(id: article.id) {
+            // Detect the article's language so translation is offered only when
+            // it differs from the app's language.
+            isShowingTranslation = false
+            detectedLanguage = Self.detectLanguage(for: article)
+        }
+        .translationPresentation(
+            isPresented: $isShowingTranslation,
+            text: Self.translationText(for: article)
+        )
         .sheet(isPresented: $store.isBrowserPresented) {
             InAppBrowserSheet(
                 store: store,
@@ -220,6 +260,25 @@ struct ReaderDetailView: View {
         let feedMode = store.feed(for: article.feedID)?.preferredViewMode
         store.browserMode = feedMode ?? readerViewMode
         store.isBrowserPresented = true
+    }
+
+    // MARK: - Translation
+
+    /// Detects the dominant language of an article's text (e.g. "en", "ko").
+    private static func detectLanguage(for article: Article) -> String? {
+        let sample = (article.bodyParagraphs.prefix(4).joined(separator: " ") + " " + article.title)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sample.isEmpty else { return nil }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(sample)
+        return recognizer.dominantLanguage?.rawValue
+    }
+
+    /// The text handed to the system translation overlay: the title followed by
+    /// the article body.
+    private static func translationText(for article: Article) -> String {
+        ([article.title] + article.bodyParagraphs)
+            .joined(separator: "\n\n")
     }
 
 }
