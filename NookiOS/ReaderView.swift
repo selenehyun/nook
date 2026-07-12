@@ -21,6 +21,7 @@ struct ReaderDetailView: View {
     @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
 
     @State private var isShowingInfo = false
+    @State private var haptics = ReaderHaptics()
 
     private var readerStyle: ReaderStyle {
         ReaderStyle(
@@ -58,20 +59,38 @@ struct ReaderDetailView: View {
                 Divider()
 
                 if let html = article.contentHTML {
-                    HTMLContentText(html: html)
+                    // Text selection is disabled so the double-tap / long-press
+                    // gestures below own the body instead of the selection UI.
+                    HTMLContentText(html: html, selectable: false)
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(article.bodyParagraphs, id: \.self) { paragraph in
                             Text(paragraph)
                                 .font(.body)
                                 .lineSpacing(4)
-                                .textSelection(.enabled)
                         }
                     }
                 }
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Double-tap the body to star; press-and-hold to open the web view
+            // with a build-up of haptic taps ending in one deep pulse.
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                let willStar = !article.isStarred
+                store.toggleStarred(articleID: article.id)
+                haptics.star(on: willStar)
+            }
+            .onLongPressGesture(minimumDuration: ReaderHaptics.buildupDuration, maximumDistance: 24) {
+                openBrowser(for: article)
+            } onPressingChanged: { pressing in
+                if pressing {
+                    haptics.startLongPressBuildup()
+                } else {
+                    haptics.cancelLongPressBuildup()
+                }
+            }
         }
         .task(id: article.id) { await markReadAfterDwell(article) }
         .toolbar {

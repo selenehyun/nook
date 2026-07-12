@@ -11,19 +11,23 @@ import UIKit
 /// bold/italic) and adapts non-link text to light/dark appearance.
 public struct HTMLContentText: View {
     let html: String
+    let selectable: Bool
     @State private var attributed: AttributedString?
 
-    public init(html: String) {
+    public init(html: String, selectable: Bool = true) {
         self.html = html
+        self.selectable = selectable
     }
 
     public var body: some View {
         Group {
             if let attributed {
-                Text(attributed)
-                    .lineSpacing(4)
-                    .textSelection(.enabled)
-                    .tint(.accentColor)
+                let text = Text(attributed).lineSpacing(4).tint(.accentColor)
+                if selectable {
+                    text.textSelection(.enabled)
+                } else {
+                    text.textSelection(.disabled)
+                }
             } else {
                 ProgressView()
                     .controlSize(.small)
