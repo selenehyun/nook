@@ -1,37 +1,35 @@
-import AppKit
 import Foundation
-import NookKit
 import Observation
 import SwiftUI
 
 @MainActor
 @Observable
-final class ReaderStore {
-    var feeds: [Feed] = [] { didSet { scheduleArticleFilter() } }
-    var articles: [Article] = [] { didSet { scheduleArticleFilter(); updateDockBadge() } }
+public final class ReaderStore {
+    public var feeds: [Feed] = [] { didSet { scheduleArticleFilter() } }
+    var articles: [Article] = [] { didSet { scheduleArticleFilter(); updateUnreadBadge() } }
     // Library and Feeds are independent selection scopes: a single smart
     // source acts as navigation, while feeds support multiple selection.
-    var smartSelection: SmartSource? = .all { didSet { scheduleArticleFilter() } }
-    var feedSelection: Set<Feed.ID> = [] { didSet { scheduleArticleFilter() } }
+    public var smartSelection: SmartSource? = .all { didSet { scheduleArticleFilter() } }
+    public var feedSelection: Set<Feed.ID> = [] { didSet { scheduleArticleFilter() } }
     /// Whether the window-wide in-app browser bottom sheet is showing.
-    var isBrowserPresented = false
+    public var isBrowserPresented = false
     /// The in-app browser's current view mode (reader vs original). Toggled
     /// instantly without changing the saved default.
-    var browserMode: ReaderViewMode = .reader
+    public var browserMode: ReaderViewMode = .reader
 
-    func toggleBrowserMode() {
+    public func toggleBrowserMode() {
         guard isBrowserPresented else { return }
         browserMode = (browserMode == .reader) ? .original : .reader
     }
     // Articles kept visible in the current source even after being read, until
     // the user navigates to another source (Chrome-tab-close heuristic).
     private var retainedArticleIDs: Set<Article.ID> = [] { didSet { scheduleArticleFilter() } }
-    var selectedArticleID: Article.ID?
+    public var selectedArticleID: Article.ID?
     /// The raw text bound to the search field; updates instantly as the user types.
-    var searchText = ""
+    public var searchText = ""
     /// The query actually used to filter articles. Trails `searchText` by a
     /// short debounce so filtering doesn't run on every keystroke.
-    private(set) var activeSearchQuery = "" { didSet { scheduleArticleFilter() } }
+    public private(set) var activeSearchQuery = "" { didSet { scheduleArticleFilter() } }
     private var searchDebounceTask: Task<Void, Never>?
 
     /// The filtered, sorted articles shown in the list. Recomputed off the main
@@ -41,13 +39,13 @@ final class ReaderStore {
     /// Above this many articles, filtering runs on a background executor.
     private static let backgroundFilterThreshold = 600
     var lastRefreshedAt: Date?
-    var errorMessage: String?
+    public var errorMessage: String?
     /// Mirrors the "show unread badge" preference. Held in the store (not only
     /// the view) so the Dock badge is a deterministic function of store state
     /// rather than of SwiftUI view-lifecycle timing.
-    var showsUnreadBadge = true { didSet { updateDockBadge() } }
-    private(set) var syncFolderDisplayPath: String?
-    private(set) var feedIcons: [Feed.ID: NSImage] = [:]
+    public var showsUnreadBadge = true { didSet { updateUnreadBadge() } }
+    public private(set) var syncFolderDisplayPath: String?
+    private(set) var feedIcons: [Feed.ID: PlatformImage] = [:]
     private(set) var folders: [String] = []
 
     // Favicon fetching is deduplicated by host and rate-limited so a large
@@ -68,7 +66,7 @@ final class ReaderStore {
     /// App-global instance. A singleton so the separate Settings scene can reach
     /// the same feeds/state as the main window (SwiftUI scenes can't share a
     /// view's `@State`).
-    static let shared = ReaderStore()
+    public static let shared = ReaderStore()
 
     private var didBootstrap = false
 
@@ -82,29 +80,29 @@ final class ReaderStore {
     /// the JSON load in `init()`, that decoded `NookLibrary.json` synchronously on
     /// the main thread repeatedly and pinned the CPU near 100%. Deferring it to a
     /// one-time call from `.task` keeps those re-evaluations cheap.
-    func bootstrap() {
+    public func bootstrap() {
         guard !didBootstrap else { return }
         didBootstrap = true
         restoreStorageIfPossible()
         scheduleArticleFilter()
     }
 
-    var isStorageConfigured: Bool {
+    public var isStorageConfigured: Bool {
         storage != nil
     }
 
-    var isRefreshing: Bool {
+    public var isRefreshing: Bool {
         !refreshingFeedIDs.isEmpty
     }
 
-    var selectedArticle: Article? {
+    public var selectedArticle: Article? {
         guard let selectedArticleID else { return nil }
         return articles.first { $0.id == selectedArticleID }
     }
 
     /// The list-backing articles. Backed by `displayedArticles`, which is
     /// recomputed (off-main for large libraries) whenever a filter input changes.
-    var visibleArticles: [Article] { displayedArticles }
+    public var visibleArticles: [Article] { displayedArticles }
 
     /// Recomputes `displayedArticles` from the current inputs. Coalesces rapid
     /// input changes by cancelling any in-flight recompute. Small libraries are
@@ -184,12 +182,12 @@ final class ReaderStore {
             .sorted { $0.publishedAt > $1.publishedAt }
     }
 
-    var syncFolderName: String? {
+    public var syncFolderName: String? {
         guard let syncFolderDisplayPath, !syncFolderDisplayPath.isEmpty else { return nil }
         return (syncFolderDisplayPath as NSString).lastPathComponent
     }
 
-    var selectedSourceTitle: String {
+    public var selectedSourceTitle: String {
         if !feedSelection.isEmpty {
             if feedSelection.count == 1, let id = feedSelection.first {
                 return feed(for: id)?.title ?? String(localized: "Feed")
@@ -200,11 +198,11 @@ final class ReaderStore {
     }
 
     /// The feed IDs currently selected, for batch feed actions.
-    var selectedFeedIDs: [Feed.ID] { Array(feedSelection) }
+    public var selectedFeedIDs: [Feed.ID] { Array(feedSelection) }
 
     /// Selecting a smart source is single-select navigation and clears any
     /// feed selection, keeping the two scopes independent.
-    func selectSmartSource(_ source: SmartSource) {
+    public func selectSmartSource(_ source: SmartSource) {
         smartSelection = source
         feedSelection = []
         clearRetainedArticles()
@@ -221,7 +219,7 @@ final class ReaderStore {
         }
     }
 
-    func configureSyncFolder(_ directoryURL: URL) {
+    public func configureSyncFolder(_ directoryURL: URL) {
         do {
             try ReaderStorage.saveBookmark(for: directoryURL)
             startAccessing(directoryURL)
@@ -243,20 +241,20 @@ final class ReaderStore {
         }
     }
 
-    func feed(for feedID: Feed.ID) -> Feed? {
+    public func feed(for feedID: Feed.ID) -> Feed? {
         feeds.first { $0.id == feedID }
     }
 
-    func faviconImage(for feed: Feed) -> Image? {
-        feedIcons[feed.id].map(Image.init(nsImage:))
+    public func faviconImage(for feed: Feed) -> Image? {
+        feedIcons[feed.id].map(Image.init(platformImage:))
     }
 
     /// All folder names (including empty ones), in natural order.
-    var feedFolders: [String] {
+    public var feedFolders: [String] {
         folders.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    func feeds(inFolder folder: String) -> [Feed] {
+    public func feeds(inFolder folder: String) -> [Feed] {
         feeds.filter { $0.folderName == folder }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
@@ -265,12 +263,12 @@ final class ReaderStore {
         feeds.reduce(0) { $1.folderName == folder ? $0 + 1 : $0 }
     }
 
-    var ungroupedFeeds: [Feed] {
+    public var ungroupedFeeds: [Feed] {
         feeds.filter { $0.folderName.isEmpty }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
-    func createFolder(_ name: String) {
+    public func createFolder(_ name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !folders.contains(trimmed) else { return }
         folders.append(trimmed)
@@ -278,7 +276,7 @@ final class ReaderStore {
     }
 
     /// Removes a folder and every feed inside it.
-    func removeFolder(_ name: String) {
+    public func removeFolder(_ name: String) {
         let removedIDs = Set(feeds.filter { $0.folderName == name }.map(\.id))
         feeds.removeAll { removedIDs.contains($0.id) }
         articles.removeAll { removedIDs.contains($0.feedID) }
@@ -292,7 +290,7 @@ final class ReaderStore {
     }
 
     /// Moves a feed into a folder (empty string moves it back to top level).
-    func moveFeed(_ feedID: Feed.ID, toFolder folder: String) {
+    public func moveFeed(_ feedID: Feed.ID, toFolder folder: String) {
         guard let index = feeds.firstIndex(where: { $0.id == feedID }),
               feeds[index].category != folder else {
             return
@@ -304,14 +302,14 @@ final class ReaderStore {
         saveAfterMutation()
     }
 
-    func isRefreshing(feedID: Feed.ID) -> Bool {
+    public func isRefreshing(feedID: Feed.ID) -> Bool {
         refreshingFeedIDs.contains(feedID)
     }
 
     /// Sets the per-feed reading-view override (`nil` = follow the global
     /// default) for one or more feeds, so their articles always open in the
     /// chosen mode without toggling each time.
-    func setPreferredViewMode(_ mode: ReaderViewMode?, feedIDs: [Feed.ID]) {
+    public func setPreferredViewMode(_ mode: ReaderViewMode?, feedIDs: [Feed.ID]) {
         var changed = false
         for id in feedIDs {
             guard let index = feeds.firstIndex(where: { $0.id == id }),
@@ -327,40 +325,45 @@ final class ReaderStore {
         articles.reduce(0) { $1.isRead ? $0 : $0 + 1 }
     }
 
-    /// The single writer of the Dock badge. Invoked automatically whenever the
+    /// Installed by the platform app to reflect the unread badge (macOS Dock,
+    /// iOS app icon). Called with the count to show, or 0 to clear.
+    @ObservationIgnored public var onUnreadBadgeChange: ((Int) -> Void)?
+
+    /// The single writer of the unread badge. Invoked automatically whenever the
     /// article set or the preference changes (via their `didSet`), so the badge
     /// can never drift out of sync with the unread count — on launch, during a
-    /// refresh, or when read state changes — regardless of view timing.
-    private func updateDockBadge() {
-        let count = totalUnreadCount
-        NSApp.dockTile.badgeLabel = (showsUnreadBadge && count > 0) ? String(count) : nil
+    /// refresh, or when read state changes — regardless of view timing. The
+    /// actual Dock/app-icon update is delegated to `onUnreadBadgeChange` so the
+    /// core stays platform-agnostic.
+    private func updateUnreadBadge() {
+        onUnreadBadgeChange?(showsUnreadBadge ? totalUnreadCount : 0)
     }
 
-    func unreadCount(feedID: Feed.ID? = nil) -> Int {
+    public func unreadCount(feedID: Feed.ID? = nil) -> Int {
         articles.filter { article in
             !article.isRead && (feedID == nil || article.feedID == feedID)
         }.count
     }
 
-    func unreadCount(inFolder folder: String) -> Int {
+    public func unreadCount(inFolder folder: String) -> Int {
         let ids = Set(feeds.filter { $0.folderName == folder }.map(\.id))
         return articles.reduce(0) { $1.isRead || !ids.contains($1.feedID) ? $0 : $0 + 1 }
     }
 
     /// Selecting a folder selects all feeds inside it, so the article list
     /// shows the folder's combined articles.
-    func selectFolder(_ folder: String) {
+    public func selectFolder(_ folder: String) {
         feedSelection = Set(feeds.filter { $0.folderName == folder }.map(\.id))
         clearRetainedArticles()
         pruneSelectionIfHidden()
     }
 
-    func isFolderSelected(_ folder: String) -> Bool {
+    public func isFolderSelected(_ folder: String) -> Bool {
         let ids = Set(feeds.filter { $0.folderName == folder }.map(\.id))
         return !ids.isEmpty && feedSelection == ids
     }
 
-    func count(for source: SmartSource) -> Int {
+    public func count(for source: SmartSource) -> Int {
         switch source {
         case .unread:
             unreadCount()
@@ -373,7 +376,7 @@ final class ReaderStore {
         }
     }
 
-    func addFeed(urlString: String) {
+    public func addFeed(urlString: String) {
         guard isStorageConfigured else {
             errorMessage = ReaderStorageError.noDirectorySelected.localizedDescription
             return
@@ -386,7 +389,7 @@ final class ReaderStore {
 
     /// Parses an OPML file into feed candidates for the import preview. Returns
     /// an empty array (and sets `errorMessage`) on failure.
-    func parseOPML(at fileURL: URL) -> [OPMLFeed] {
+    public func parseOPML(at fileURL: URL) -> [OPMLFeed] {
         guard isStorageConfigured else {
             errorMessage = ReaderStorageError.noDirectorySelected.localizedDescription
             return []
@@ -411,7 +414,7 @@ final class ReaderStore {
 
     /// Fetches and merges only the feeds the user chose in the import preview,
     /// deduplicating against existing feeds (their read/starred state is kept).
-    func importFeeds(_ opmlFeeds: [OPMLFeed]) {
+    public func importFeeds(_ opmlFeeds: [OPMLFeed]) {
         guard isStorageConfigured, !opmlFeeds.isEmpty else { return }
 
         Task {
@@ -419,7 +422,7 @@ final class ReaderStore {
         }
     }
 
-    func handleOPMLExport(_ result: Result<URL, Error>) {
+    public func handleOPMLExport(_ result: Result<URL, Error>) {
         switch result {
         case .success:
             errorMessage = nil
@@ -428,7 +431,7 @@ final class ReaderStore {
         }
     }
 
-    func refreshAll() {
+    public func refreshAll() {
         guard !feeds.isEmpty else { return }
 
         Task {
@@ -450,7 +453,7 @@ final class ReaderStore {
     /// `activationRefreshInFlight` is set synchronously before the async work
     /// starts so the launch sync and the initial `didBecomeActive` (which both
     /// fire at startup) coalesce into a single refresh instead of two.
-    func refreshOnActivation(honorThrottle: Bool) {
+    public func refreshOnActivation(honorThrottle: Bool) {
         guard isStorageConfigured, !feeds.isEmpty, !isRefreshing, !activationRefreshInFlight else { return }
 
         if honorThrottle, let lastRefreshedAt,
@@ -465,7 +468,7 @@ final class ReaderStore {
         }
     }
 
-    func runAutoRefreshLoop(intervalMinutes: Int) async {
+    public func runAutoRefreshLoop(intervalMinutes: Int) async {
         let seconds = max(5, intervalMinutes * 60)
 
         while !Task.isCancelled {
@@ -492,7 +495,7 @@ final class ReaderStore {
         }
     }
 
-    func refreshFeeds(ids: [Feed.ID]) {
+    public func refreshFeeds(ids: [Feed.ID]) {
         let targets = ids.compactMap(feed(for:))
         guard !targets.isEmpty else { return }
         Task {
@@ -502,27 +505,27 @@ final class ReaderStore {
         }
     }
 
-    func markFeedsRead(ids: [Feed.ID]) {
+    public func markFeedsRead(ids: [Feed.ID]) {
         ids.forEach { markFeedRead(feedID: $0) }
     }
 
-    func removeFeeds(ids: [Feed.ID]) {
+    public func removeFeeds(ids: [Feed.ID]) {
         ids.forEach { removeFeed(feedID: $0) }
     }
 
-    func markArticleOpened(articleID: Article.ID) {
+    public func markArticleOpened(articleID: Article.ID) {
         setRead(articleID: articleID, isRead: true)
     }
 
     /// Keeps an article visible in the current source even once it is read, so
     /// it does not vanish out from under the reader while it is being viewed.
-    func retainArticle(id: Article.ID) {
+    public func retainArticle(id: Article.ID) {
         retainedArticleIDs.insert(id)
     }
 
     /// Drops the retained set so the list recomputes fresh; called when the
     /// selected source changes.
-    func clearRetainedArticles() {
+    public func clearRetainedArticles() {
         guard !retainedArticleIDs.isEmpty else { return }
         retainedArticleIDs.removeAll()
     }
@@ -539,7 +542,7 @@ final class ReaderStore {
         selectedArticleID = id
     }
 
-    func setRead(articleID: Article.ID, isRead: Bool) {
+    public func setRead(articleID: Article.ID, isRead: Bool) {
         guard let index = articles.firstIndex(where: { $0.id == articleID }),
               articles[index].isRead != isRead else { return }
 
@@ -547,7 +550,7 @@ final class ReaderStore {
         saveAfterMutation()
     }
 
-    func markSelectedRead() {
+    public func markSelectedRead() {
         guard let selectedArticleID else { return }
         setRead(articleID: selectedArticleID, isRead: true)
     }
@@ -578,12 +581,12 @@ final class ReaderStore {
         }
     }
 
-    func toggleSelectedStarred() {
+    public func toggleSelectedStarred() {
         guard let selectedArticleID else { return }
         toggleStarred(articleID: selectedArticleID)
     }
 
-    func toggleStarred(articleID: Article.ID) {
+    public func toggleStarred(articleID: Article.ID) {
         updateArticle(articleID) { article in
             article.isStarred.toggle()
         }
@@ -595,22 +598,22 @@ final class ReaderStore {
     /// (or changing source/filter) should show the list with the reader empty
     /// until the user picks an article — otherwise an article opens on its own
     /// and gets marked read via `markReadOnOpen` every time the app starts.
-    func pruneSelectionIfHidden() {
+    public func pruneSelectionIfHidden() {
         guard let selectedArticleID else { return }
         if !visibleArticles.contains(where: { $0.id == selectedArticleID }) {
             self.selectedArticleID = nil
         }
     }
 
-    func selectNextArticle() {
+    public func selectNextArticle() {
         moveSelection(offset: 1)
     }
 
-    func selectPreviousArticle() {
+    public func selectPreviousArticle() {
         moveSelection(offset: -1)
     }
 
-    func readBinding(articleID: Article.ID) -> Binding<Bool> {
+    public func readBinding(articleID: Article.ID) -> Binding<Bool> {
         Binding {
             self.articles.first { $0.id == articleID }?.isRead ?? false
         } set: { isRead in
@@ -618,7 +621,7 @@ final class ReaderStore {
         }
     }
 
-    func starredBinding(articleID: Article.ID) -> Binding<Bool> {
+    public func starredBinding(articleID: Article.ID) -> Binding<Bool> {
         Binding {
             self.articles.first { $0.id == articleID }?.isStarred ?? false
         } set: { isStarred in
@@ -807,7 +810,7 @@ final class ReaderStore {
     /// Debounces search input: an empty query clears instantly for a snappy
     /// reset, otherwise the filter waits until the user pauses typing. Setting
     /// `activeSearchQuery` triggers the (possibly background) refilter.
-    func debounceSearch() {
+    public func debounceSearch() {
         searchDebounceTask?.cancel()
 
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -863,7 +866,7 @@ final class ReaderStore {
 
         if feedIcons[feed.id] == nil,
            let data = storage.cachedFaviconData(forKey: key),
-           let image = NSImage(data: data) {
+           let image = makePlatformImage(data: data) {
             feedIcons[feed.id] = image
         }
 
@@ -894,7 +897,7 @@ final class ReaderStore {
     private func refreshFavicon(for feed: Feed) async {
         let key = faviconKey(for: feed)
         guard let data = await faviconService.fetchFavicon(for: feed.siteURL),
-              let image = NSImage(data: data) else {
+              let image = makePlatformImage(data: data) else {
             // Remember the failure so we don't re-hammer this host next launch.
             storage?.recordFaviconMiss(forKey: key)
             return
@@ -902,7 +905,7 @@ final class ReaderStore {
 
         let pngData = image.pngData() ?? data
         try? storage?.writeFaviconData(pngData, forKey: key)
-        let finalImage = NSImage(data: pngData) ?? image
+        let finalImage = makePlatformImage(data: pngData) ?? image
         // Apply to every feed that shares this host, so we fetch each icon once.
         for sibling in feeds where faviconKey(for: sibling) == key {
             feedIcons[sibling.id] = finalImage

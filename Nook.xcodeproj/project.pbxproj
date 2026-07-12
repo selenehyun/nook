@@ -14,9 +14,7 @@
 		2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */; };
 		2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */; };
 		2D0E3A1F2D8A4A4700A00001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */; };
-		2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */; };
 		2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */; };
-		2D0E3A342D8A4A4700A00001 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A332D8A4A4700A00001 /* FaviconService.swift */; };
 		2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */; };
 		2D0E3A382D8A4A4700A00001 /* Readability.js in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A372D8A4A4700A00001 /* Readability.js */; };
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
@@ -60,10 +58,8 @@
 		2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D0E3A202D8A4A4700A00001 /* Nook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nook.entitlements; sourceTree = "<group>"; };
-		2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStore.swift; sourceTree = "<group>"; };
 		2D0E3A302D8A4A4700A00001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
-		2D0E3A332D8A4A4700A00001 /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
 		2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleWebView.swift; sourceTree = "<group>"; };
 		2D0E3A372D8A4A4700A00001 /* Readability.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Readability.js; sourceTree = "<group>"; };
 		2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShared.swift; sourceTree = "<group>"; };
@@ -141,9 +137,7 @@
 			children = (
 				2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */,
 				2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */,
-				2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */,
 				2DAAAAAA000000000000D001 /* UpdateController.swift */,
-				2D0E3A332D8A4A4700A00001 /* FaviconService.swift */,
 				2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */,
 				2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */,
 				2D0E3A372D8A4A4700A00001 /* Readability.js */,
@@ -284,9 +278,7 @@
 			files = (
 				2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */,
 				2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */,
-				2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */,
 				2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */,
-				2D0E3A342D8A4A4700A00001 /* FaviconService.swift in Sources */,
 				2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */,
 				2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */,
 			);

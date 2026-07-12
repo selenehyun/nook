@@ -1,15 +1,18 @@
 import Foundation
-import NookKit
 #if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
 #endif
 
 /// Fetches a website's favicon based on a feed's site link. It first tries to
 /// discover an icon declared in the page `<head>` (preferring the higher-res
 /// `apple-touch-icon`), then falls back to `/favicon.ico` at the host root.
-struct FaviconService {
+public struct FaviconService: Sendable {
     private let userAgent = "Nook RSS Reader"
     private let maxIconBytes = 2_000_000
+
+    public init() {}
 
     /// A dedicated session with a short timeout and a small per-host connection
     /// cap so favicon fetches can't saturate the network stack.
@@ -28,7 +31,7 @@ struct FaviconService {
         case hostUnreachable
     }
 
-    func fetchFavicon(for siteURL: URL) async -> Data? {
+    public func fetchFavicon(for siteURL: URL) async -> Data? {
         // Skip malformed site URLs (e.g. a doubled scheme) so we don't fire a
         // request that is guaranteed to fail.
         guard RSSFeedService.isFetchableWebURL(siteURL) else { return nil }
@@ -99,11 +102,9 @@ struct FaviconService {
                 return .notFound
             }
 
-            #if canImport(AppKit)
-            guard let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 else {
+            guard let image = PlatformImage(data: data), image.size.width > 0, image.size.height > 0 else {
                 return .notFound
             }
-            #endif
 
             return .success(data)
         } catch let error as URLError {
@@ -162,17 +163,3 @@ struct FaviconService {
         return ns.substring(with: match.range(at: 1))
     }
 }
-
-#if canImport(AppKit)
-extension NSImage {
-    /// A normalized PNG representation, used to cache favicons in a consistent
-    /// format regardless of the source (ICO, PNG, …).
-    func pngData() -> Data? {
-        guard let tiff = tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiff) else {
-            return nil
-        }
-        return bitmap.representation(using: .png, properties: [:])
-    }
-}
-#endif

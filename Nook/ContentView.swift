@@ -177,6 +177,10 @@ struct ContentView: View {
             store.handleOPMLExport(result)
         }
         .task {
+            // The store computes the unread count; macOS reflects it on the Dock.
+            store.onUnreadBadgeChange = { count in
+                NSApp.dockTile.badgeLabel = count > 0 ? String(count) : nil
+            }
             // Mirror the badge preference into the store before loading, so the
             // first badge update (driven by the store) already respects it.
             store.showsUnreadBadge = showUnreadBadge
