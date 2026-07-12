@@ -66,6 +66,11 @@ public final class ReaderStore {
     private var libraryObserver: LibraryFileObserver?
     private var lastKnownLibraryModDate: Date?
     private var externalReloadTask: Task<Void, Never>?
+
+    // Coalesced background persistence: the latest snapshot waiting to be
+    // written, and whether a writer task is already draining them.
+    private var pendingSave: ReaderLibrary?
+    private var isDrainingSaves = false
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
@@ -791,7 +796,7 @@ public final class ReaderStore {
         }
 
         errorMessage = failures.isEmpty ? nil : String(localized: "Couldn't add \(failures.count) feeds", bundle: Bundle.module)
-        try? persistLibrary()
+        scheduleSave()
     }
 
     private func refreshAllFeeds() async {
@@ -816,7 +821,7 @@ public final class ReaderStore {
         merge(parsedFeed)
         ensureFavicon(for: parsedFeed.feed)
         lastRefreshedAt = Date.now
-        try persistLibrary()
+        scheduleSave()
         pruneSelectionIfHidden()
         return parsedFeed
     }
@@ -939,7 +944,7 @@ public final class ReaderStore {
         folders = Array(Set(library.folders + feedFolderNames))
         loadCachedFavicons()
 
-        if didRepair { try? persistLibrary() }
+        if didRepair { scheduleSave() }
     }
 
     private func loadCachedFavicons() {
@@ -1012,29 +1017,54 @@ public final class ReaderStore {
         return String(sanitized)
     }
 
-    private func saveAfterMutation() {
-        do {
-            try persistLibrary()
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func persistLibrary() throws {
-        guard let storage else {
-            throw ReaderStorageError.noDirectorySelected
-        }
-
-        let library = ReaderLibrary(
+    private func snapshotLibrary() -> ReaderLibrary {
+        ReaderLibrary(
             feeds: feeds,
             articles: articles,
             lastRefreshedAt: lastRefreshedAt,
             folders: folders
         )
-        try storage.save(library)
-        // Record our own write so the file observer doesn't treat it as an
-        // external (another-device) change and reload it back.
+    }
+
+    private func saveAfterMutation() {
+        scheduleSave()
+    }
+
+    /// Schedules a background write of the latest library snapshot. Encoding
+    /// and the coordinated file write happen off the main actor, and rapid
+    /// mutations (e.g. during a full refresh) are coalesced so only the most
+    /// recent state is written — keeping the UI lag-free while syncing.
+    private func scheduleSave() {
+        guard let storage else { return }
+        pendingSave = snapshotLibrary()
+        guard !isDrainingSaves else { return }
+        isDrainingSaves = true
+        Task { await drainSaves(storage: storage) }
+    }
+
+    private func drainSaves(storage: ReaderStorage) async {
+        while let library = pendingSave {
+            pendingSave = nil
+            let modificationDate = await Task.detached(priority: .utility) { () -> Date? in
+                try? storage.save(library)
+                return storage.libraryModificationDate
+            }.value
+            // Record our own write so the file observer doesn't treat it as an
+            // external (another-device) change and reload it back.
+            lastKnownLibraryModDate = modificationDate
+            errorMessage = nil
+        }
+        isDrainingSaves = false
+    }
+
+    /// Writes the library immediately on the calling actor. Used only for the
+    /// initial file creation when configuring a folder, where later code
+    /// depends on the file already existing.
+    private func persistLibrary() throws {
+        guard let storage else {
+            throw ReaderStorageError.noDirectorySelected
+        }
+        try storage.save(snapshotLibrary())
         lastKnownLibraryModDate = storage.libraryModificationDate
     }
 }

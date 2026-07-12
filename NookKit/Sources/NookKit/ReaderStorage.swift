@@ -14,7 +14,7 @@ public enum ReaderStorageError: LocalizedError {
     }
 }
 
-public struct ReaderStorage {
+public struct ReaderStorage: Sendable {
     public static let bookmarkDefaultsKey = "syncFolderBookmark"
     public static let displayPathDefaultsKey = "syncFolderDisplayPath"
 
