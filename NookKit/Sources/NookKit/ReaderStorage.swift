@@ -98,9 +98,20 @@ public struct ReaderStorage {
         try data.write(to: libraryURL, options: [.atomic])
     }
 
+    // Security-scoped bookmarks: macOS requires the `.withSecurityScope`
+    // option; on iOS that option doesn't exist (document-picker URLs are
+    // already security-scoped), so the bookmark is created/resolved plain.
+    #if os(macOS)
+    private static let bookmarkCreationOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
+    private static let bookmarkResolutionOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
+    #else
+    private static let bookmarkCreationOptions: URL.BookmarkCreationOptions = []
+    private static let bookmarkResolutionOptions: URL.BookmarkResolutionOptions = []
+    #endif
+
     public static func saveBookmark(for directoryURL: URL) throws {
         let bookmarkData = try directoryURL.bookmarkData(
-            options: [.withSecurityScope],
+            options: bookmarkCreationOptions,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
@@ -116,7 +127,7 @@ public struct ReaderStorage {
         var isStale = false
         let directoryURL = try URL(
             resolvingBookmarkData: bookmarkData,
-            options: [.withSecurityScope],
+            options: bookmarkResolutionOptions,
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         )
