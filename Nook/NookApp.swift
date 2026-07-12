@@ -56,6 +56,21 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The locale to use for date/number formatting so it matches the chosen
+    /// UI language instead of the OS. `system` follows the OS.
+    var locale: Locale {
+        switch self {
+        case .system: Locale.autoupdatingCurrent
+        case .english: Locale(identifier: "en")
+        case .korean: Locale(identifier: "ko")
+        }
+    }
+
+    /// Formatting locale for the running session. Uses the language Nook
+    /// launched with, since a language change only takes effect after relaunch —
+    /// keeping dates consistent with the rest of the UI.
+    static var formattingLocale: Locale { launchLanguage.locale }
+
     static var current: AppLanguage {
         guard let raw = UserDefaults.standard.string(forKey: storageKey),
               let language = AppLanguage(rawValue: raw) else {
@@ -88,5 +103,16 @@ enum AppLanguage: String, CaseIterable, Identifiable {
             guard application != nil else { return }
             DispatchQueue.main.async { NSApp.terminate(nil) }
         }
+    }
+}
+
+extension Date {
+    /// Formats the date using the app's chosen language locale rather than the
+    /// OS locale, so dates match the rest of the UI.
+    func localized(
+        date: Date.FormatStyle.DateStyle = .abbreviated,
+        time: Date.FormatStyle.TimeStyle = .omitted
+    ) -> String {
+        formatted(Date.FormatStyle(date: date, time: time).locale(AppLanguage.formattingLocale))
     }
 }

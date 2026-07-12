@@ -811,7 +811,7 @@ private struct UpdatePopover: View {
                 if let date = controller.pendingUpdateDate {
                     GridRow {
                         Text("Released").foregroundStyle(.secondary)
-                        Text(date.formatted(date: .abbreviated, time: .omitted))
+                        Text(date.localized(date: .abbreviated, time: .omitted))
                     }
                 }
             }
@@ -1050,7 +1050,7 @@ private struct ArticleRow: View {
                 HStack(spacing: 6) {
                     Text(feed?.title ?? String(localized: "Unknown Feed"))
                     Text("·")
-                    Text(article.publishedAt, format: .relative(presentation: .named))
+                    Text(article.publishedAt, format: .relative(presentation: .named).locale(AppLanguage.formattingLocale))
                     Text("·")
                     Text("\(article.estimatedReadMinutes) min")
                 }
@@ -1544,7 +1544,7 @@ private struct ReaderDetailView: View {
 
                 Text("·")
 
-                Text(article.publishedAt.formatted(date: .abbreviated, time: .shortened))
+                Text(article.publishedAt.localized(date: .abbreviated, time: .shortened))
 
                 Text("·")
 
@@ -1660,7 +1660,7 @@ private struct ArticleInspector: View {
             if let article = store.selectedArticle {
                 Section("Article") {
                     LabeledContent("Status", value: article.isRead ? String(localized: "Read") : String(localized: "Unread"))
-                    LabeledContent("Published", value: article.publishedAt.formatted(date: .abbreviated, time: .shortened))
+                    LabeledContent("Published", value: article.publishedAt.localized(date: .abbreviated, time: .shortened))
                     LabeledContent("Reading Time", value: String(localized: "\(article.estimatedReadMinutes) min"))
 
                     Toggle("Starred", isOn: store.starredBinding(articleID: article.id))
@@ -1671,7 +1671,7 @@ private struct ArticleInspector: View {
                     if let feed = store.feed(for: article.feedID) {
                         LabeledContent("Feed", value: feed.title)
                         LabeledContent("Category", value: feed.category)
-                        LabeledContent("Last Refresh", value: feed.lastFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? String(localized: "Never"))
+                        LabeledContent("Last Refresh", value: feed.lastFetchedAt?.localized(date: .abbreviated, time: .shortened) ?? String(localized: "Never"))
                         Link("Open Site", destination: feed.siteURL)
                         Link("Open Feed", destination: feed.feedURL)
                     }
