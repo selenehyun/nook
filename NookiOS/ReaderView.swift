@@ -20,7 +20,7 @@ struct ReaderDetailView: View {
     @AppStorage("readerTextOption") private var readerTextOption = ReaderColorOption.automatic
     @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
 
-    @State private var isBrowserPresented = false
+    @State private var isShowingInfo = false
 
     private var readerStyle: ReaderStyle {
         ReaderStyle(
@@ -89,18 +89,33 @@ struct ReaderDetailView: View {
                     Image(systemName: article.isStarred ? "star.fill" : "star")
                 }
 
-                ShareLink(item: article.url) {
-                    Image(systemName: "square.and.arrow.up")
+                Menu {
+                    Button {
+                        isShowingInfo = true
+                    } label: {
+                        Label("Article Info", systemImage: "info.circle")
+                    }
+                    ShareLink(item: article.url) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    Link(destination: article.url) {
+                        Label("Open Original", systemImage: "safari")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
-        .sheet(isPresented: $isBrowserPresented) {
+        .sheet(isPresented: $store.isBrowserPresented) {
             InAppBrowserSheet(
                 store: store,
                 article: article,
                 style: readerStyle,
                 linkOpensInApp: readerLinkBehavior == .inApp
             )
+        }
+        .sheet(isPresented: $isShowingInfo) {
+            ArticleInfoView(store: store, article: article)
         }
     }
 
@@ -132,7 +147,7 @@ struct ReaderDetailView: View {
     private func openBrowser(for article: Article) {
         let feedMode = store.feed(for: article.feedID)?.preferredViewMode
         store.browserMode = feedMode ?? readerViewMode
-        isBrowserPresented = true
+        store.isBrowserPresented = true
     }
 
     /// Keeps the article visible while reading, then marks it read only after
@@ -154,9 +169,58 @@ struct ReaderDetailView: View {
     }
 }
 
+/// Article metadata, mirroring the macOS inspector: status, published date,
+/// reading time, read/starred toggles, and the source feed.
+struct ArticleInfoView: View {
+    @Bindable var store: ReaderStore
+    let article: Article
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Article") {
+                    LabeledContent("Status", value: article.isRead ? String(localized: "Read") : String(localized: "Unread"))
+                    LabeledContent("Published", value: article.publishedAt.formatted(date: .abbreviated, time: .shortened))
+                    LabeledContent("Reading Time", value: String(localized: "\(article.estimatedReadMinutes) min"))
+                    Toggle("Starred", isOn: store.starredBinding(articleID: article.id))
+                    Toggle("Read", isOn: store.readBinding(articleID: article.id))
+                }
+
+                if let feed = store.feed(for: article.feedID) {
+                    Section("Source") {
+                        LabeledContent("Feed", value: feed.title)
+                        if !feed.category.isEmpty {
+                            LabeledContent("Category", value: feed.category)
+                        }
+                        LabeledContent(
+                            "Last Refresh",
+                            value: feed.lastFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? String(localized: "Never")
+                        )
+                        Link("Open Site", destination: feed.siteURL)
+                        Link("Open Feed", destination: feed.feedURL)
+                    }
+                }
+
+                Section {
+                    Link("Open Article", destination: article.url)
+                }
+            }
+            .navigationTitle("Article Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 /// The in-app browser sheet: the shared `ArticleWebView` with a toolbar to
 /// switch reader/original, open in the system browser, and share.
-private struct InAppBrowserSheet: View {
+struct InAppBrowserSheet: View {
     @Bindable var store: ReaderStore
     let article: Article
     let style: ReaderStyle

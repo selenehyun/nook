@@ -261,6 +261,7 @@ private struct Sidebar: View {
 
 private struct ArticleList: View {
     @Bindable var store: ReaderStore
+    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
 
     var body: some View {
         List(store.visibleArticles, selection: $store.selectedArticleID) { article in
@@ -297,6 +298,13 @@ private struct ArticleList: View {
                     } label: {
                         Label(article.isStarred ? "Unstar" : "Star",
                               systemImage: article.isStarred ? "star.slash" : "star")
+                    }
+                    Button {
+                        store.selectedArticleID = article.id
+                        store.browserMode = store.feed(for: article.feedID)?.preferredViewMode ?? readerViewMode
+                        store.isBrowserPresented = true
+                    } label: {
+                        Label("Open in Browser", systemImage: "safari")
                     }
                     ShareLink(item: article.url) {
                         Label("Share", systemImage: "square.and.arrow.up")
