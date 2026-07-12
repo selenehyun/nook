@@ -147,6 +147,8 @@ private struct Sidebar: View {
     @Binding var isShowingSettings: Bool
 
     @State private var selection: SidebarItem?
+    @State private var folderPendingRename: String?
+    @State private var renameFolderName = ""
 
     var body: some View {
         List(selection: $selection) {
@@ -176,6 +178,12 @@ private struct Sidebar: View {
                             }
                         }
                         .contextMenu {
+                            Button {
+                                renameFolderName = folder
+                                folderPendingRename = folder
+                            } label: {
+                                Label("Rename Folder", systemImage: "pencil")
+                            }
                             Button(role: .destructive) {
                                 store.removeFolder(folder)
                             } label: {
@@ -255,6 +263,20 @@ private struct Sidebar: View {
             }
             .buttonStyle(.bordered)
             .padding()
+        }
+        .alert(
+            "Rename Folder",
+            isPresented: Binding(
+                get: { folderPendingRename != nil },
+                set: { if !$0 { folderPendingRename = nil } }
+            ),
+            presenting: folderPendingRename
+        ) { folder in
+            TextField("Folder Name", text: $renameFolderName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") { store.renameFolder(folder, to: renameFolderName) }
+        } message: { _ in
+            Text("Enter a new name for the folder.")
         }
     }
 

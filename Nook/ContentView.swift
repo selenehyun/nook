@@ -385,6 +385,8 @@ private struct FeedSidebar: View {
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderPendingDeletion: String?
+    @State private var folderPendingRename: String?
+    @State private var renameFolderName = ""
     @State private var dropTargetFolder: String?
     @State private var isTopLevelDropTargeted = false
 
@@ -490,6 +492,20 @@ private struct FeedSidebar: View {
         } message: { _ in
             Text("The folder and any feeds inside it will be removed.")
         }
+        .alert(
+            "Rename Folder",
+            isPresented: Binding(
+                get: { folderPendingRename != nil },
+                set: { if !$0 { folderPendingRename = nil } }
+            ),
+            presenting: folderPendingRename
+        ) { folder in
+            TextField("Folder Name", text: $renameFolderName)
+            Button("Rename") { store.renameFolder(folder, to: renameFolderName) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Enter a new name for the folder.")
+        }
     }
 
     /// Per-folder collapsed state, persisted so it is restored on relaunch.
@@ -550,6 +566,12 @@ private struct FeedSidebar: View {
             }
         }
         .contextMenu {
+            Button {
+                renameFolderName = folder
+                folderPendingRename = folder
+            } label: {
+                Text("Rename Folder…")
+            }
             Button(role: .destructive) {
                 folderPendingDeletion = folder
             } label: {

@@ -289,6 +289,23 @@ public final class ReaderStore {
         saveAfterMutation()
     }
 
+    /// Renames a folder, moving every feed inside it to the new name. No-op if
+    /// the new name is empty, unchanged, or already taken by another folder.
+    public func renameFolder(_ oldName: String, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != oldName,
+              folders.contains(oldName), !folders.contains(trimmed) else {
+            return
+        }
+        for index in feeds.indices where feeds[index].folderName == oldName {
+            feeds[index].category = trimmed
+        }
+        if let index = folders.firstIndex(of: oldName) {
+            folders[index] = trimmed
+        }
+        saveAfterMutation()
+    }
+
     /// Moves a feed into a folder (empty string moves it back to top level).
     public func moveFeed(_ feedID: Feed.ID, toFolder folder: String) {
         guard let index = feeds.firstIndex(where: { $0.id == feedID }),
