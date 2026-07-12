@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2D105300000000000000000E /* NookShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2D1053000000000000000004 /* NookShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		22E39C2B3000BD9900C3ECB6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22E39C2A3000BD9900C3ECB6 /* WidgetKit.framework */; };
 		22E39C2D3000BD9900C3ECB6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22E39C2C3000BD9900C3ECB6 /* SwiftUI.framework */; };
 		22E39C3C3000BD9A00C3ECB6 /* NookWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 22E39C283000BD9900C3ECB6 /* NookWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -33,6 +34,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		2D105300000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2D0E3A0A2D8A4A4700A00001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2D1053000000000000000003;
+			remoteInfo = NookShareExtension;
+		};
 		22E39C3A3000BD9A00C3ECB6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2D0E3A0A2D8A4A4700A00001 /* Project object */;
@@ -43,6 +51,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		2D105300000000000000000D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2D105300000000000000000E /* NookShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		22E39C3D3000BD9A00C3ECB6 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -57,6 +76,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2D1053000000000000000004 /* NookShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		22E39C283000BD9900C3ECB6 /* NookWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NookWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		22E39C2A3000BD9900C3ECB6 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		22E39C2C3000BD9900C3ECB6 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -83,6 +103,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		2D1053000000000000000002 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 2D1053000000000000000003 /* NookShareExtension */;
+		};
 		22E39C403000BD9A00C3ECB6 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -93,10 +120,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		2D1053000000000000000001 /* NookShare */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (2D1053000000000000000002 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NookShare; sourceTree = "<group>"; };
 		22E39C2E3000BD9900C3ECB6 /* NookWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (22E39C403000BD9A00C3ECB6 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NookWidget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2D1053000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		22E39C253000BD9900C3ECB6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -142,6 +177,7 @@
 				2D0E3A192D8A4A4700A00001 /* Nook */,
 				2D1050000000000000000009 /* NookiOS */,
 				22E39C2E3000BD9900C3ECB6 /* NookWidget */,
+				2D1053000000000000000001 /* NookShare */,
 				22E39C293000BD9900C3ECB6 /* Frameworks */,
 				2D0E3A132D8A4A4700A00001 /* Products */,
 			);
@@ -153,6 +189,7 @@
 				2D0E3A122D8A4A4700A00001 /* Nook.app */,
 				22E39C283000BD9900C3ECB6 /* NookWidgetExtension.appex */,
 				2D1050000000000000000002 /* NookiOS.app */,
+				2D1053000000000000000004 /* NookShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -191,6 +228,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2D1053000000000000000003 /* NookShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2D1053000000000000000008 /* Build configuration list for PBXNativeTarget "NookShareExtension" */;
+			buildPhases = (
+				2D1053000000000000000005 /* Sources */,
+				2D1053000000000000000006 /* Frameworks */,
+				2D1053000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				2D1053000000000000000001 /* NookShare */,
+			);
+			name = NookShareExtension;
+			packageProductDependencies = (
+			);
+			productName = NookShareExtension;
+			productReference = 2D1053000000000000000004 /* NookShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		22E39C273000BD9900C3ECB6 /* NookWidgetExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 22E39C413000BD9A00C3ECB6 /* Build configuration list for PBXNativeTarget "NookWidgetExtension" */;
@@ -243,10 +302,12 @@
 				2D1050000000000000000006 /* Sources */,
 				2D1050000000000000000007 /* Frameworks */,
 				2D1050000000000000000008 /* Resources */,
+				2D105300000000000000000D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				2D105300000000000000000C /* PBXTargetDependency */,
 			);
 			name = NookiOS;
 			packageProductDependencies = (
@@ -275,6 +336,9 @@
 					2D1050000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
 					};
+					2D1053000000000000000003 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 				};
 			};
 			buildConfigurationList = 2D0E3A0D2D8A4A4700A00001 /* Build configuration list for PBXProject "Nook" */;
@@ -300,11 +364,19 @@
 				2D0E3A112D8A4A4700A00001 /* Nook */,
 				22E39C273000BD9900C3ECB6 /* NookWidgetExtension */,
 				2D1050000000000000000001 /* NookiOS */,
+				2D1053000000000000000003 /* NookShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2D1053000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		22E39C263000BD9900C3ECB6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -334,6 +406,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2D1053000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		22E39C243000BD9900C3ECB6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -370,6 +449,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		2D105300000000000000000C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2D1053000000000000000003 /* NookShareExtension */;
+			targetProxy = 2D105300000000000000000B /* PBXContainerItemProxy */;
+		};
 		22E39C3B3000BD9A00C3ECB6 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 22E39C273000BD9900C3ECB6 /* NookWidgetExtension */;
@@ -378,6 +462,60 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		2D1053000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F7WUT95TT6;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NookShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+			};
+			name = Debug;
+		};
+		2D105300000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F7WUT95TT6;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NookShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		22E39C3E3000BD9A00C3ECB6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -698,6 +836,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2D1053000000000000000008 /* Build configuration list for PBXNativeTarget "NookShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2D1053000000000000000009 /* Debug */,
+				2D105300000000000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		22E39C413000BD9A00C3ECB6 /* Build configuration list for PBXNativeTarget "NookWidgetExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

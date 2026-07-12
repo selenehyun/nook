@@ -8,42 +8,35 @@ import UniformTypeIdentifiers
 final class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        extractSharedURL { [weak self] shared in
-            guard let self else { return }
-            if let shared, let deepLink = Self.addFeedURL(for: shared) {
-                self.open(deepLink) {
-                    self.finish()
-                }
-            } else {
-                self.finish()
+        Task {
+            if let shared = await extractSharedURL(), let deepLink = Self.addFeedURL(for: shared) {
+                await open(deepLink)
             }
+            extensionContext?.completeRequest(returningItems: nil)
         }
-    }
-
-    private func finish() {
-        extensionContext?.completeRequest(returningItems: nil)
     }
 
     /// Finds the shared web URL among the extension's input attachments.
-    private func extractSharedURL(completion: @escaping (URL?) -> Void) {
+    private func extractSharedURL() async -> URL? {
         let items = (extensionContext?.inputItems as? [NSExtensionItem]) ?? []
         let providers = items.flatMap { $0.attachments ?? [] }
 
-        // Prefer a real URL attachment; fall back to plain text that is a URL.
         if let urlProvider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.url.identifier) }) {
-            urlProvider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { item, _ in
-                DispatchQueue.main.async { completion(item as? URL) }
+            return await withCheckedContinuation { continuation in
+                urlProvider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { item, _ in
+                    continuation.resume(returning: item as? URL)
+                }
             }
-            return
         }
         if let textProvider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) }) {
-            textProvider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
-                let url = (item as? String).flatMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                DispatchQueue.main.async { completion(url) }
+            return await withCheckedContinuation { continuation in
+                textProvider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
+                    let url = (item as? String).flatMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    continuation.resume(returning: url)
+                }
             }
-            return
         }
-        completion(nil)
+        return nil
     }
 
     private static func addFeedURL(for shared: URL) -> URL? {
@@ -55,15 +48,15 @@ final class ShareViewController: UIViewController {
 
     /// Opens the containing app. Uses the extension context first; if that is
     /// refused, walks the responder chain to reach UIApplication as a fallback.
-    private func open(_ url: URL, completion: @escaping () -> Void) {
-        extensionContext?.open(url) { [weak self] opened in
-            if opened {
-                completion()
-            } else {
-                self?.openViaResponderChain(url)
-                completion()
+    private func open(_ url: URL) async {
+        let opened = await withCheckedContinuation { continuation in
+            guard let context = extensionContext else {
+                continuation.resume(returning: false)
+                return
             }
+            context.open(url) { continuation.resume(returning: $0) }
         }
+        if !opened { openViaResponderChain(url) }
     }
 
     private func openViaResponderChain(_ url: URL) {
