@@ -25,10 +25,17 @@ final class UpdateController: NSObject {
 
     private static let pendingBuildKey = "PendingUpdateBuild"
     private static let pendingVersionKey = "PendingUpdateVersion"
+    private static let pendingDateKey = "PendingUpdateDate"
 
     /// Short version string ("1.2.3") of a known-available update, or nil when
     /// up to date. Non-nil keeps the sidebar chip visible.
     private(set) var pendingUpdateVersion: String?
+
+    /// When the pending update was published (its appcast `pubDate`), if known.
+    private(set) var pendingUpdateDate: Date?
+
+    /// The running app's version string ("1.2.3"), shown as the "current" version.
+    let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
 
     @ObservationIgnored private var updaterController: SPUStandardUpdaterController!
 
@@ -47,6 +54,8 @@ final class UpdateController: NSObject {
         let defaults = UserDefaults.standard
         if defaults.integer(forKey: Self.pendingBuildKey) > Self.currentBuild {
             pendingUpdateVersion = defaults.string(forKey: Self.pendingVersionKey)
+            let timestamp = defaults.double(forKey: Self.pendingDateKey)
+            pendingUpdateDate = timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : nil
         } else {
             clearPending()
         }
@@ -78,16 +87,24 @@ final class UpdateController: NSObject {
         let build = Int(item.versionString) ?? 0
         guard build > Self.currentBuild else { return }
         pendingUpdateVersion = item.displayVersionString
+        pendingUpdateDate = item.date
         let defaults = UserDefaults.standard
         defaults.set(build, forKey: Self.pendingBuildKey)
         defaults.set(item.displayVersionString, forKey: Self.pendingVersionKey)
+        if let date = item.date {
+            defaults.set(date.timeIntervalSince1970, forKey: Self.pendingDateKey)
+        } else {
+            defaults.removeObject(forKey: Self.pendingDateKey)
+        }
     }
 
     private func clearPending() {
         pendingUpdateVersion = nil
+        pendingUpdateDate = nil
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: Self.pendingBuildKey)
         defaults.removeObject(forKey: Self.pendingVersionKey)
+        defaults.removeObject(forKey: Self.pendingDateKey)
     }
 }
 

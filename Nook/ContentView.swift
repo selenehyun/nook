@@ -793,16 +793,29 @@ private struct UpdatePopover: View {
     var onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 7) {
                 Image(systemName: "sparkles").foregroundStyle(.tint)
                 Text("New Version Available").font(.headline)
             }
 
-            Text("Nook \(version) is ready to install.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
+                GridRow {
+                    Text("Current").foregroundStyle(.secondary)
+                    Text(controller.currentVersion)
+                }
+                GridRow {
+                    Text("New").foregroundStyle(.secondary)
+                    Text(version).fontWeight(.semibold)
+                }
+                if let date = controller.pendingUpdateDate {
+                    GridRow {
+                        Text("Released").foregroundStyle(.secondary)
+                        Text(date.formatted(date: .abbreviated, time: .omitted))
+                    }
+                }
+            }
+            .font(.callout)
 
             HStack {
                 Button("Later") { onDismiss() }
