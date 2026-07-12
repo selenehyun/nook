@@ -21,8 +21,16 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/main.png" width="900" alt="Nook — sidebar, article list, and reader" />
+  <img src="docs/screenshots/main.png" width="900" alt="Nook on macOS — sidebar, article list, and reader" />
 </p>
+
+<p align="center">
+  <img src="docs/screenshots/ios-library.png" width="200" alt="Library with folders" />&nbsp;&nbsp;
+  <img src="docs/screenshots/ios-articles.png" width="200" alt="Article list" />&nbsp;&nbsp;
+  <img src="docs/screenshots/ios-reader.png" width="200" alt="In-app reader" />&nbsp;&nbsp;
+  <img src="docs/screenshots/ios-settings.png" width="200" alt="Settings" />
+</p>
+<p align="center"><sub>On iPhone &amp; iPad — library and folders, the article list, the in-app reader, and settings.</sub></p>
 
 ## Why Nook
 
