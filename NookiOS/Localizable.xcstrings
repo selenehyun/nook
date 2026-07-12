@@ -2453,6 +2453,34 @@
         }
       }
     },
+    "Show Original": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Original"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원문 보기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原文を表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示原文"
+          }
+        }
+      }
+    },
     "Show unread count on app icon": {
       "localizations": {
         "en": {
@@ -2762,6 +2790,62 @@
       }
     },
     "Translate": {},
+    "Translated by Apple Intelligence": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translated by Apple Intelligence"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence로 번역됨"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence による翻訳"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由 Apple Intelligence 翻译"
+          }
+        }
+      }
+    },
+    "Translating…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Translating…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "번역 중…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻訳中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻译中…"
+          }
+        }
+      }
+    },
     "Typography": {
       "localizations": {
         "en": {

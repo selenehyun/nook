@@ -35,10 +35,15 @@ struct ReaderDetailView: View {
     @State private var starBurstScale: CGFloat = 0.4
     @State private var starBurstOpacity: Double = 0
 
-    // On-device translation via the system Translation overlay. Offered only
-    // when the detected content language differs from the app's language.
+    // On-device translation. Offered only when the detected content language
+    // differs from the app's language. Prefers Apple Intelligence (natural,
+    // inline) and falls back to the system Translation overlay.
     @State private var detectedLanguage: String?
     @State private var isShowingTranslation = false
+    @State private var translatedTitle: String?
+    @State private var translatedBody: [String]?
+    @State private var isTranslated = false
+    @State private var isTranslating = false
 
     /// The language to translate into: the app's chosen language, or the system
     /// language when set to "System".
@@ -91,7 +96,16 @@ struct ReaderDetailView: View {
                     header(article)
                     Divider()
 
-                    if let html = article.contentHTML {
+                    if isTranslated, let translatedBody {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
+                                Text(paragraph)
+                                    .font(.body)
+                                    .lineSpacing(4)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    } else if let html = article.contentHTML {
                         // Text selection is disabled so the double-tap /
                         // long-press gestures below own the body.
                         HTMLContentText(html: html, selectable: false)
@@ -173,10 +187,18 @@ struct ReaderDetailView: View {
                     }
                     if canTranslate {
                         Button {
-                            isShowingTranslation = true
+                            toggleTranslation(article)
                         } label: {
-                            Label("Translate", systemImage: "character.bubble")
+                            if isTranslating {
+                                Label("Translating…", systemImage: "character.bubble")
+                            } else {
+                                Label(
+                                    isTranslated ? "Show Original" : "Translate",
+                                    systemImage: isTranslated ? "character.bubble.fill" : "character.bubble"
+                                )
+                            }
                         }
+                        .disabled(isTranslating)
                     }
                     ShareLink(item: article.url) {
                         Label("Share", systemImage: "square.and.arrow.up")
@@ -191,8 +213,11 @@ struct ReaderDetailView: View {
         }
         .task(id: article.id) {
             // Detect the article's language so translation is offered only when
-            // it differs from the app's language.
+            // it differs from the app's language; reset any prior translation.
             isShowingTranslation = false
+            isTranslated = false
+            translatedTitle = nil
+            translatedBody = nil
             detectedLanguage = Self.detectLanguage(for: article)
         }
         .translationPresentation(
@@ -231,9 +256,15 @@ struct ReaderDetailView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
-            Text(article.title)
+            Text(isTranslated ? (translatedTitle ?? article.title) : article.title)
                 .font(.title.bold())
                 .textSelection(.enabled)
+
+            if isTranslated {
+                Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -279,6 +310,52 @@ struct ReaderDetailView: View {
     private static func translationText(for article: Article) -> String {
         ([article.title] + article.bodyParagraphs)
             .joined(separator: "\n\n")
+    }
+
+    /// The target language's English name for the translation prompt (e.g.
+    /// "Korean"), which reads more reliably to the model than a code.
+    private var targetLanguageName: String {
+        let code = targetLanguage.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+    }
+
+    /// Toggles inline translation. Uses Apple Intelligence for a natural
+    /// translation when available; otherwise presents the system Translation
+    /// overlay as a fallback.
+    private func toggleTranslation(_ article: Article) {
+        if isTranslated {
+            isTranslated = false
+            return
+        }
+        if translatedBody != nil {
+            isTranslated = true
+            return
+        }
+        guard NaturalTranslator.isAvailable else {
+            isShowingTranslation = true
+            return
+        }
+        isTranslating = true
+        let body = article.bodyParagraphs
+        let title = article.title
+        let language = targetLanguageName
+        Task {
+            defer { isTranslating = false }
+            do {
+                async let titleText = NaturalTranslator.translate(title, into: language)
+                async let bodyText = NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language)
+                let (t, b) = try await (titleText, bodyText)
+                translatedTitle = t
+                translatedBody = b
+                    .components(separatedBy: "\n\n")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                isTranslated = true
+            } catch {
+                // Apple Intelligence unavailable mid-flight — fall back.
+                isShowingTranslation = true
+            }
+        }
     }
 
 }
