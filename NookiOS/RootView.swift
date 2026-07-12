@@ -69,6 +69,7 @@ struct RootView: View {
             store.syncFromDisk()
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
         }
+        .onOpenURL { url in handleIncomingURL(url) }
         // Mark-read dwell lives here on the always-present root, keyed on the
         // selected article, so it isn't cancelled by the detail column being
         // pushed/popped in the collapsed split view on iPhone.
@@ -158,6 +159,17 @@ struct RootView: View {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
         _ = try? await center.requestAuthorization(options: [.badge])
+    }
+
+    /// Handles `nook://` deep links. `nook://add-feed?url=<page or feed URL>`
+    /// (sent by the share extension) adds the feed, auto-discovering RSS/Atom.
+    private func handleIncomingURL(_ url: URL) {
+        guard url.scheme == "nook" else { return }
+        guard url.host == "add-feed" else { return }
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let feed = components.queryItems?.first(where: { $0.name == "url" })?.value,
+              !feed.isEmpty else { return }
+        store.addFeed(urlString: feed)
     }
 }
 
