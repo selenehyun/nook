@@ -22,6 +22,9 @@
 		2DAAAAAA000000000000CAFE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA000000000000BEEF /* Sparkle */; };
 		2DAAAAAA00000000000C0DE3 /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA00000000000C0DE2 /* NookKit */; };
 		2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAAAAAA000000000000D001 /* UpdateController.swift */; };
+		2D105000000000000000000B /* NookiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000A /* NookiOSApp.swift */; };
+		2D105000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000C /* RootView.swift */; };
+		2D105000000000000000000F /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2D105000000000000000000E /* NookKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +68,9 @@
 		2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShared.swift; sourceTree = "<group>"; };
 		2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		2DAAAAAA000000000000D001 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
+		2D1050000000000000000002 /* NookiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NookiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2D105000000000000000000A /* NookiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NookiOSApp.swift; sourceTree = "<group>"; };
+		2D105000000000000000000C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -100,6 +106,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2D1050000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D105000000000000000000F /* NookKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -117,10 +131,20 @@
 			children = (
 				22E39C433000BF2900C3ECB6 /* NookWidgetExtension.entitlements */,
 				2D0E3A192D8A4A4700A00001 /* Nook */,
+				2D1050000000000000000009 /* NookiOS */,
 				22E39C2E3000BD9900C3ECB6 /* NookWidget */,
 				22E39C293000BD9900C3ECB6 /* Frameworks */,
 				2D0E3A132D8A4A4700A00001 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		2D1050000000000000000009 /* NookiOS */ = {
+			isa = PBXGroup;
+			children = (
+				2D105000000000000000000A /* NookiOSApp.swift */,
+				2D105000000000000000000C /* RootView.swift */,
+			);
+			path = NookiOS;
 			sourceTree = "<group>";
 		};
 		2D0E3A132D8A4A4700A00001 /* Products */ = {
@@ -128,6 +152,7 @@
 			children = (
 				2D0E3A122D8A4A4700A00001 /* Nook.app */,
 				22E39C283000BD9900C3ECB6 /* NookWidgetExtension.appex */,
+				2D1050000000000000000002 /* NookiOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -198,6 +223,26 @@
 			productReference = 2D0E3A122D8A4A4700A00001 /* Nook.app */;
 			productType = "com.apple.product-type.application";
 		};
+		2D1050000000000000000001 /* NookiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2D1050000000000000000003 /* Build configuration list for PBXNativeTarget "NookiOS" */;
+			buildPhases = (
+				2D1050000000000000000006 /* Sources */,
+				2D1050000000000000000007 /* Frameworks */,
+				2D1050000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NookiOS;
+			packageProductDependencies = (
+				2D105000000000000000000E /* NookKit */,
+			);
+			productName = NookiOS;
+			productReference = 2D1050000000000000000002 /* NookiOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -212,6 +257,9 @@
 						CreatedOnToolsVersion = 26.5;
 					};
 					2D0E3A112D8A4A4700A00001 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					2D1050000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
 					};
 				};
@@ -238,6 +286,7 @@
 			targets = (
 				2D0E3A112D8A4A4700A00001 /* Nook */,
 				22E39C273000BD9900C3ECB6 /* NookWidgetExtension */,
+				2D1050000000000000000001 /* NookiOS */,
 			);
 		};
 /* End PBXProject section */
@@ -261,6 +310,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2D1050000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -281,6 +337,15 @@
 				2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */,
 				2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */,
 				2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2D1050000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D105000000000000000000B /* NookiOSApp.swift in Sources */,
+				2D105000000000000000000D /* RootView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -544,6 +609,68 @@
 			};
 			name = Release;
 		};
+		2D1050000000000000000004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2D1050000000000000000005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -574,6 +701,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		2D1050000000000000000003 /* Build configuration list for PBXNativeTarget "NookiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2D1050000000000000000004 /* Debug */,
+				2D1050000000000000000005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -595,6 +731,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2D105000000000000000000E /* NookKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookKit;
+		};
 		2DAAAAAA00000000000C0DE2 /* NookKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NookKit;
