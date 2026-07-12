@@ -8,9 +8,12 @@ import UserNotifications
 struct RootView: View {
     @Bindable private var store = ReaderStore.shared
 
-    @State private var isChoosingFolder = false
+    /// A single file importer backs both the sync-folder picker and OPML import;
+    /// stacking two `.fileImporter` modifiers on one view makes only one work.
+    enum ImportKind { case folder, opml }
+    @State private var importKind: ImportKind = .folder
+    @State private var isImporting = false
     @State private var isAddingFeed = false
-    @State private var isImportingOPML = false
     @State private var isExportingOPML = false
     @State private var opmlImport: OPMLImportRequest?
     @State private var isCreatingFolder = false
@@ -22,9 +25,9 @@ struct RootView: View {
         NavigationSplitView {
             Sidebar(
                 store: store,
-                isChoosingFolder: $isChoosingFolder,
+                chooseFolder: { importKind = .folder; isImporting = true },
+                importOPML: { importKind = .opml; isImporting = true },
                 isAddingFeed: $isAddingFeed,
-                isImportingOPML: $isImportingOPML,
                 isExportingOPML: $isExportingOPML,
                 isCreatingFolder: $isCreatingFolder,
                 isShowingSettings: $isShowingSettings
@@ -46,23 +49,23 @@ struct RootView: View {
             try? await UNUserNotificationCenter.current().requestAuthorization(options: [.badge])
         }
         .onChange(of: showUnreadBadge) { _, newValue in store.showsUnreadBadge = newValue }
-        .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result {
-                _ = url.startAccessingSecurityScopedResource()
-                store.configureSyncFolder(url)
-            }
-        }
         .fileImporter(
-            isPresented: $isImportingOPML,
-            allowedContentTypes: [.opml, .xml],
+            isPresented: $isImporting,
+            allowedContentTypes: importKind == .folder ? [.folder] : [.opml, .xml],
             allowsMultipleSelection: false
         ) { result in
-            guard case .success(let urls) = result, let fileURL = urls.first else { return }
-            let candidates = store.parseOPML(at: fileURL)
-            if candidates.isEmpty {
-                store.errorMessage = String(localized: "No feeds found in the OPML file.")
-            } else {
-                opmlImport = OPMLImportRequest(feeds: candidates)
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            switch importKind {
+            case .folder:
+                _ = url.startAccessingSecurityScopedResource()
+                store.configureSyncFolder(url)
+            case .opml:
+                let candidates = store.parseOPML(at: url)
+                if candidates.isEmpty {
+                    store.errorMessage = String(localized: "No feeds found in the OPML file.")
+                } else {
+                    opmlImport = OPMLImportRequest(feeds: candidates)
+                }
             }
         }
         .fileExporter(
@@ -121,9 +124,9 @@ enum SidebarItem: Hashable {
 
 private struct Sidebar: View {
     @Bindable var store: ReaderStore
-    @Binding var isChoosingFolder: Bool
+    var chooseFolder: () -> Void
+    var importOPML: () -> Void
     @Binding var isAddingFeed: Bool
-    @Binding var isImportingOPML: Bool
     @Binding var isExportingOPML: Bool
     @Binding var isCreatingFolder: Bool
     @Binding var isShowingSettings: Bool
@@ -195,7 +198,7 @@ private struct Sidebar: View {
                     }
                     Divider()
                     Button {
-                        isImportingOPML = true
+                        importOPML()
                     } label: {
                         Label("Import OPML", systemImage: "square.and.arrow.down")
                     }
@@ -226,7 +229,7 @@ private struct Sidebar: View {
         }
         .safeAreaInset(edge: .bottom) {
             Button {
-                isChoosingFolder = true
+                chooseFolder()
             } label: {
                 Label(
                     store.isStorageConfigured ? "Sync Folder" : "Choose Sync Folder",
