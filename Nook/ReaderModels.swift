@@ -38,6 +38,10 @@ struct Feed: Identifiable, Codable, Hashable {
     var siteURL: URL
     var healthScore: Double
     var lastFetchedAt: Date?
+    /// Per-feed override for the in-app browser's reading view. `nil` follows the
+    /// global default (`readerViewMode`); set it when a feed reads better in one
+    /// mode so its articles always open that way.
+    var preferredViewMode: ReaderViewMode? = nil
 
     /// The folder this feed lives in, or empty for a top-level feed. The legacy
     /// default category "Feeds" is treated as no folder.

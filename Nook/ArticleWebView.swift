@@ -3,7 +3,7 @@ import WebKit
 
 // MARK: - Reader configuration
 
-enum ReaderViewMode: String, CaseIterable, Identifiable {
+enum ReaderViewMode: String, CaseIterable, Identifiable, Codable {
     case reader
     case original
     var id: String { rawValue }

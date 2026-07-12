@@ -204,7 +204,10 @@ struct ContentView: View {
         .overlay { browserOverlay }
         .onChange(of: store.isBrowserPresented) { _, presented in
             if presented {
-                store.browserMode = readerViewMode
+                // Honor the selected article's feed preference, falling back to
+                // the global default.
+                let feedMode = store.selectedArticle.flatMap { store.feed(for: $0.feedID)?.preferredViewMode }
+                store.browserMode = feedMode ?? readerViewMode
                 browserDragOffset = 0
             }
         }
@@ -656,12 +659,37 @@ private struct FeedSidebar: View {
             }
         }
 
+        Menu("Reading View") {
+            readingViewChoice("Use Default", mode: nil, current: feed.preferredViewMode, targets: targets)
+            Divider()
+            readingViewChoice("Reader Mode", mode: .reader, current: feed.preferredViewMode, targets: targets)
+            readingViewChoice("Original Page", mode: .original, current: feed.preferredViewMode, targets: targets)
+        }
+
         Divider()
 
         Button(role: .destructive) {
             store.removeFeeds(ids: targets)
         } label: {
             Text(isMultiple ? "Remove \(targets.count) Feeds" : "Remove Feed")
+        }
+    }
+
+    @ViewBuilder
+    private func readingViewChoice(
+        _ title: LocalizedStringKey,
+        mode: ReaderViewMode?,
+        current: ReaderViewMode?,
+        targets: [Feed.ID]
+    ) -> some View {
+        Button {
+            store.setPreferredViewMode(mode, feedIDs: targets)
+        } label: {
+            if current == mode {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
         }
     }
 }

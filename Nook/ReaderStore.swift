@@ -306,6 +306,20 @@ final class ReaderStore {
         refreshingFeedIDs.contains(feedID)
     }
 
+    /// Sets the per-feed reading-view override (`nil` = follow the global
+    /// default) for one or more feeds, so their articles always open in the
+    /// chosen mode without toggling each time.
+    func setPreferredViewMode(_ mode: ReaderViewMode?, feedIDs: [Feed.ID]) {
+        var changed = false
+        for id in feedIDs {
+            guard let index = feeds.firstIndex(where: { $0.id == id }),
+                  feeds[index].preferredViewMode != mode else { continue }
+            feeds[index].preferredViewMode = mode
+            changed = true
+        }
+        if changed { saveAfterMutation() }
+    }
+
     /// Total unread across every feed, used for the app icon badge.
     var totalUnreadCount: Int {
         articles.reduce(0) { $1.isRead ? $0 : $0 + 1 }
@@ -723,9 +737,10 @@ final class ReaderStore {
     private func merge(_ parsedFeed: ParsedFeed) {
         if let feedIndex = feeds.firstIndex(where: { $0.id == parsedFeed.feed.id }) {
             var updated = parsedFeed.feed
-            // Preserve the user's folder assignment across refreshes; a freshly
-            // parsed feed always has an empty category.
+            // Preserve the user's per-feed settings across refreshes; a freshly
+            // parsed feed always has an empty category and no view preference.
             updated.category = feeds[feedIndex].category
+            updated.preferredViewMode = feeds[feedIndex].preferredViewMode
             feeds[feedIndex] = updated
         } else {
             feeds.append(parsedFeed.feed)
