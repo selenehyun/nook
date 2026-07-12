@@ -40,8 +40,12 @@ public struct ArticleWebView {
         self.onOverscrollEnded = onOverscrollEnded
     }
 
+    @MainActor
     func makeConfiguration(coordinator: Coordinator) -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
+        // Reuse the process pool warmed at launch so the first article opens
+        // without WebKit's cold-start delay.
+        configuration.processPool = WebViewWarmer.processPool
         let controller = configuration.userContentController
 
         if useReaderMode {

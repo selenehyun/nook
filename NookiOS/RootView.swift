@@ -50,6 +50,9 @@ struct RootView: View {
             }
             store.showsUnreadBadge = showUnreadBadge
             store.bootstrap()
+            // Warm up WebKit so the first article web view opens without the
+            // ~2-3s cold-start delay.
+            WebViewWarmer.warmUp()
             // Only ask for the badge permission when the feature is actually on.
             if showUnreadBadge { await requestBadgeAuthorizationIfNeeded() }
         }
