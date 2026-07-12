@@ -1,30 +1,32 @@
 import Foundation
 
-enum RSSFeedError: LocalizedError {
+public enum RSSFeedError: LocalizedError {
     case invalidURL(String)
     case emptyFeed(URL)
     case badStatus(Int)
     case noDiscoveredFeeds(URL)
     case parserFailure(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .invalidURL(let value):
-            String(localized: "'\(value)' is not a valid URL.")
+            String(localized: "'\(value)' is not a valid URL.", bundle: Bundle.module)
         case .emptyFeed(let url):
-            String(localized: "No RSS or Atom entries were found at \(url.absoluteString).")
+            String(localized: "No RSS or Atom entries were found at \(url.absoluteString).", bundle: Bundle.module)
         case .badStatus(let statusCode):
-            String(localized: "The feed request failed with HTTP \(statusCode).")
+            String(localized: "The feed request failed with HTTP \(statusCode).", bundle: Bundle.module)
         case .noDiscoveredFeeds(let url):
-            String(localized: "No RSS or Atom feed link was found at \(url.absoluteString).")
+            String(localized: "No RSS or Atom feed link was found at \(url.absoluteString).", bundle: Bundle.module)
         case .parserFailure(let message):
-            String(localized: "The feed could not be parsed: \(message)")
+            String(localized: "The feed could not be parsed: \(message)", bundle: Bundle.module)
         }
     }
 }
 
-struct RSSFeedService {
-    func normalizedFeedURL(from value: String) throws -> URL {
+public struct RSSFeedService: Sendable {
+    public init() {}
+
+    public func normalizedFeedURL(from value: String) throws -> URL {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw RSSFeedError.invalidURL(value)
@@ -38,7 +40,7 @@ struct RSSFeedService {
         return url
     }
 
-    func fetch(url: URL) async throws -> ParsedFeed {
+    public func fetch(url: URL) async throws -> ParsedFeed {
         do {
             return try await fetchFeed(url: url)
         } catch RSSFeedError.emptyFeed, RSSFeedError.parserFailure {
@@ -62,7 +64,7 @@ struct RSSFeedService {
     /// "https://site.comhttps://site.com") so we never fire a request that is
     /// guaranteed to fail DNS. Prevents a storm of failing requests when the
     /// stored library contains corrupt feed/site URLs.
-    static func isFetchableWebURL(_ url: URL) -> Bool {
+    public static func isFetchableWebURL(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
             return false
         }
@@ -80,7 +82,7 @@ struct RSSFeedService {
     /// Repairs a URL whose scheme was accidentally doubled
     /// ("https://site.comhttps://site.com" -> "https://site.com"). Returns the
     /// original when it is already well-formed or cannot be repaired.
-    static func repairedWebURL(_ url: URL) -> URL {
+    public static func repairedWebURL(_ url: URL) -> URL {
         guard !isFetchableWebURL(url) else { return url }
 
         let string = url.absoluteString
@@ -225,7 +227,7 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
         parser.shouldResolveExternalEntities = false
 
         guard parser.parse() else {
-            let message = parser.parserError?.localizedDescription ?? parserError?.localizedDescription ?? String(localized: "Unknown parser error")
+            let message = parser.parserError?.localizedDescription ?? parserError?.localizedDescription ?? String(localized: "Unknown parser error", bundle: Bundle.module)
             throw RSSFeedError.parserFailure(message)
         }
 

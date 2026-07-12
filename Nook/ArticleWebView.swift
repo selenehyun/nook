@@ -1,19 +1,8 @@
+import NookKit
 import SwiftUI
 import WebKit
 
 // MARK: - Reader configuration
-
-enum ReaderViewMode: String, CaseIterable, Identifiable, Codable {
-    case reader
-    case original
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .reader: String(localized: "Reader Mode")
-        case .original: String(localized: "Original Page")
-        }
-    }
-}
 
 enum ReaderLinkBehavior: String, CaseIterable, Identifiable {
     case inApp

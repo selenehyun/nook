@@ -1,4 +1,5 @@
 import Foundation
+import NookKit
 #if canImport(AppKit)
 import AppKit
 #endif

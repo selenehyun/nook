@@ -4,22 +4,31 @@ import UniformTypeIdentifiers
 
 /// A feed entry parsed from an OPML outline, with its declared folder as the
 /// category so the import preview can group and label it.
-struct OPMLFeed: Identifiable, Hashable {
-    var id: String { feedURL.absoluteString }
-    var title: String
-    var feedURL: URL
-    var siteURL: URL?
-    var category: String?
+public struct OPMLFeed: Identifiable, Hashable, Sendable {
+    public var id: String { feedURL.absoluteString }
+    public var title: String
+    public var feedURL: URL
+    public var siteURL: URL?
+    public var category: String?
+
+    public init(title: String, feedURL: URL, siteURL: URL?, category: String?) {
+        self.title = title
+        self.feedURL = feedURL
+        self.siteURL = siteURL
+        self.category = category
+    }
 }
 
-struct OPMLService {
-    func importFeeds(from fileURL: URL) throws -> [OPMLFeed] {
+public struct OPMLService: Sendable {
+    public init() {}
+
+    public func importFeeds(from fileURL: URL) throws -> [OPMLFeed] {
         let data = try Data(contentsOf: fileURL)
         let parser = OPMLOutlineParser()
         return try parser.parse(data: data)
     }
 
-    func exportData(for feeds: [Feed]) -> Data {
+    public func exportData(for feeds: [Feed]) -> Data {
         let outlines = feeds
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
             .map { feed in
@@ -45,21 +54,21 @@ struct OPMLService {
     }
 }
 
-struct OPMLDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.opml, .xml] }
-    static var writableContentTypes: [UTType] { [.opml] }
+public struct OPMLDocument: FileDocument {
+    public static var readableContentTypes: [UTType] { [.opml, .xml] }
+    public static var writableContentTypes: [UTType] { [.opml] }
 
-    var feeds: [Feed]
+    public var feeds: [Feed]
 
-    init(feeds: [Feed]) {
+    public init(feeds: [Feed]) {
         self.feeds = feeds
     }
 
-    init(configuration: ReadConfiguration) throws {
+    public init(configuration: ReadConfiguration) throws {
         feeds = []
     }
 
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    public func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: OPMLService().exportData(for: feeds))
     }
 }
@@ -69,7 +78,7 @@ extension UTType {
     /// file as a dynamic type derived from the extension. Deriving our type the
     /// same way (no forced `conformingTo:`) makes those files selectable in the
     /// open panel; `.xml` still covers files typed as XML.
-    static var opml: UTType {
+    public static var opml: UTType {
         UTType(filenameExtension: "opml") ?? .xml
     }
 }
@@ -124,7 +133,7 @@ private final class OPMLOutlineParser: NSObject, XMLParserDelegate {
         } else {
             // A folder outline: remember its title as the category for children.
             outlineIsFolder.append(true)
-            folderStack.append(title.isEmpty ? String(localized: "Ungrouped") : title)
+            folderStack.append(title.isEmpty ? String(localized: "Ungrouped", bundle: Bundle.module) : title)
         }
     }
 

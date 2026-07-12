@@ -1,30 +1,34 @@
 import Foundation
 
-enum ReaderStorageError: LocalizedError {
+public enum ReaderStorageError: LocalizedError {
     case noDirectorySelected
     case staleBookmark
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noDirectorySelected:
-            String(localized: "Choose an iCloud Drive folder before adding feeds.")
+            String(localized: "Choose an iCloud Drive folder before adding feeds.", bundle: Bundle.module)
         case .staleBookmark:
-            String(localized: "The saved sync folder permission expired. Choose the folder again.")
+            String(localized: "The saved sync folder permission expired. Choose the folder again.", bundle: Bundle.module)
         }
     }
 }
 
-struct ReaderStorage {
-    static let bookmarkDefaultsKey = "syncFolderBookmark"
-    static let displayPathDefaultsKey = "syncFolderDisplayPath"
+public struct ReaderStorage {
+    public static let bookmarkDefaultsKey = "syncFolderBookmark"
+    public static let displayPathDefaultsKey = "syncFolderDisplayPath"
 
     private static let libraryFileName = "NookLibrary.json"
     private static let iconsDirectoryName = "Icons"
     private static let faviconTTL: TimeInterval = 24 * 60 * 60
 
-    var directoryURL: URL
+    public var directoryURL: URL
 
-    var libraryURL: URL {
+    public init(directoryURL: URL) {
+        self.directoryURL = directoryURL
+    }
+
+    public var libraryURL: URL {
         directoryURL.appending(path: Self.libraryFileName, directoryHint: .notDirectory)
     }
 
@@ -42,7 +46,7 @@ struct ReaderStorage {
         iconsDirectoryURL.appending(path: "\(key).miss", directoryHint: .notDirectory)
     }
 
-    func cachedFaviconData(forKey key: String) -> Data? {
+    public func cachedFaviconData(forKey key: String) -> Data? {
         try? Data(contentsOf: faviconURL(forKey: key))
     }
 
@@ -57,7 +61,7 @@ struct ReaderStorage {
     /// True only when neither a cached favicon nor a recent failure marker
     /// exists within the 1-day TTL. A recorded miss suppresses retries so an
     /// unreachable host isn't hammered on every launch.
-    func faviconNeedsRefresh(forKey key: String) -> Bool {
+    public func faviconNeedsRefresh(forKey key: String) -> Bool {
         let newest = [faviconURL(forKey: key), faviconMissURL(forKey: key)]
             .compactMap(modificationDate(of:))
             .max()
@@ -65,7 +69,7 @@ struct ReaderStorage {
         return Date.now.timeIntervalSince(newest) >= Self.faviconTTL
     }
 
-    func writeFaviconData(_ data: Data, forKey key: String) throws {
+    public func writeFaviconData(_ data: Data, forKey key: String) throws {
         try FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
         try data.write(to: faviconURL(forKey: key), options: [.atomic])
         // A fresh success clears any stale failure marker.
@@ -74,12 +78,12 @@ struct ReaderStorage {
 
     /// Records that a favicon fetch failed so it is not retried until the TTL
     /// elapses.
-    func recordFaviconMiss(forKey key: String) {
+    public func recordFaviconMiss(forKey key: String) {
         try? FileManager.default.createDirectory(at: iconsDirectoryURL, withIntermediateDirectories: true)
         try? Data().write(to: faviconMissURL(forKey: key), options: [.atomic])
     }
 
-    func load() throws -> ReaderLibrary? {
+    public func load() throws -> ReaderLibrary? {
         guard FileManager.default.fileExists(atPath: libraryURL.path(percentEncoded: false)) else {
             return nil
         }
@@ -88,13 +92,13 @@ struct ReaderStorage {
         return try JSONDecoder.nook.decode(ReaderLibrary.self, from: data)
     }
 
-    func save(_ library: ReaderLibrary) throws {
+    public func save(_ library: ReaderLibrary) throws {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let data = try JSONEncoder.nook.encode(library)
         try data.write(to: libraryURL, options: [.atomic])
     }
 
-    static func saveBookmark(for directoryURL: URL) throws {
+    public static func saveBookmark(for directoryURL: URL) throws {
         let bookmarkData = try directoryURL.bookmarkData(
             options: [.withSecurityScope],
             includingResourceValuesForKeys: nil,
@@ -104,7 +108,7 @@ struct ReaderStorage {
         UserDefaults.standard.set(directoryURL.path(percentEncoded: false), forKey: displayPathDefaultsKey)
     }
 
-    static func resolveBookmarkedDirectory() throws -> URL? {
+    public static func resolveBookmarkedDirectory() throws -> URL? {
         guard let bookmarkData = UserDefaults.standard.data(forKey: bookmarkDefaultsKey) else {
             return nil
         }

@@ -9,16 +9,16 @@
             "value" : "— Diagnostics (helps with troubleshooting; feel free to delete) —"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "— 진단 정보 (문제 해결에 도움이 됩니다. 원치 않으면 지워 주세요) —"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "— 診断情報（トラブルシューティングに役立ちます。不要なら削除してかまいません）—"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— 진단 정보 (문제 해결에 도움이 됩니다. 원치 않으면 지워 주세요) —"
           }
         },
         "zh-Hans" : {
@@ -29,8 +29,11 @@
         }
       }
     },
-    "·" : {},
+    "·" : {
+
+    },
     "'%@' is not a valid URL." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -38,16 +41,16 @@
             "value" : "'%@' is not a valid URL."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "유효한 URL이 아닙니다: '%@'"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」は有効な URL ではありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유효한 URL이 아닙니다: '%@'"
           }
         },
         "zh-Hans" : {
@@ -78,16 +81,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld분"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 分"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분"
           }
         },
         "zh-Hans" : {
@@ -118,16 +121,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld분 분량"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 分で読めます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분 분량"
           }
         },
         "zh-Hans" : {
@@ -158,16 +161,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld개 선택됨"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件を選択中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 선택됨"
           }
         },
         "zh-Hans" : {
@@ -198,16 +201,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld개 안 읽음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未読 %lld 件"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 안 읽음"
           }
         },
         "zh-Hans" : {
@@ -226,16 +229,16 @@
             "value" : "• What were you trying to do?\n\n• What actually happened?\n\n• What did you expect instead?"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "• 무엇을 하려고 하셨나요?\n\n• 실제로 어떤 일이 일어났나요?\n\n• 기대하신 동작은 무엇인가요?"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "• 何をしようとしましたか？\n\n• 実際には何が起きましたか？\n\n• 本来はどうなると思っていましたか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• 무엇을 하려고 하셨나요?\n\n• 실제로 어떤 일이 일어났나요?\n\n• 기대하신 동작은 무엇인가요?"
           }
         },
         "zh-Hans" : {
@@ -254,16 +257,16 @@
             "value" : "A native RSS reader for macOS."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS를 위한 네이티브 RSS 리더."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS ネイティブの RSS リーダー。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS를 위한 네이티브 RSS 리더."
           }
         },
         "zh-Hans" : {
@@ -276,16 +279,16 @@
     },
     "A new version of Nook is available" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook 새 버전이 있습니다"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook の新しいバージョンがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook 새 버전이 있습니다"
           }
         },
         "zh-Hans" : {
@@ -304,16 +307,16 @@
             "value" : "About"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "정보"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "情報"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정보"
           }
         },
         "zh-Hans" : {
@@ -332,16 +335,16 @@
             "value" : "Add"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "추가"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가"
           }
         },
         "zh-Hans" : {
@@ -360,16 +363,16 @@
             "value" : "Add an RSS or Atom feed, then refresh."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "RSS나 Atom 피드를 추가한 뒤 새로 고쳐 보세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "RSS または Atom フィードを追加してから更新してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSS나 Atom 피드를 추가한 뒤 새로 고쳐 보세요."
           }
         },
         "zh-Hans" : {
@@ -388,16 +391,16 @@
             "value" : "Add an RSS or Atom feed."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "RSS나 Atom 피드를 추가해 보세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "RSS または Atom フィードを追加します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSS나 Atom 피드를 추가해 보세요."
           }
         },
         "zh-Hans" : {
@@ -416,16 +419,16 @@
             "value" : "Add Feed"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 추가"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 추가"
           }
         },
         "zh-Hans" : {
@@ -437,6 +440,7 @@
       }
     },
     "All Articles" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -444,16 +448,16 @@
             "value" : "All Articles"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "모든 글"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべての記事"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 글"
           }
         },
         "zh-Hans" : {
@@ -472,16 +476,16 @@
             "value" : "Already added"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이미 추가됨"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미 추가됨"
           }
         },
         "zh-Hans" : {
@@ -500,16 +504,16 @@
             "value" : "App Icon"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "앱 아이콘"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリアイコン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 아이콘"
           }
         },
         "zh-Hans" : {
@@ -528,16 +532,16 @@
             "value" : "Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글"
           }
         },
         "zh-Hans" : {
@@ -556,16 +560,16 @@
             "value" : "Articles"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글"
           }
         },
         "zh-Hans" : {
@@ -578,16 +582,16 @@
     },
     "Automatically check for updates" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "자동으로 업데이트 확인"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "アップデートを自動的に確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동으로 업데이트 확인"
           }
         },
         "zh-Hans" : {
@@ -606,16 +610,16 @@
             "value" : "Background"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "배경"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "배경"
           }
         },
         "zh-Hans" : {
@@ -634,16 +638,16 @@
             "value" : "Background Color"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "배경색"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景色"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "배경색"
           }
         },
         "zh-Hans" : {
@@ -662,16 +666,16 @@
             "value" : "Cancel"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "취소"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
           }
         },
         "zh-Hans" : {
@@ -690,16 +694,16 @@
             "value" : "Category"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "분류"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "カテゴリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분류"
           }
         },
         "zh-Hans" : {
@@ -712,16 +716,16 @@
     },
     "Check Now" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "지금 확인"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "今すぐ確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 확인"
           }
         },
         "zh-Hans" : {
@@ -740,16 +744,16 @@
             "value" : "Choose"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택"
           }
         },
         "zh-Hans" : {
@@ -768,16 +772,16 @@
             "value" : "Choose a folder in iCloud Drive and Nook keeps your feeds in sync across your devices."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud Drive에서 폴더를 선택하면 여러 기기에서 피드가 동기화됩니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud Drive 内のフォルダを選ぶと、Nook がデバイス間でフィードを同期します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Drive에서 폴더를 선택하면 여러 기기에서 피드가 동기화됩니다."
           }
         },
         "zh-Hans" : {
@@ -796,16 +800,16 @@
             "value" : "Choose a story from the article list."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "목록에서 읽을 글을 골라 보세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事リストから記事を選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 읽을 글을 골라 보세요."
           }
         },
         "zh-Hans" : {
@@ -824,16 +828,16 @@
             "value" : "Choose a Sync Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "동기화 폴더 선택"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期フォルダを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화 폴더 선택"
           }
         },
         "zh-Hans" : {
@@ -852,16 +856,16 @@
             "value" : "Choose a sync folder first"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "먼저 동기화 폴더를 선택하세요"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "先に同期フォルダを選択してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 동기화 폴더를 선택하세요"
           }
         },
         "zh-Hans" : {
@@ -880,16 +884,16 @@
             "value" : "Choose a sync folder first."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "먼저 동기화 폴더를 선택하세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "先に同期フォルダを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 동기화 폴더를 선택하세요."
           }
         },
         "zh-Hans" : {
@@ -901,6 +905,7 @@
       }
     },
     "Choose an iCloud Drive folder before adding feeds." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -908,16 +913,16 @@
             "value" : "Choose an iCloud Drive folder before adding feeds."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드를 추가하려면 먼저 iCloud Drive 폴더를 선택하세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを追加する前に iCloud Drive のフォルダを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 추가하려면 먼저 iCloud Drive 폴더를 선택하세요."
           }
         },
         "zh-Hans" : {
@@ -930,16 +935,16 @@
     },
     "Choose how each feed's articles open in the web view. “Default” follows the reader setting in the Reader tab." : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "각 피드의 글을 웹뷰에서 여는 방식을 선택하세요. “기본값”은 Reader 탭의 리더 설정을 따릅니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "各フィードの記事を Web ビューでどう開くかを選びます。「デフォルト」はリーダータブの設定に従います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "각 피드의 글을 웹뷰에서 여는 방식을 선택하세요. “기본값”은 Reader 탭의 리더 설정을 따릅니다."
           }
         },
         "zh-Hans" : {
@@ -958,16 +963,16 @@
             "value" : "Choose iCloud Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud 폴더 선택"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud フォルダを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 폴더 선택"
           }
         },
         "zh-Hans" : {
@@ -986,16 +991,16 @@
             "value" : "Choose iCloud Sync Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud 동기화 폴더 선택"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud 同期フォルダを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 동기화 폴더 선택"
           }
         },
         "zh-Hans" : {
@@ -1014,16 +1019,16 @@
             "value" : "Choose which feeds to import."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "가져올 피드를 선택하세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "読み込むフィードを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져올 피드를 선택하세요."
           }
         },
         "zh-Hans" : {
@@ -1042,16 +1047,16 @@
             "value" : "Close"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "닫기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "닫기"
           }
         },
         "zh-Hans" : {
@@ -1071,16 +1076,16 @@
             "value" : "Close Reader"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더 닫기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リーダーを閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더 닫기"
           }
         },
         "zh-Hans" : {
@@ -1099,16 +1104,16 @@
             "value" : "Colors"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "색상"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "カラー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "색상"
           }
         },
         "zh-Hans" : {
@@ -1139,16 +1144,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 %lld개를 추가하지 못했습니다"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件のフィードを追加できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개를 추가하지 못했습니다"
           }
         },
         "zh-Hans" : {
@@ -1167,16 +1172,16 @@
             "value" : "Create"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "만들기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "作成"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "만들기"
           }
         },
         "zh-Hans" : {
@@ -1195,16 +1200,16 @@
             "value" : "Create an empty folder to organize feeds."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드를 정리할 빈 폴더를 만듭니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを整理するための空のフォルダを作成します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 정리할 빈 폴더를 만듭니다."
           }
         },
         "zh-Hans" : {
@@ -1217,16 +1222,16 @@
     },
     "Current" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "현재"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재"
           }
         },
         "zh-Hans" : {
@@ -1245,16 +1250,16 @@
             "value" : "Custom"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "직접 지정"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "カスタム"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "직접 지정"
           }
         },
         "zh-Hans" : {
@@ -1267,16 +1272,16 @@
     },
     "Default" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "기본값"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값"
           }
         },
         "zh-Hans" : {
@@ -1295,16 +1300,16 @@
             "value" : "Deselect All"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "전체 해제"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべて選択解除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 해제"
           }
         },
         "zh-Hans" : {
@@ -1323,16 +1328,16 @@
             "value" : "Export OPML"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OPML 내보내기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OPML を書き出す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OPML 내보내기"
           }
         },
         "zh-Hans" : {
@@ -1351,16 +1356,16 @@
             "value" : "Feed"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드"
           }
         },
         "zh-Hans" : {
@@ -1380,16 +1385,16 @@
             "value" : "Feedback"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드백"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードバック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드백"
           }
         },
         "zh-Hans" : {
@@ -1408,16 +1413,16 @@
             "value" : "Feeds"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드"
           }
         },
         "zh-Hans" : {
@@ -1436,16 +1441,16 @@
             "value" : "Folder Name"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "폴더 이름"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダ名"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 이름"
           }
         },
         "zh-Hans" : {
@@ -1464,16 +1469,16 @@
             "value" : "Font"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글꼴"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォント"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글꼴"
           }
         },
         "zh-Hans" : {
@@ -1492,16 +1497,16 @@
             "value" : "Font Size: %lld"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글자 크기: %lld"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォントサイズ: %lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자 크기: %lld"
           }
         },
         "zh-Hans" : {
@@ -1520,16 +1525,16 @@
             "value" : "General"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일반"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "一般"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일반"
           }
         },
         "zh-Hans" : {
@@ -1540,7 +1545,9 @@
         }
       }
     },
-    "https://example.com/feed.xml" : {},
+    "https://example.com/feed.xml" : {
+
+    },
     "Import %lld Feeds" : {
       "localizations" : {
         "en" : {
@@ -1561,16 +1568,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 %lld개 가져오기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件のフィードを読み込む"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 가져오기"
           }
         },
         "zh-Hans" : {
@@ -1589,16 +1596,16 @@
             "value" : "Import Feeds"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 가져오기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを読み込む"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 가져오기"
           }
         },
         "zh-Hans" : {
@@ -1617,16 +1624,16 @@
             "value" : "Import OPML"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OPML 가져오기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OPML を読み込む"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OPML 가져오기"
           }
         },
         "zh-Hans" : {
@@ -1645,16 +1652,16 @@
             "value" : "Import or Export Subscriptions"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "구독 가져오기/내보내기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "購読の読み込み／書き出し"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독 가져오기/내보내기"
           }
         },
         "zh-Hans" : {
@@ -1673,16 +1680,16 @@
             "value" : "In-App Browser"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "인앱 브라우저"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリ内ブラウザ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인앱 브라우저"
           }
         },
         "zh-Hans" : {
@@ -1701,16 +1708,16 @@
             "value" : "Inspector"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "인스펙터"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "インスペクタ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인스펙터"
           }
         },
         "zh-Hans" : {
@@ -1729,16 +1736,16 @@
             "value" : "Language"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "언어"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "言語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "언어"
           }
         },
         "zh-Hans" : {
@@ -1757,16 +1764,16 @@
             "value" : "Last Refresh"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "마지막 새로 고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "最終更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 새로 고침"
           }
         },
         "zh-Hans" : {
@@ -1785,16 +1792,16 @@
             "value" : "Last refresh failed."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "마지막 새로 고침에 실패했습니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "最終更新に失敗しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마지막 새로 고침에 실패했습니다."
           }
         },
         "zh-Hans" : {
@@ -1807,16 +1814,16 @@
     },
     "Later" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "나중에"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "あとで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나중에"
           }
         },
         "zh-Hans" : {
@@ -1835,16 +1842,16 @@
             "value" : "Letter Spacing: %@"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "자간: %@"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "字間: %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자간: %@"
           }
         },
         "zh-Hans" : {
@@ -1863,16 +1870,16 @@
             "value" : "Library"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "라이브러리"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라이브러리"
           }
         },
         "zh-Hans" : {
@@ -1891,16 +1898,16 @@
             "value" : "Line Spacing: %@"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "줄 간격: %@"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "行間: %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "줄 간격: %@"
           }
         },
         "zh-Hans" : {
@@ -1919,16 +1926,16 @@
             "value" : "Links Open"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "링크 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リンクの開き方"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "링크 열기"
           }
         },
         "zh-Hans" : {
@@ -1959,16 +1966,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 %lld개 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件のフィードを既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -1987,16 +1994,16 @@
             "value" : "Mark articles as read when opened"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글를 열면 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事を開いたら既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글를 열면 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2015,16 +2022,16 @@
             "value" : "Mark as Read"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2055,16 +2062,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld초 후 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 秒後に既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld초 후 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2083,16 +2090,16 @@
             "value" : "Mark as Unread"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "안 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "안 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2111,16 +2118,16 @@
             "value" : "Mark Feed as Read"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드를 모두 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 모두 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2139,16 +2146,16 @@
             "value" : "Mark Read"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2167,16 +2174,16 @@
             "value" : "Mark Selected Article as Read"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 글를 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択した記事を既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 글를 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2195,16 +2202,16 @@
             "value" : "Mark Selected as Read"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 글를 읽음으로 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択項目を既読にする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 글를 읽음으로 표시"
           }
         },
         "zh-Hans" : {
@@ -2223,16 +2230,16 @@
             "value" : "Match Appearance"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "화면 모드 따름"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "外観に合わせる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "화면 모드 따름"
           }
         },
         "zh-Hans" : {
@@ -2251,16 +2258,16 @@
             "value" : "Monospaced"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "고정폭"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "等幅"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "고정폭"
           }
         },
         "zh-Hans" : {
@@ -2279,16 +2286,16 @@
             "value" : "Move out of folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "폴더에서 빼기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダから出す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더에서 빼기"
           }
         },
         "zh-Hans" : {
@@ -2307,16 +2314,16 @@
             "value" : "Move to Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "폴더로 이동"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダに移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더로 이동"
           }
         },
         "zh-Hans" : {
@@ -2335,16 +2342,16 @@
             "value" : "Never"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "없음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
           }
         },
         "zh-Hans" : {
@@ -2357,16 +2364,16 @@
     },
     "New" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "새 버전"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "新バージョン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전"
           }
         },
         "zh-Hans" : {
@@ -2385,16 +2392,16 @@
             "value" : "New Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "새 폴더"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "新規フォルダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 폴더"
           }
         },
         "zh-Hans" : {
@@ -2407,16 +2414,16 @@
     },
     "New Version Available" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "새 버전이 있습니다"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しいバージョンがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전이 있습니다"
           }
         },
         "zh-Hans" : {
@@ -2435,16 +2442,16 @@
             "value" : "Next Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "다음 글"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "次の記事"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다음 글"
           }
         },
         "zh-Hans" : {
@@ -2463,16 +2470,16 @@
             "value" : "No Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택된 글 없음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택된 글 없음"
           }
         },
         "zh-Hans" : {
@@ -2491,16 +2498,16 @@
             "value" : "No article matches the current search."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "검색 결과와 일치하는 글가 없습니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "検索条件に一致する記事がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "검색 결과와 일치하는 글가 없습니다."
           }
         },
         "zh-Hans" : {
@@ -2519,16 +2526,16 @@
             "value" : "No Articles"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 없음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 없음"
           }
         },
         "zh-Hans" : {
@@ -2547,16 +2554,16 @@
             "value" : "No feeds found in the OPML file."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OPML 파일에서 피드를 찾지 못했습니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OPML ファイルにフィードが見つかりませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OPML 파일에서 피드를 찾지 못했습니다."
           }
         },
         "zh-Hans" : {
@@ -2569,16 +2576,16 @@
     },
     "No feeds yet. Add feeds from the main window." : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "아직 피드가 없습니다. 메인 창에서 피드를 추가하세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "まだフィードがありません。メインウインドウから追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 피드가 없습니다. 메인 창에서 피드를 추가하세요."
           }
         },
         "zh-Hans" : {
@@ -2590,6 +2597,7 @@
       }
     },
     "No RSS or Atom entries were found at %@." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2597,16 +2605,16 @@
             "value" : "No RSS or Atom entries were found at %@."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@에서 RSS나 Atom 항목을 찾지 못했습니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ に RSS／Atom のエントリが見つかりませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 RSS나 Atom 항목을 찾지 못했습니다."
           }
         },
         "zh-Hans" : {
@@ -2618,6 +2626,7 @@
       }
     },
     "No RSS or Atom feed link was found at %@." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2625,16 +2634,16 @@
             "value" : "No RSS or Atom feed link was found at %@."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@에서 RSS나 Atom 피드 링크를 찾지 못했습니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ に RSS／Atom フィードのリンクが見つかりませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 RSS나 Atom 피드 링크를 찾지 못했습니다."
           }
         },
         "zh-Hans" : {
@@ -2653,16 +2662,16 @@
             "value" : "None"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "없음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
           }
         },
         "zh-Hans" : {
@@ -2697,16 +2706,16 @@
             "value" : "Nook %@ (%@) · macOS %@"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook %@ (%@) · macOS %@"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook %@（%@）· macOS %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook %@ (%@) · macOS %@"
           }
         },
         "zh-Hans" : {
@@ -2719,16 +2728,16 @@
     },
     "Nook checks quietly in the background and shows a notice in the sidebar when an update is ready." : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook은 백그라운드에서 조용히 확인하고, 업데이트가 준비되면 사이드바에 알려 줍니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook はバックグラウンドで静かに確認し、アップデートの準備ができるとサイドバーでお知らせします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 백그라운드에서 조용히 확인하고, 업데이트가 준비되면 사이드바에 알려 줍니다."
           }
         },
         "zh-Hans" : {
@@ -2747,16 +2756,16 @@
             "value" : "Nook Feedback"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook 피드백"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook へのフィードバック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook 피드백"
           }
         },
         "zh-Hans" : {
@@ -2775,16 +2784,16 @@
             "value" : "Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook은 피드를 iCloud Drive의 한 폴더에 보관해 여러 기기에서 동기화되도록 합니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook は iCloud Drive 内のフォルダにフィードを保存し、デバイス間で同期します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 피드를 iCloud Drive의 한 폴더에 보관해 여러 기기에서 동기화되도록 합니다."
           }
         },
         "zh-Hans" : {
@@ -2803,16 +2812,16 @@
             "value" : "Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook은 여러분이 선택한 폴더에 RSS 라이브러리를 저장합니다. 그러면 iCloud Drive가 이 폴더를 보관함처럼 동기화합니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook は選んだフォルダに RSS ライブラリを保存するので、iCloud Drive が Vault のように同期できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 여러분이 선택한 폴더에 RSS 라이브러리를 저장합니다. 그러면 iCloud Drive가 이 폴더를 보관함처럼 동기화합니다."
           }
         },
         "zh-Hans" : {
@@ -2831,16 +2840,16 @@
             "value" : "Not selected"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택 안 됨"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택 안 됨"
           }
         },
         "zh-Hans" : {
@@ -2859,16 +2868,16 @@
             "value" : "Open Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事を開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 열기"
           }
         },
         "zh-Hans" : {
@@ -2887,16 +2896,16 @@
             "value" : "Open Feed"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 열기"
           }
         },
         "zh-Hans" : {
@@ -2915,16 +2924,16 @@
             "value" : "Open in Browser"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "브라우저에서 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ブラウザで開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "브라우저에서 열기"
           }
         },
         "zh-Hans" : {
@@ -2943,16 +2952,16 @@
             "value" : "Open in Nook"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook에서 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nook で開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook에서 열기"
           }
         },
         "zh-Hans" : {
@@ -2971,16 +2980,16 @@
             "value" : "Open in Reader — ⌘-click to open in browser"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더로 열기 — ⌘-클릭 시 브라우저로 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リーダーで開く — ⌘＋クリックでブラウザで開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더로 열기 — ⌘-클릭 시 브라우저로 열기"
           }
         },
         "zh-Hans" : {
@@ -2999,16 +3008,16 @@
             "value" : "Open Original"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원문 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "元のページを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 열기"
           }
         },
         "zh-Hans" : {
@@ -3028,16 +3037,16 @@
             "value" : "Open original links in the default browser"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원문 링크를 기본 브라우저에서 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "元のリンクをデフォルトのブラウザで開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 링크를 기본 브라우저에서 열기"
           }
         },
         "zh-Hans" : {
@@ -3056,16 +3065,16 @@
             "value" : "Open Site"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "사이트 열기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "サイトを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사이트 열기"
           }
         },
         "zh-Hans" : {
@@ -3084,16 +3093,16 @@
             "value" : "Original Page"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원본 페이지"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "元のページ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원본 페이지"
           }
         },
         "zh-Hans" : {
@@ -3112,16 +3121,16 @@
             "value" : "Paste an RSS or Atom feed URL and Nook will fetch it right away."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "RSS나 Atom 피드 URL을 붙여 넣으면 Nook이 바로 가져옵니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "RSS または Atom フィードの URL を貼り付けると、Nook がすぐに取得します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSS나 Atom 피드 URL을 붙여 넣으면 Nook이 바로 가져옵니다."
           }
         },
         "zh-Hans" : {
@@ -3140,16 +3149,16 @@
             "value" : "Pick a folder in iCloud Drive so Nook can keep your feeds in sync across your devices."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nook이 여러 기기에서 피드를 동기화할 수 있도록 iCloud Drive에서 폴더를 선택하세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud Drive 内のフォルダを選ぶと、Nook がデバイス間でフィードを同期できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook이 여러 기기에서 피드를 동기화할 수 있도록 iCloud Drive에서 폴더를 선택하세요."
           }
         },
         "zh-Hans" : {
@@ -3168,16 +3177,16 @@
             "value" : "Please describe your bug report, feature request, or idea below. Screenshots are welcome."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "버그 신고, 기능 요청, 또는 의견을 아래에 자유롭게 적어 주세요. 스크린샷도 환영합니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "バグ報告・機能のご要望・アイデアを以下にご記入ください。スクリーンショットも歓迎します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "버그 신고, 기능 요청, 또는 의견을 아래에 자유롭게 적어 주세요. 스크린샷도 환영합니다."
           }
         },
         "zh-Hans" : {
@@ -3196,16 +3205,16 @@
             "value" : "Previous Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이전 글"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "前の記事"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 글"
           }
         },
         "zh-Hans" : {
@@ -3224,16 +3233,16 @@
             "value" : "Published"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "게시일"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "公開日"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게시일"
           }
         },
         "zh-Hans" : {
@@ -3252,16 +3261,16 @@
             "value" : "Read"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "읽음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "既読"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽음"
           }
         },
         "zh-Hans" : {
@@ -3280,16 +3289,16 @@
             "value" : "Reader"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リーダー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더"
           }
         },
         "zh-Hans" : {
@@ -3308,16 +3317,16 @@
             "value" : "Reader Mode"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더 모드"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リーダーモード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더 모드"
           }
         },
         "zh-Hans" : {
@@ -3336,16 +3345,16 @@
             "value" : "Reading"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "읽기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "閲覧"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기"
           }
         },
         "zh-Hans" : {
@@ -3364,16 +3373,16 @@
             "value" : "Reading Time"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "읽기 시간"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "読了時間"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기 시간"
           }
         },
         "zh-Hans" : {
@@ -3386,16 +3395,16 @@
     },
     "Reading View" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "읽기 화면"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "表示方法"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기 화면"
           }
         },
         "zh-Hans" : {
@@ -3426,16 +3435,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 %lld개 새로고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件のフィードを更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 새로고침"
           }
         },
         "zh-Hans" : {
@@ -3454,16 +3463,16 @@
             "value" : "Refresh All"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "모두 새로 고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべて更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 새로 고침"
           }
         },
         "zh-Hans" : {
@@ -3482,16 +3491,16 @@
             "value" : "Refresh All Feeds"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "모든 피드 새로 고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべてのフィードを更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 피드 새로 고침"
           }
         },
         "zh-Hans" : {
@@ -3522,16 +3531,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld분마다 새로고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 分ごとに更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분마다 새로고침"
           }
         },
         "zh-Hans" : {
@@ -3550,16 +3559,16 @@
             "value" : "Refresh Feed"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 새로 고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 새로 고침"
           }
         },
         "zh-Hans" : {
@@ -3578,16 +3587,16 @@
             "value" : "Refresh feeds automatically"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 자동으로 새로 고침"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを自動的に更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 자동으로 새로 고침"
           }
         },
         "zh-Hans" : {
@@ -3606,16 +3615,16 @@
             "value" : "Refreshing"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "새로 고치는 중"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로 고치는 중"
           }
         },
         "zh-Hans" : {
@@ -3634,16 +3643,16 @@
             "value" : "Relaunch"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "다시 시작"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "再起動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 시작"
           }
         },
         "zh-Hans" : {
@@ -3656,16 +3665,16 @@
     },
     "Released" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "출시일"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "公開日"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출시일"
           }
         },
         "zh-Hans" : {
@@ -3696,16 +3705,16 @@
             }
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 %lld개 제거"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件のフィードを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 %lld개 제거"
           }
         },
         "zh-Hans" : {
@@ -3724,16 +3733,16 @@
             "value" : "Remove Feed"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드 제거"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 제거"
           }
         },
         "zh-Hans" : {
@@ -3752,16 +3761,16 @@
             "value" : "Remove Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "폴더 제거"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 제거"
           }
         },
         "zh-Hans" : {
@@ -3780,16 +3789,16 @@
             "value" : "Remove Star"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "별표 해제"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "スターを外す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표 해제"
           }
         },
         "zh-Hans" : {
@@ -3808,16 +3817,16 @@
             "value" : "Report a bug, request a feature, or share an idea with the developer."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "버그 신고, 기능 요청, 또는 의견을 개발자에게 바로 보낼 수 있습니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "バグの報告、機能のご要望、アイデアを開発者に伝えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "버그 신고, 기능 요청, 또는 의견을 개발자에게 바로 보낼 수 있습니다."
           }
         },
         "zh-Hans" : {
@@ -3836,16 +3845,16 @@
             "value" : "Restart Nook to apply the language change."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "언어 변경 사항은 Nook을 다시 시작하면 적용됩니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "言語の変更を適用するには Nook を再起動してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "언어 변경 사항은 Nook을 다시 시작하면 적용됩니다."
           }
         },
         "zh-Hans" : {
@@ -3864,16 +3873,16 @@
             "value" : "Search Articles"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 검색"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事を検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 검색"
           }
         },
         "zh-Hans" : {
@@ -3892,16 +3901,16 @@
             "value" : "Select All"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "전체 선택"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべて選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 선택"
           }
         },
         "zh-Hans" : {
@@ -3920,16 +3929,16 @@
             "value" : "Select an Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 선택"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事を選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 선택"
           }
         },
         "zh-Hans" : {
@@ -3948,16 +3957,16 @@
             "value" : "Send Feedback…"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드백 보내기…"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードバックを送信…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드백 보내기…"
           }
         },
         "zh-Hans" : {
@@ -3976,16 +3985,16 @@
             "value" : "Serif"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "세리프"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "セリフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세리프"
           }
         },
         "zh-Hans" : {
@@ -4004,16 +4013,16 @@
             "value" : "Set Up iCloud Sync"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud 동기화 설정"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud 同期を設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 동기화 설정"
           }
         },
         "zh-Hans" : {
@@ -4032,16 +4041,16 @@
             "value" : "Share"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "공유"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "共有"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유"
           }
         },
         "zh-Hans" : {
@@ -4060,16 +4069,16 @@
             "value" : "Share Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 공유"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事を共有"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 공유"
           }
         },
         "zh-Hans" : {
@@ -4088,16 +4097,16 @@
             "value" : "Show unread count on app icon"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "앱 아이콘에 안 읽음 개수 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "アプリアイコンに未読数を表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱 아이콘에 안 읽음 개수 표시"
           }
         },
         "zh-Hans" : {
@@ -4110,16 +4119,16 @@
     },
     "Software Update" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "소프트웨어 업데이트"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ソフトウェアアップデート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소프트웨어 업데이트"
           }
         },
         "zh-Hans" : {
@@ -4138,16 +4147,16 @@
             "value" : "Source"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "출처"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ソース"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출처"
           }
         },
         "zh-Hans" : {
@@ -4166,16 +4175,16 @@
             "value" : "Star"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "별표 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "スターを付ける"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표 표시"
           }
         },
         "zh-Hans" : {
@@ -4194,16 +4203,16 @@
             "value" : "Star Article"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글에 별표 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "記事にスターを付ける"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글에 별표 표시"
           }
         },
         "zh-Hans" : {
@@ -4222,16 +4231,16 @@
             "value" : "Star Selected"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 글에 별표 표시"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択項目にスターを付ける"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 글에 별표 표시"
           }
         },
         "zh-Hans" : {
@@ -4250,16 +4259,16 @@
             "value" : "Starred"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "별표"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "スター付き"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표"
           }
         },
         "zh-Hans" : {
@@ -4278,16 +4287,16 @@
             "value" : "Status"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "상태"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "状態"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상태"
           }
         },
         "zh-Hans" : {
@@ -4306,16 +4315,16 @@
             "value" : "Storage"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장소"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存先"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장소"
           }
         },
         "zh-Hans" : {
@@ -4334,16 +4343,16 @@
             "value" : "Subscriptions"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "구독"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "購読"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독"
           }
         },
         "zh-Hans" : {
@@ -4362,16 +4371,16 @@
             "value" : "Switch Reader / Original"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더/원본 전환"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リーダー／元のページを切り替え"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더/원본 전환"
           }
         },
         "zh-Hans" : {
@@ -4390,16 +4399,16 @@
             "value" : "Switch Reader / Original (⌘⇧F)"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더/원본 전환 (⌘⇧F)"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "リーダー／元のページを切り替え（⌘⇧F）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더/원본 전환 (⌘⇧F)"
           }
         },
         "zh-Hans" : {
@@ -4418,16 +4427,16 @@
             "value" : "Sync Folder"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "동기화 폴더"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期フォルダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화 폴더"
           }
         },
         "zh-Hans" : {
@@ -4446,16 +4455,16 @@
             "value" : "System"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "시스템"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "システム"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템"
           }
         },
         "zh-Hans" : {
@@ -4474,16 +4483,16 @@
             "value" : "System Default"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "시스템 설정 언어"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "システムのデフォルト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 설정 언어"
           }
         },
         "zh-Hans" : {
@@ -4502,16 +4511,16 @@
             "value" : "Text"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글자"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "テキスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자"
           }
         },
         "zh-Hans" : {
@@ -4530,16 +4539,16 @@
             "value" : "Text Color"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글자색"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字色"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자색"
           }
         },
         "zh-Hans" : {
@@ -4551,6 +4560,7 @@
       }
     },
     "The feed could not be parsed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4558,16 +4568,16 @@
             "value" : "The feed could not be parsed: %@"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드를 읽을 수 없습니다: %@"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードを解析できませんでした: %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 읽을 수 없습니다: %@"
           }
         },
         "zh-Hans" : {
@@ -4579,6 +4589,7 @@
       }
     },
     "The feed request failed with HTTP %lld." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4586,16 +4597,16 @@
             "value" : "The feed request failed with HTTP %lld."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "피드를 불러오지 못했습니다 (HTTP %lld)."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィードの取得に失敗しました（HTTP %lld）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 불러오지 못했습니다 (HTTP %lld)."
           }
         },
         "zh-Hans" : {
@@ -4614,16 +4625,16 @@
             "value" : "The folder and any feeds inside it will be removed."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "폴더와 그 안의 피드가 모두 제거됩니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダと、その中のフィードがすべて削除されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더와 그 안의 피드가 모두 제거됩니다."
           }
         },
         "zh-Hans" : {
@@ -4635,6 +4646,7 @@
       }
     },
     "The saved sync folder permission expired. Choose the folder again." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4642,16 +4654,16 @@
             "value" : "The saved sync folder permission expired. Choose the folder again."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장된 동기화 폴더 권한이 만료되었습니다. 폴더를 다시 선택하세요."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存された同期フォルダのアクセス権が失効しました。もう一度フォルダを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장된 동기화 폴더 권한이 만료되었습니다. 폴더를 다시 선택하세요."
           }
         },
         "zh-Hans" : {
@@ -4670,16 +4682,16 @@
             "value" : "These options apply when reading in reader mode."
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "리더 모드로 글을 볼 때 적용되는 설정입니다."
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "これらの設定はリーダーモードでの表示に適用されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리더 모드로 글을 볼 때 적용되는 설정입니다."
           }
         },
         "zh-Hans" : {
@@ -4691,6 +4703,7 @@
       }
     },
     "Today" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4698,16 +4711,16 @@
             "value" : "Today"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "오늘"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘"
           }
         },
         "zh-Hans" : {
@@ -4726,16 +4739,16 @@
             "value" : "Toggle Inspector"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "인스펙터 표시/숨기기"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "インスペクタの表示切り替え"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인스펙터 표시/숨기기"
           }
         },
         "zh-Hans" : {
@@ -4754,16 +4767,16 @@
             "value" : "Typography"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "타이포그래피"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "タイポグラフィ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "타이포그래피"
           }
         },
         "zh-Hans" : {
@@ -4782,16 +4795,16 @@
             "value" : "Ungrouped"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "분류 없음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未分類"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분류 없음"
           }
         },
         "zh-Hans" : {
@@ -4810,16 +4823,16 @@
             "value" : "Unknown Feed"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "알 수 없는 피드"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "不明なフィード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알 수 없는 피드"
           }
         },
         "zh-Hans" : {
@@ -4831,6 +4844,7 @@
       }
     },
     "Unknown parser error" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4838,16 +4852,16 @@
             "value" : "Unknown parser error"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "알 수 없는 오류"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "不明な解析エラー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알 수 없는 오류"
           }
         },
         "zh-Hans" : {
@@ -4866,16 +4880,16 @@
             "value" : "Unread"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "안 읽음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未読"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "안 읽음"
           }
         },
         "zh-Hans" : {
@@ -4894,16 +4908,16 @@
             "value" : "Unstar"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "별표 해제"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "スターを外す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별표 해제"
           }
         },
         "zh-Hans" : {
@@ -4916,16 +4930,16 @@
     },
     "Update" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "업데이트"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "アップデート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트"
           }
         },
         "zh-Hans" : {
@@ -4938,16 +4952,16 @@
     },
     "Update available" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "업데이트 있음"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "アップデートがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 있음"
           }
         },
         "zh-Hans" : {
@@ -4960,16 +4974,16 @@
     },
     "Use Default" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "기본값 사용"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルトを使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값 사용"
           }
         },
         "zh-Hans" : {
@@ -4988,16 +5002,16 @@
             "value" : "Version %@ (%@)"
           }
         },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "버전 %@ (%@)"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "バージョン %@（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "버전 %@ (%@)"
           }
         },
         "zh-Hans" : {

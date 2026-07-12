@@ -14,11 +14,7 @@
 		2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */; };
 		2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */; };
 		2D0E3A1F2D8A4A4700A00001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */; };
-		2D0E3A232D8A4A4700A00001 /* ReaderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A222D8A4A4700A00001 /* ReaderModels.swift */; };
-		2D0E3A252D8A4A4700A00001 /* ReaderStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */; };
-		2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */; };
 		2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */; };
-		2D0E3A2B2D8A4A4700A00001 /* OPMLService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */; };
 		2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */; };
 		2D0E3A342D8A4A4700A00001 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A332D8A4A4700A00001 /* FaviconService.swift */; };
 		2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */; };
@@ -26,6 +22,7 @@
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2DA1C0DF2D8A4A4700A00001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */; };
 		2DAAAAAA000000000000CAFE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA000000000000BEEF /* Sparkle */; };
+		2DAAAAAA00000000000C0DE3 /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA00000000000C0DE2 /* NookKit */; };
 		2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAAAAAA000000000000D001 /* UpdateController.swift */; };
 /* End PBXBuildFile section */
 
@@ -63,11 +60,7 @@
 		2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2D0E3A1E2D8A4A4700A00001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D0E3A202D8A4A4700A00001 /* Nook.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nook.entitlements; sourceTree = "<group>"; };
-		2D0E3A222D8A4A4700A00001 /* ReaderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderModels.swift; sourceTree = "<group>"; };
-		2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStorage.swift; sourceTree = "<group>"; };
-		2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSSFeedService.swift; sourceTree = "<group>"; };
 		2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderStore.swift; sourceTree = "<group>"; };
-		2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OPMLService.swift; sourceTree = "<group>"; };
 		2D0E3A302D8A4A4700A00001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		2D0E3A332D8A4A4700A00001 /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
@@ -107,6 +100,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2DAAAAAA000000000000CAFE /* Sparkle in Frameworks */,
+				2DAAAAAA00000000000C0DE3 /* NookKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -147,12 +141,8 @@
 			children = (
 				2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */,
 				2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */,
-				2D0E3A222D8A4A4700A00001 /* ReaderModels.swift */,
 				2D0E3A282D8A4A4700A00001 /* ReaderStore.swift */,
 				2DAAAAAA000000000000D001 /* UpdateController.swift */,
-				2D0E3A242D8A4A4700A00001 /* ReaderStorage.swift */,
-				2D0E3A262D8A4A4700A00001 /* RSSFeedService.swift */,
-				2D0E3A2A2D8A4A4700A00001 /* OPMLService.swift */,
 				2D0E3A332D8A4A4700A00001 /* FaviconService.swift */,
 				2D0E3A352D8A4A4700A00001 /* ArticleWebView.swift */,
 				2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */,
@@ -208,6 +198,7 @@
 			name = Nook;
 			packageProductDependencies = (
 				2DAAAAAA000000000000BEEF /* Sparkle */,
+				2DAAAAAA00000000000C0DE2 /* NookKit */,
 			);
 			productName = Nook;
 			productReference = 2D0E3A122D8A4A4700A00001 /* Nook.app */;
@@ -245,6 +236,7 @@
 			mainGroup = 2D0E3A092D8A4A4700A00001;
 			packageReferences = (
 				2DAAAAAA000000000000FEED /* XCRemoteSwiftPackageReference "Sparkle" */,
+				2DAAAAAA00000000000C0DE1 /* XCLocalSwiftPackageReference "NookKit" */,
 			);
 			productRefGroup = 2D0E3A132D8A4A4700A00001 /* Products */;
 			projectDirPath = "";
@@ -292,12 +284,8 @@
 			files = (
 				2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */,
 				2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */,
-				2D0E3A232D8A4A4700A00001 /* ReaderModels.swift in Sources */,
 				2D0E3A292D8A4A4700A00001 /* ReaderStore.swift in Sources */,
 				2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */,
-				2D0E3A252D8A4A4700A00001 /* ReaderStorage.swift in Sources */,
-				2D0E3A272D8A4A4700A00001 /* RSSFeedService.swift in Sources */,
-				2D0E3A2B2D8A4A4700A00001 /* OPMLService.swift in Sources */,
 				2D0E3A342D8A4A4700A00001 /* FaviconService.swift in Sources */,
 				2D0E3A362D8A4A4700A00001 /* ArticleWebView.swift in Sources */,
 				2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */,
@@ -596,6 +584,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		2DAAAAAA00000000000C0DE1 /* XCLocalSwiftPackageReference "NookKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = NookKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		2DAAAAAA000000000000FEED /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -608,6 +603,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2DAAAAAA00000000000C0DE2 /* NookKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NookKit;
+		};
 		2DAAAAAA000000000000BEEF /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2DAAAAAA000000000000FEED /* XCRemoteSwiftPackageReference "Sparkle" */;
