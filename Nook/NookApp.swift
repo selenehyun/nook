@@ -43,6 +43,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case english = "en"
     case korean = "ko"
+    case japanese = "ja"
+    case chineseSimplified = "zh-Hans"
 
     static let storageKey = "appLanguage"
     private static let appleLanguagesKey = "AppleLanguages"
@@ -57,6 +59,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .system: String(localized: "System Default")
         case .english: "English"
         case .korean: "한국어"
+        case .japanese: "日本語"
+        case .chineseSimplified: "简体中文"
         }
     }
 
@@ -67,6 +71,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .system: Locale.autoupdatingCurrent
         case .english: Locale(identifier: "en")
         case .korean: Locale(identifier: "ko")
+        case .japanese: Locale(identifier: "ja")
+        case .chineseSimplified: Locale(identifier: "zh-Hans")
         }
     }
 
@@ -94,7 +100,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch language {
         case .system:
             defaults.removeObject(forKey: appleLanguagesKey)
-        case .english, .korean:
+        case .english, .korean, .japanese, .chineseSimplified:
             defaults.set([language.rawValue], forKey: appleLanguagesKey)
         }
     }
