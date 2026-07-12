@@ -337,6 +337,34 @@
         }
       }
     },
+    "Change Sync Folder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Sync Folder"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동기화 폴더 변경"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同期フォルダを変更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改同步文件夹"
+          }
+        }
+      }
+    },
     "Choose Sync Folder": {
       "localizations": {
         "en": {

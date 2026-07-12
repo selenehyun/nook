@@ -253,6 +253,14 @@ private struct Sidebar: View {
                     .disabled(store.feeds.isEmpty)
                     Divider()
                     Button {
+                        chooseFolder()
+                    } label: {
+                        Label(
+                            store.isStorageConfigured ? "Change Sync Folder" : "Choose Sync Folder",
+                            systemImage: store.isStorageConfigured ? "checkmark.icloud" : "icloud"
+                        )
+                    }
+                    Button {
                         isShowingSettings = true
                     } label: {
                         Label("Settings", systemImage: "gearshape")
@@ -263,19 +271,20 @@ private struct Sidebar: View {
             }
         }
         .refreshable { await store.refreshAllAndWait() }
+        // Only prompt for a folder while none is set (first run). Once storage
+        // is configured this goes away instead of sitting at the bottom.
         .safeAreaInset(edge: .bottom) {
-            Button {
-                chooseFolder()
-            } label: {
-                Label(
-                    store.isStorageConfigured ? "Sync Folder" : "Choose Sync Folder",
-                    systemImage: store.isStorageConfigured ? "checkmark.icloud" : "icloud"
-                )
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+            if !store.isStorageConfigured {
+                Button {
+                    chooseFolder()
+                } label: {
+                    Label("Choose Sync Folder", systemImage: "icloud")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
             }
-            .buttonStyle(.bordered)
-            .padding()
         }
         .alert(
             "Rename Folder",
