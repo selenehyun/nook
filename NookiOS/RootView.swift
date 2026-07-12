@@ -98,6 +98,14 @@ struct RootView: View {
     }
 }
 
+/// A selectable sidebar entry. Binding the List selection to this (rather than
+/// using plain buttons) is what lets a collapsed NavigationSplitView push to the
+/// article-list column when a row is tapped on iPhone.
+enum SidebarItem: Hashable {
+    case smart(SmartSource)
+    case feed(Feed.ID)
+}
+
 private struct Sidebar: View {
     @Bindable var store: ReaderStore
     @Binding var isChoosingFolder: Bool
@@ -107,23 +115,21 @@ private struct Sidebar: View {
     @Binding var isCreatingFolder: Bool
     @Binding var isShowingSettings: Bool
 
+    @State private var selection: SidebarItem?
+
     var body: some View {
-        List {
+        List(selection: $selection) {
             Section("Library") {
                 ForEach(SmartSource.allCases) { source in
-                    Button {
-                        store.selectSmartSource(source)
-                    } label: {
-                        HStack {
-                            Label(source.title, systemImage: source.systemImage)
-                            Spacer()
-                            let count = store.count(for: source)
-                            if count > 0 {
-                                Text(count, format: .number).foregroundStyle(.secondary)
-                            }
+                    HStack {
+                        Label(source.title, systemImage: source.systemImage)
+                        Spacer()
+                        let count = store.count(for: source)
+                        if count > 0 {
+                            Text(count, format: .number).foregroundStyle(.secondary)
                         }
                     }
-                    .tint(.primary)
+                    .tag(SidebarItem.smart(source))
                 }
             }
 
@@ -147,6 +153,17 @@ private struct Sidebar: View {
                         }
                     }
                 }
+            }
+        }
+        .onChange(of: selection) { _, item in
+            switch item {
+            case .smart(let source):
+                store.selectSmartSource(source)
+            case .feed(let id):
+                store.feedSelection = [id]
+                store.smartSelection = nil
+            case nil:
+                break
             }
         }
         .navigationTitle("Nook")
@@ -211,25 +228,20 @@ private struct Sidebar: View {
     }
 
     private func feedRow(_ feed: Feed) -> some View {
-        Button {
-            store.feedSelection = [feed.id]
-            store.smartSelection = nil
-        } label: {
-            HStack {
-                if let icon = store.faviconImage(for: feed) {
-                    icon.resizable().frame(width: 18, height: 18).clipShape(RoundedRectangle(cornerRadius: 4))
-                } else {
-                    Image(systemName: feed.systemImage)
-                }
-                Text(feed.title).lineLimit(1)
-                Spacer()
-                let count = store.unreadCount(feedID: feed.id)
-                if count > 0 {
-                    Text(count, format: .number).font(.caption).foregroundStyle(.secondary)
-                }
+        HStack {
+            if let icon = store.faviconImage(for: feed) {
+                icon.resizable().frame(width: 18, height: 18).clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                Image(systemName: feed.systemImage)
+            }
+            Text(feed.title).lineLimit(1)
+            Spacer()
+            let count = store.unreadCount(feedID: feed.id)
+            if count > 0 {
+                Text(count, format: .number).font(.caption).foregroundStyle(.secondary)
             }
         }
-        .tint(.primary)
+        .tag(SidebarItem.feed(feed.id))
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 store.removeFeeds(ids: [feed.id])
