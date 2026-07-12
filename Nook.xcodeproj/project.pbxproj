@@ -22,6 +22,8 @@
 		2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAAAAAA000000000000D001 /* UpdateController.swift */; };
 		2D105000000000000000000B /* NookiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000A /* NookiOSApp.swift */; };
 		2D105000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000C /* RootView.swift */; };
+		2D1051D56BA256E9CE91844B /* OPMLImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1051ED74D34D74A3BEBC6C /* OPMLImportView.swift */; };
+		2D1051F8859EA4B314398BBA /* AddFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1051B318278E8EC498651C /* AddFeedView.swift */; };
 		2D1051CD906D767ED4F5EA6C /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D10517EDF4172A50DC4DC2C /* ReaderView.swift */; };
 		2D105000000000000000000F /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2D105000000000000000000E /* NookKit */; };
 /* End PBXBuildFile section */
@@ -68,6 +70,8 @@
 		2D1050000000000000000002 /* NookiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NookiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D105000000000000000000A /* NookiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NookiOSApp.swift; sourceTree = "<group>"; };
 		2D105000000000000000000C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2D1051ED74D34D74A3BEBC6C /* OPMLImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OPMLImportView.swift; sourceTree = "<group>"; };
+		2D1051B318278E8EC498651C /* AddFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFeedView.swift; sourceTree = "<group>"; };
 		2D10517EDF4172A50DC4DC2C /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -141,6 +145,8 @@
 			children = (
 				2D105000000000000000000A /* NookiOSApp.swift */,
 				2D105000000000000000000C /* RootView.swift */,
+				2D1051ED74D34D74A3BEBC6C /* OPMLImportView.swift */,
+				2D1051B318278E8EC498651C /* AddFeedView.swift */,
 				2D10517EDF4172A50DC4DC2C /* ReaderView.swift */,
 			);
 			path = NookiOS;
@@ -341,6 +347,8 @@
 			files = (
 				2D105000000000000000000B /* NookiOSApp.swift in Sources */,
 				2D105000000000000000000D /* RootView.swift in Sources */,
+				2D1051D56BA256E9CE91844B /* OPMLImportView.swift in Sources */,
+				2D1051F8859EA4B314398BBA /* AddFeedView.swift in Sources */,
 				2D1051CD906D767ED4F5EA6C /* ReaderView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
