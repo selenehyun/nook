@@ -24,10 +24,11 @@ final class ReaderHaptics {
         try? engine?.start()
     }
 
-    /// A crisp pulse for toggling the star (firmer when starring).
+    /// A strong pulse for toggling the star (firmer when starring).
     func star(on: Bool) {
-        let generator = UIImpactFeedbackGenerator(style: on ? .rigid : .soft)
-        generator.impactOccurred(intensity: on ? 1.0 : 0.7)
+        let generator = UIImpactFeedbackGenerator(style: .heavy)
+        generator.prepare()
+        generator.impactOccurred(intensity: on ? 1.0 : 0.85)
     }
 
     /// Starts the long-press build-up pattern.
@@ -37,40 +38,40 @@ final class ReaderHaptics {
 
         var events: [CHHapticEvent] = []
 
-        // A soft continuous rumble swelling underneath the taps.
+        // A continuous rumble swelling underneath the taps.
         events.append(CHHapticEvent(
             eventType: .hapticContinuous,
             parameters: [
-                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.28),
-                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.2),
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.55),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.3),
             ],
             relativeTime: 0,
             duration: Self.buildupDuration - 0.05
         ))
 
-        // Tiny taps, sparse at first then quickening and intensifying (ease-in).
-        let taps = 6
+        // Taps, sparse at first then quickening and intensifying (ease-in).
+        let taps = 7
         for i in 0..<taps {
             let progress = Double(i) / Double(taps)
             let time = pow(progress, 1.6) * (Self.buildupDuration - 0.05)
-            let intensity = Float(0.22 + 0.4 * progress)
+            let intensity = Float(0.5 + 0.5 * progress)
             events.append(CHHapticEvent(
                 eventType: .hapticTransient,
                 parameters: [
                     CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
-                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.6),
                 ],
                 relativeTime: time
             ))
         }
 
-        // The final deep, slightly stronger pulse (low sharpness reads as a
-        // soft, uncanny "thud" rather than a click).
+        // The final deep, strong pulse (low sharpness reads as a heavy "thud"
+        // rather than a click).
         events.append(CHHapticEvent(
             eventType: .hapticTransient,
             parameters: [
                 CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0),
-                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.35),
+                CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.45),
             ],
             relativeTime: Self.buildupDuration - 0.02
         ))
