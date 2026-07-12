@@ -46,9 +46,15 @@ struct RootView: View {
             }
             store.showsUnreadBadge = showUnreadBadge
             store.bootstrap()
-            try? await UNUserNotificationCenter.current().requestAuthorization(options: [.badge])
+            // Only ask for the badge permission when the feature is actually on.
+            if showUnreadBadge { await requestBadgeAuthorizationIfNeeded() }
         }
-        .onChange(of: showUnreadBadge) { _, newValue in store.showsUnreadBadge = newValue }
+        .onChange(of: showUnreadBadge) { _, newValue in
+            store.showsUnreadBadge = newValue
+            if newValue {
+                Task { await requestBadgeAuthorizationIfNeeded() }
+            }
+        }
         .fileImporter(
             isPresented: $isImporting,
             allowedContentTypes: importKind == .folder ? [.folder] : [.opml, .xml],
@@ -111,6 +117,15 @@ struct RootView: View {
         } message: { message in
             Text(message)
         }
+    }
+
+    /// Requests badge authorization only the first time it's needed. If the user
+    /// has already granted or denied it, this does nothing (no repeat prompt).
+    private func requestBadgeAuthorizationIfNeeded() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        _ = try? await center.requestAuthorization(options: [.badge])
     }
 }
 
