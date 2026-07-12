@@ -466,6 +466,36 @@ public final class ReaderStore {
         }
     }
 
+    /// Result of a background refresh: how many genuinely new (previously
+    /// unseen, unread) articles arrived, and a few of their titles for a
+    /// notification.
+    public struct BackgroundRefreshResult: Sendable {
+        public let newArticleCount: Int
+        public let sampleTitles: [String]
+    }
+
+    /// Refreshes all feeds from a background launch and reports newly-arrived
+    /// unread articles. Loads the library first if the process is fresh, and
+    /// writes it synchronously so the result is saved before the OS suspends
+    /// the app again.
+    public func refreshForBackground() async -> BackgroundRefreshResult {
+        if !didBootstrap { bootstrap() }
+        guard isStorageConfigured, !feeds.isEmpty else {
+            return BackgroundRefreshResult(newArticleCount: 0, sampleTitles: [])
+        }
+
+        let knownIDs = Set(articles.map(\.id))
+        await refreshAllFeeds()
+        try? persistLibrary()
+
+        let fresh = articles.filter { !knownIDs.contains($0.id) && !$0.isRead }
+        let sorted = fresh.sorted { $0.publishedAt > $1.publishedAt }
+        return BackgroundRefreshResult(
+            newArticleCount: fresh.count,
+            sampleTitles: sorted.prefix(3).map(\.title)
+        )
+    }
+
     /// Parses an OPML file into feed candidates for the import preview. Returns
     /// an empty array (and sets `errorMessage`) on failure.
     public func parseOPML(at fileURL: URL) -> [OPMLFeed] {

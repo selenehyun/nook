@@ -29,6 +29,34 @@
         }
       }
     },
+    "%lld new articles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld new articles"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 글 %lld개"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新着 %lld 件"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 篇新文章"
+          }
+        }
+      }
+    },
     "About": {
       "localizations": {
         "en": {
@@ -1457,6 +1485,34 @@
         }
       }
     },
+    "New in Nook": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New in Nook"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook 새 글"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook の新着"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook 新文章"
+          }
+        }
+      }
+    },
     "No Articles": {
       "localizations": {
         "en": {
@@ -1641,6 +1697,34 @@
         }
       }
     },
+    "Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook이 백그라운드에서 새 글을 확인하고 도착하면 알림을 보냅니다. 실행 시점은 iOS가 정하므로 시간은 대략적입니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook がバックグラウンドで新着記事を確認し、届いたら通知します。実行タイミングは iOS が決めるため、時間は目安です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook 会在后台检查新文章并在有更新时发送通知。具体运行时间由 iOS 决定，因此时间为大致值。"
+          }
+        }
+      }
+    },
     "Nook keeps your feeds in a folder in the cloud so they stay in sync across your devices.": {
       "localizations": {
         "en": {
@@ -1693,6 +1777,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "未选择"
+          }
+        }
+      }
+    },
+    "Notify me about new articles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notify me about new articles"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 글 알림 받기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新着記事を通知"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新文章通知"
           }
         }
       }

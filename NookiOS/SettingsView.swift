@@ -173,6 +173,7 @@ private struct FeedsSettingsScreen: View {
     @Bindable var store: ReaderStore
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
+    @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
     private var sortedFeeds: [Feed] {
@@ -185,6 +186,12 @@ private struct FeedsSettingsScreen: View {
                 Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
                     .disabled(!autoRefreshEnabled)
+            }
+
+            Section {
+                Toggle("Notify me about new articles", isOn: $newArticleNotifications)
+            } footer: {
+                Text("Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.")
             }
 
             Section {

@@ -17,5 +17,10 @@ struct NookiOSApp: App {
                 // locale (`Text(_, format:)` otherwise follows the environment).
                 .environment(\.locale, AppLanguage.formattingLocale)
         }
+        // iOS wakes the app periodically to fetch feeds and notify about new
+        // articles (when the setting is on).
+        .backgroundTask(.appRefresh(BackgroundRefresh.taskIdentifier)) {
+            await BackgroundRefresh.run()
+        }
     }
 }

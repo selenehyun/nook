@@ -24,6 +24,7 @@ struct RootView: View {
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
     @State private var isReady = false
 
     var body: some View {
@@ -69,22 +70,36 @@ struct RootView: View {
             // then reveal the loaded UI.
             try? await Task.sleep(for: .milliseconds(450))
             withAnimation(.easeOut(duration: 0.35)) { isReady = true }
-            // Only ask for the badge permission when the feature is actually on
-            // (after the UI is shown, so the prompt doesn't cover the splash).
-            if showUnreadBadge { await requestBadgeAuthorizationIfNeeded() }
+            // Ask for notification permission after the UI is shown (so the
+            // prompt doesn't cover the splash), only for the features in use.
+            await requestNotificationAuthorizationIfNeeded()
+            BackgroundRefresh.schedule()
         }
         .onChange(of: showUnreadBadge) { _, newValue in
             store.showsUnreadBadge = newValue
-            if newValue {
-                Task { await requestBadgeAuthorizationIfNeeded() }
+            if newValue { Task { await requestNotificationAuthorizationIfNeeded() } }
+        }
+        .onChange(of: newArticleNotifications) { _, enabled in
+            if enabled {
+                Task { await requestNotificationAuthorizationIfNeeded() }
+                BackgroundRefresh.schedule()
+            } else {
+                BackgroundRefresh.cancel()
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
-            // Returning to the foreground: pull another device's changes from
-            // the sync folder, then refresh feeds over the network.
-            store.syncFromDisk()
-            if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
+            switch phase {
+            case .active:
+                // Returning to the foreground: pull another device's changes
+                // from the sync folder, then refresh feeds over the network.
+                store.syncFromDisk()
+                if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
+            case .background:
+                // Queue the next background refresh as we leave.
+                BackgroundRefresh.schedule()
+            default:
+                break
+            }
         }
         .onOpenURL { url in handleIncomingURL(url) }
         // Mark-read dwell lives here on the always-present root, keyed on the
@@ -169,13 +184,19 @@ struct RootView: View {
         }
     }
 
-    /// Requests badge authorization only the first time it's needed. If the user
-    /// has already granted or denied it, this does nothing (no repeat prompt).
-    private func requestBadgeAuthorizationIfNeeded() async {
+    /// Requests notification authorization for the features that are on — badge
+    /// for the unread count, plus alert/sound for new-article notifications —
+    /// and only when the status is still undetermined (no repeat prompt).
+    private func requestNotificationAuthorizationIfNeeded() async {
+        var options: UNAuthorizationOptions = []
+        if showUnreadBadge { options.insert(.badge) }
+        if newArticleNotifications { options.formUnion([.alert, .sound, .badge]) }
+        guard !options.isEmpty else { return }
+
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
-        _ = try? await center.requestAuthorization(options: [.badge])
+        _ = try? await center.requestAuthorization(options: options)
     }
 
     /// Handles `nook://` deep links. `nook://add-feed?url=<page or feed URL>`
