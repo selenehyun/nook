@@ -14,6 +14,7 @@ struct RootView: View {
     @State private var opmlImport: OPMLImportRequest?
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
+    @State private var isShowingSettings = false
 
     var body: some View {
         NavigationSplitView {
@@ -23,7 +24,8 @@ struct RootView: View {
                 isAddingFeed: $isAddingFeed,
                 isImportingOPML: $isImportingOPML,
                 isExportingOPML: $isExportingOPML,
-                isCreatingFolder: $isCreatingFolder
+                isCreatingFolder: $isCreatingFolder,
+                isShowingSettings: $isShowingSettings
             )
         } content: {
             ArticleList(store: store)
@@ -60,6 +62,9 @@ struct RootView: View {
         }
         .sheet(isPresented: $isAddingFeed) {
             AddFeedView { store.addFeed(urlString: $0) }
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView(store: store)
         }
         .sheet(item: $opmlImport) { request in
             OPMLImportView(
@@ -100,6 +105,7 @@ private struct Sidebar: View {
     @Binding var isImportingOPML: Bool
     @Binding var isExportingOPML: Bool
     @Binding var isCreatingFolder: Bool
+    @Binding var isShowingSettings: Bool
 
     var body: some View {
         List {
@@ -169,6 +175,12 @@ private struct Sidebar: View {
                         Label("Export OPML", systemImage: "square.and.arrow.up")
                     }
                     .disabled(store.feeds.isEmpty)
+                    Divider()
+                    Button {
+                        isShowingSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
