@@ -553,6 +553,7 @@
       }
     },
     "Articles" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1125,6 +1126,7 @@
       }
     },
     "Couldn't add %lld feeds" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "variations" : {

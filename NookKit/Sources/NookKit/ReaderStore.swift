@@ -190,11 +190,11 @@ public final class ReaderStore {
     public var selectedSourceTitle: String {
         if !feedSelection.isEmpty {
             if feedSelection.count == 1, let id = feedSelection.first {
-                return feed(for: id)?.title ?? String(localized: "Feed")
+                return feed(for: id)?.title ?? String(localized: "Feed", bundle: Bundle.module)
             }
-            return String(localized: "\(feedSelection.count) selected")
+            return String(localized: "\(feedSelection.count) selected", bundle: Bundle.module)
         }
-        return smartSelection?.title ?? String(localized: "Articles")
+        return smartSelection?.title ?? String(localized: "Articles", bundle: Bundle.module)
     }
 
     /// The feed IDs currently selected, for batch feed actions.
@@ -698,7 +698,7 @@ public final class ReaderStore {
             }
         }
 
-        errorMessage = failures.isEmpty ? nil : String(localized: "Couldn't add \(failures.count) feeds")
+        errorMessage = failures.isEmpty ? nil : String(localized: "Couldn't add \(failures.count) feeds", bundle: Bundle.module)
         try? persistLibrary()
     }
 
