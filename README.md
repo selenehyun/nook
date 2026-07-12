@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white" alt="macOS 26+" />
   <img src="https://img.shields.io/badge/built%20with-SwiftUI-fa7343?logo=swift&logoColor=white" alt="Built with SwiftUI" />
   <a href="https://github.com/selenehyun/nook/stargazers"><img src="https://img.shields.io/github/stars/selenehyun/nook?style=flat&logo=github&label=stars&color=4c71f2" alt="GitHub stars" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4c71f2" alt="MIT License" /></a>
 </p>
 
 <p align="center">
@@ -128,4 +129,4 @@ The macOS runner archives a universal ad-hoc build, packages a styled DMG, publi
 
 ## License
 
-No open-source license yet — © 2026. All rights reserved. Open an issue if you'd like to use the code.
+[MIT](LICENSE) © 2026 Tim.
