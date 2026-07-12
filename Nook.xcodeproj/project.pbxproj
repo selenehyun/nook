@@ -17,6 +17,7 @@
 		2D0E3A322D8A4A4700A00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D0E3A312D8A4A4700A00001 /* Localizable.xcstrings */; };
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2DA1C0DF2D8A4A4700A00001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */; };
+		2DA1C0DF00000000000000E1 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */; };
 		2DAAAAAA000000000000CAFE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA000000000000BEEF /* Sparkle */; };
 		2DAAAAAA00000000000C0DE3 /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA00000000000C0DE2 /* NookKit */; };
 		2DAAAAAA000000000000D002 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAAAAAA000000000000D001 /* UpdateController.swift */; };
@@ -319,6 +320,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2DA1C0DF00000000000000E1 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -620,6 +622,7 @@
 		2D1050000000000000000004 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -652,6 +655,7 @@
 		2D1050000000000000000005 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

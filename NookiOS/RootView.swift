@@ -1,6 +1,7 @@
 import NookKit
 import SwiftUI
 import UniformTypeIdentifiers
+import UserNotifications
 
 /// The iOS reader UI. Reuses the shared `ReaderStore` from NookKit; only the
 /// presentation differs from the macOS app.
@@ -15,6 +16,7 @@ struct RootView: View {
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var isShowingSettings = false
+    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
 
     var body: some View {
         NavigationSplitView {
@@ -32,7 +34,18 @@ struct RootView: View {
         } detail: {
             ReaderDetailView(store: store)
         }
-        .task { store.bootstrap() }
+        .navigationSplitViewStyle(.balanced)
+        .task {
+            // The store computes the unread count; iOS reflects it on the app
+            // icon badge (requires notification authorization).
+            store.onUnreadBadgeChange = { count in
+                UNUserNotificationCenter.current().setBadgeCount(count)
+            }
+            store.showsUnreadBadge = showUnreadBadge
+            store.bootstrap()
+            try? await UNUserNotificationCenter.current().requestAuthorization(options: [.badge])
+        }
+        .onChange(of: showUnreadBadge) { _, newValue in store.showsUnreadBadge = newValue }
         .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
                 _ = url.startAccessingSecurityScopedResource()
