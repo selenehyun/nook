@@ -315,6 +315,8 @@ private struct Sidebar: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color("ListBackground").ignoresSafeArea())
         .onChange(of: selection) { _, item in
             switch item {
             case .smart(let source):
@@ -535,7 +537,7 @@ private struct ArticleList: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color("ArticleListBackground").ignoresSafeArea())
+        .background(Color("ListBackground").ignoresSafeArea())
         .navigationTitle(store.selectedSourceTitle)
         .searchable(text: $store.searchText, prompt: "Search Articles")
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
