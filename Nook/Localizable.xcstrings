@@ -141,6 +141,9 @@
         }
       }
     },
+    "%lld new articles" : {
+
+    },
     "%lld selected" : {
       "localizations" : {
         "en" : {
@@ -2445,6 +2448,9 @@
         }
       }
     },
+    "New in Nook" : {
+
+    },
     "New Version Available" : {
       "localizations" : {
         "ja" : {
@@ -2892,6 +2898,9 @@
           }
         }
       }
+    },
+    "Notify me about new articles" : {
+
     },
     "Open Article" : {
       "localizations" : {
