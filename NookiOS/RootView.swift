@@ -66,9 +66,9 @@ struct RootView: View {
             // Warm up WebKit so the first article web view opens without the
             // ~2-3s cold-start delay.
             WebViewWarmer.warmUp()
-            // Hold the splash just long enough to read as a deliberate launch,
-            // then reveal the loaded UI.
-            try? await Task.sleep(for: .milliseconds(450))
+            // Keep the splash up while the nest assembly animation plays, then
+            // reveal the loaded UI.
+            try? await Task.sleep(for: .milliseconds(1500))
             withAnimation(.easeOut(duration: 0.35)) { isReady = true }
             // Ask for notification permission after the UI is shown (so the
             // prompt doesn't cover the splash), only for the features in use.
@@ -213,44 +213,24 @@ struct RootView: View {
     }
 }
 
-/// The launch/loading screen. Its base frame — the `LaunchBackground` color
-/// with the `LaunchLogo` centered at the same 84pt size — is pixel-identical to
-/// the OS launch screen (see `UILaunchScreen` in Info.plist), so the hand-off
-/// from the launch screen to SwiftUI is seamless. Because a launch screen can't
-/// show a spinner, the loading indicator fades in below afterward without
-/// moving the logo.
+/// The launch/loading screen. The OS launch screen is a static `LaunchBackground`
+/// (cream) — the same color used here — so the hand-off is seamless; then the
+/// icon's twig layers drop in from above under gravity and assemble into the
+/// nest, matching the app icon.
 struct SplashView: View {
-    /// Must match the launch storyboard's image-view size (96×96) so the OS
-    /// launch screen and this splash show the logo at the exact same size.
-    private static let logoSize: CGFloat = 96
-
-    @State private var showLoading = false
+    @State private var assembled = false
 
     var body: some View {
         ZStack {
             Color("LaunchBackground")
-            Image("LaunchLogo")
-                .resizable()
-                .interpolation(.high)
-                .frame(width: Self.logoSize, height: Self.logoSize)
-        }
-        .ignoresSafeArea()
-        .overlay(alignment: .bottom) {
-            VStack(spacing: 10) {
-                ProgressView()
-                Text("Loading your feeds…")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.bottom, 72)
-            .opacity(showLoading ? 1 : 0)
-            .animation(.easeIn(duration: 0.25), value: showLoading)
+                .ignoresSafeArea()
+            NestAssemblyView(size: 150, assembled: assembled)
         }
         .task {
-            // Reveal the loading hint a beat after the (identical) base frame,
-            // so the launch → splash transition shows no change.
-            try? await Task.sleep(for: .milliseconds(250))
-            showLoading = true
+            // Let the static launch background settle for a beat, then drop the
+            // twigs in.
+            try? await Task.sleep(for: .milliseconds(120))
+            assembled = true
         }
     }
 }

@@ -18,6 +18,7 @@
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2D105000000000000000000B /* NookiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000A /* NookiOSApp.swift */; };
 		2D105000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000C /* RootView.swift */; };
+		2D1051B3D4ED510450813042 /* NestSplash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1051A555AB617CB74DE7F6 /* NestSplash.swift */; };
 		2D10551F8EBEE1DB9668FE73 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2D10550B0EFDC776DFA2A5D1 /* LaunchScreen.storyboard */; };
 		2D10544597693E9EBB8A7A62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D10545C5225873E388FAABE /* Assets.xcassets */; };
 		2D105000000000000000000F /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2D105000000000000000000E /* NookKit */; };
@@ -75,6 +76,7 @@
 		2D1050000000000000000002 /* NookiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NookiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D105000000000000000000A /* NookiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NookiOSApp.swift; sourceTree = "<group>"; };
 		2D105000000000000000000C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2D1051A555AB617CB74DE7F6 /* NestSplash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NestSplash.swift; sourceTree = "<group>"; };
 		2D10550B0EFDC776DFA2A5D1 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		2D10545C5225873E388FAABE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D105108612B054201B57E97 /* BackgroundRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefresh.swift; sourceTree = "<group>"; };
@@ -202,6 +204,7 @@
 			children = (
 				2D105000000000000000000A /* NookiOSApp.swift */,
 				2D105000000000000000000C /* RootView.swift */,
+				2D1051A555AB617CB74DE7F6 /* NestSplash.swift */,
 				2D10550B0EFDC776DFA2A5D1 /* LaunchScreen.storyboard */,
 				2D10545C5225873E388FAABE /* Assets.xcassets */,
 				2D105108612B054201B57E97 /* BackgroundRefresh.swift */,
@@ -421,6 +424,7 @@
 			files = (
 				2D105000000000000000000B /* NookiOSApp.swift in Sources */,
 				2D105000000000000000000D /* RootView.swift in Sources */,
+				2D1051B3D4ED510450813042 /* NestSplash.swift in Sources */,
 				2D1051C7E6525A9C376F8FA4 /* BackgroundRefresh.swift in Sources */,
 				2D1051A8D42008A8673C6254 /* HapticEngine.swift in Sources */,
 				2D1051C92BFB2ED86FAF4C51 /* SettingsView.swift in Sources */,
