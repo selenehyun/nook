@@ -184,19 +184,21 @@ struct RootView: View {
         }
     }
 
-    /// Requests notification authorization for the features that are on — badge
-    /// for the unread count, plus alert/sound for new-article notifications —
-    /// and only when the status is still undetermined (no repeat prompt).
+    /// Requests notification authorization once, for either notification feature —
+    /// the unread badge or new-article alerts.
+    ///
+    /// iOS shows the permission prompt only the first time, so we request the full
+    /// set both features need (`alert`, `sound`, `badge`) up front. Requesting just
+    /// `.badge` first (the badge is on by default) would spend the one-time prompt
+    /// and permanently foreclose alerts — so later enabling new-article
+    /// notifications could never get banner/sound authorization.
     private func requestNotificationAuthorizationIfNeeded() async {
-        var options: UNAuthorizationOptions = []
-        if showUnreadBadge { options.insert(.badge) }
-        if newArticleNotifications { options.formUnion([.alert, .sound, .badge]) }
-        guard !options.isEmpty else { return }
+        guard showUnreadBadge || newArticleNotifications else { return }
 
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
-        _ = try? await center.requestAuthorization(options: options)
+        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
     }
 
     /// Handles `nook://` deep links. `nook://add-feed?url=<page or feed URL>`
