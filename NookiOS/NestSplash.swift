@@ -50,7 +50,10 @@ struct NestAssemblyView: View {
             Color.clear.frame(width: size, height: size)
 
             ForEach(Self.twigs) { twig in
-                twigBody(twig, k: k)
+                RoundedRectangle(cornerRadius: twig.rx * k, style: .continuous)
+                    .fill(twig.color)
+                    .opacity(0.8)
+                    .frame(width: twig.w * k, height: twig.h * k)
                     .rotationEffect(.degrees(twig.rotation), anchor: .topLeading)
                     // Start well above the screen; drop to the resting spot.
                     .offset(
@@ -65,23 +68,6 @@ struct NestAssemblyView: View {
             }
         }
         .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-    }
-
-    /// One twig. On iOS 26 it's rendered as tinted Liquid Glass to match the
-    /// app icon's glassy layers; earlier OSes fall back to a solid fill.
-    @ViewBuilder
-    private func twigBody(_ twig: Twig, k: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: twig.rx * k, style: .continuous)
-        if #available(iOS 26.0, *) {
-            Color.clear
-                .frame(width: twig.w * k, height: twig.h * k)
-                .glassEffect(.regular.tint(twig.color), in: shape)
-        } else {
-            shape
-                .fill(twig.color)
-                .opacity(0.8)
-                .frame(width: twig.w * k, height: twig.h * k)
-        }
     }
 
     /// Roughly how long the full drop-and-settle takes.
