@@ -102,6 +102,13 @@ public struct ReaderStorage: Sendable {
         modificationDate(of: libraryURL)
     }
 
+    /// The state directory's last-modified date, which bumps whenever a shard
+    /// file is added or replaced (including a peer's shard arriving via iCloud).
+    /// Used to cheaply suppress reacting to this device's own shard writes.
+    public var stateDirectoryModificationDate: Date? {
+        modificationDate(of: stateDirectoryURL)
+    }
+
     public func load() throws -> ReaderLibrary? {
         guard FileManager.default.fileExists(atPath: libraryURL.path(percentEncoded: false)) else {
             return nil

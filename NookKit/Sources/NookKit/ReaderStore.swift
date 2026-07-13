@@ -61,10 +61,12 @@ public final class ReaderStore {
     private var storage: ReaderStorage?
     private var securityScopedDirectoryURL: URL?
 
-    // Live cross-device sync: watch the library file for external (iCloud)
-    // changes and reload, ignoring the app's own writes by modification date.
-    private var libraryObserver: LibraryFileObserver?
+    // Live cross-device sync: watch the content baseline and the state-shard
+    // directory for external (iCloud) changes and re-merge, ignoring the app's
+    // own writes by comparing modification dates.
+    private var fileObservers: [LibraryFileObserver] = []
     private var lastKnownLibraryModDate: Date?
+    private var lastKnownStateModDate: Date?
     private var externalReloadTask: Task<Void, Never>?
 
     // Coalesced background persistence: the latest snapshot waiting to be
@@ -264,6 +266,7 @@ public final class ReaderStore {
             errorMessage = nil
             pruneSelectionIfHidden()
             lastKnownLibraryModDate = storage.libraryModificationDate
+            lastKnownStateModDate = storage.stateDirectoryModificationDate
             startObservingLibrary()
         } catch {
             errorMessage = error.localizedDescription
@@ -278,22 +281,53 @@ public final class ReaderStore {
     private func startObservingLibrary() {
         guard let storage else { return }
         storage.startDownloadingLibraryIfNeeded()
+        storage.startDownloadingStateIfNeeded()
 
-        libraryObserver?.stop()
-        let fileURL = storage.libraryURL
-        libraryObserver = LibraryFileObserver(fileURL: fileURL) { [weak self] in
+        stopObservingLibrary()
+        let onChange: @Sendable () -> Void = { [weak self] in
             Task { @MainActor in self?.scheduleExternalReload() }
         }
+        // Watch both the content baseline and every peer's state shard.
+        fileObservers = [
+            LibraryFileObserver(fileURL: storage.libraryURL, onChange: onChange),
+            LibraryFileObserver(fileURL: storage.stateDirectoryURL, onChange: onChange),
+        ]
     }
 
-    /// Coalesces a burst of file-change notifications into a single reload.
+    private func stopObservingLibrary() {
+        for observer in fileObservers { observer.stop() }
+        fileObservers.removeAll()
+    }
+
+    /// Coalesces a burst of file-change notifications into a single re-merge,
+    /// skipping this device's own writes by comparing modification dates. Fires
+    /// for both baseline and shard changes, so a read on another device shows up
+    /// live without a relaunch.
     private func scheduleExternalReload() {
         externalReloadTask?.cancel()
         externalReloadTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            self?.reloadFromDiskIfChanged()
+            guard !Task.isCancelled, let self, let storage = self.storage, !self.isRefreshing else { return }
+
+            let baselineDate = storage.libraryModificationDate
+            let stateDate = storage.stateDirectoryModificationDate
+            guard Self.isNewer(baselineDate, than: self.lastKnownLibraryModDate)
+                || Self.isNewer(stateDate, than: self.lastKnownStateModDate) else {
+                return
+            }
+
+            self.reloadMerged()
+            self.lastKnownLibraryModDate = baselineDate
+            self.lastKnownStateModDate = stateDate
         }
+    }
+
+    /// Whether `date` is strictly newer than the last one we recorded — treating
+    /// "no recorded date yet" as a change and "item gone" as no change.
+    private static func isNewer(_ date: Date?, than known: Date?) -> Bool {
+        guard let date else { return false }
+        guard let known else { return true }
+        return date > known
     }
 
     /// Restores this device's shard (its clock and authored registers) from disk,
@@ -366,6 +400,7 @@ public final class ReaderStore {
         }
         reloadMerged()
         lastKnownLibraryModDate = storage.libraryModificationDate
+        lastKnownStateModDate = storage.stateDirectoryModificationDate
     }
 
     /// Pulls the latest baseline and every peer's shard from iCloud and re-merges.
@@ -378,6 +413,7 @@ public final class ReaderStore {
         storage.startDownloadingStateIfNeeded()
         reloadMerged()
         lastKnownLibraryModDate = storage.libraryModificationDate
+        lastKnownStateModDate = storage.stateDirectoryModificationDate
     }
 
     public func feed(for feedID: Feed.ID) -> Feed? {
@@ -880,6 +916,7 @@ public final class ReaderStore {
                 mergeShardsAndApply(base: base, storage: storage)
             }
             lastKnownLibraryModDate = storage.libraryModificationDate
+            lastKnownStateModDate = storage.stateDirectoryModificationDate
             startObservingLibrary()
         } catch {
             errorMessage = error.localizedDescription
@@ -1250,9 +1287,13 @@ public final class ReaderStore {
     private func drainShardSaves(storage: ReaderStorage) async {
         while let shard = pendingShard {
             pendingShard = nil
-            await Task.detached(priority: .utility) {
+            let modDate = await Task.detached(priority: .utility) { () -> Date? in
                 try? storage.saveShard(shard)
+                return storage.stateDirectoryModificationDate
             }.value
+            // Record our own write so the directory observer doesn't treat it as
+            // an external (another-device) change and re-merge it back.
+            lastKnownStateModDate = modDate
         }
         isDrainingShardSaves = false
     }

@@ -1,13 +1,18 @@
 import Foundation
 
-/// Watches the library file for external changes — chiefly iCloud syncing
-/// another device's edits — and invokes `onChange` when the file's content may
-/// have changed. Registered as an `NSFilePresenter` so the system delivers
-/// change notifications as soon as iCloud updates the file on disk, instead of
-/// the app only finding out on next launch.
+/// Watches a file *or a directory* for external changes — chiefly iCloud syncing
+/// another device's edits — and invokes `onChange` when the watched item's
+/// content may have changed. Registered as an `NSFilePresenter` so the system
+/// delivers change notifications as soon as iCloud updates the item on disk,
+/// instead of the app only finding out on next launch.
+///
+/// Nook watches two items: the `NookLibrary.json` content baseline and the
+/// `.nook/state` directory of per-device shards. For the directory, the system
+/// reports child changes via the `presentedSubitem…` callbacks; for a file, the
+/// `presentedItem…` callbacks fire. All of them funnel into `onChange`.
 ///
 /// `onChange` can fire for the app's own writes too; the store guards against
-/// that by comparing the file's modification date before reloading.
+/// that by comparing modification dates before reloading.
 final class LibraryFileObserver: NSObject, NSFilePresenter, @unchecked Sendable {
     let presentedItemURL: URL?
     let presentedItemOperationQueue: OperationQueue
@@ -34,6 +39,16 @@ final class LibraryFileObserver: NSObject, NSFilePresenter, @unchecked Sendable 
 
     // iCloud resolved to a newer version of the item.
     func presentedItemDidGain(_ version: NSFileVersion) {
+        onChange()
+    }
+
+    // A child of the watched directory changed (a peer's shard was written).
+    func presentedSubitemDidChange(at url: URL) {
+        onChange()
+    }
+
+    // A new child appeared in the watched directory (a new device's shard).
+    func presentedSubitemDidAppear(at url: URL) {
         onChange()
     }
 }
