@@ -574,7 +574,7 @@ private struct ArticleList: View {
             HStack(spacing: 6) {
                 Text(store.feed(for: article.feedID)?.title ?? "")
                 Text("·")
-                Text(article.publishedAt, format: .relative(presentation: .named))
+                RelativeTimeText(article.publishedAt)
             }
             .font(.caption)
             .foregroundStyle(.tertiary)

@@ -1081,7 +1081,7 @@ private struct ArticleRow: View {
                 HStack(spacing: 6) {
                     Text(feed?.title ?? String(localized: "Unknown Feed"))
                     Text("·")
-                    Text(article.publishedAt, format: .relative(presentation: .named))
+                    RelativeTimeText(article.publishedAt)
                     Text("·")
                     Text("\(article.estimatedReadMinutes) min")
                 }
