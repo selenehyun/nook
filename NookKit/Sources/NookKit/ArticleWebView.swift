@@ -367,7 +367,7 @@ extension ArticleWebView {
         /// the thresholds stay reachable). (iOS gets this for free from the
         /// scroll view's native bounce; macOS accumulates raw wheel deltas, so it
         /// needs the curve applied explicitly.)
-        static func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 800) -> CGFloat {
+        static func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 700) -> CGFloat {
             guard distance > 0 else { return 0 }
             return limit * distance / (distance + softness)
         }
