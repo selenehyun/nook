@@ -37,16 +37,16 @@
             "value": "%lld new articles"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 글 %lld개"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "新着 %lld 件"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 글 %lld개"
           }
         },
         "zh-Hans": {
@@ -729,6 +729,34 @@
         }
       }
     },
+    "Enter a new name, or leave empty to use the feed's own name.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a new name, or leave empty to use the feed's own name."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 이름을 입력하세요. 비워 두면 피드 본래 이름을 사용합니다."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい名前を入力してください。空欄にするとフィード本来の名前を使います。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入新名称；留空则使用订阅源自带的名称。"
+          }
+        }
+      }
+    },
     "Export OPML": {
       "localizations": {
         "en": {
@@ -781,6 +809,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "订阅源"
+          }
+        }
+      }
+    },
+    "Feed Name": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feed Name"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드 이름"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィード名"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "订阅源名称"
           }
         }
       }
@@ -1213,16 +1269,16 @@
             "value": "Loading your feeds…"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드를 불러오는 중…"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フィードを読み込み中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드를 불러오는 중…"
           }
         },
         "zh-Hans": {
@@ -1493,16 +1549,16 @@
             "value": "New in Nook"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook 새 글"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Nook の新着"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook 새 글"
           }
         },
         "zh-Hans": {
@@ -1705,16 +1761,16 @@
             "value": "Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nook이 백그라운드에서 새 글을 확인하고 도착하면 알림을 보냅니다. 실행 시점은 iOS가 정하므로 시간은 대략적입니다."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Nook がバックグラウンドで新着記事を確認し、届いたら通知します。実行タイミングは iOS が決めるため、時間は目安です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook이 백그라운드에서 새 글을 확인하고 도착하면 알림을 보냅니다. 실행 시점은 iOS가 정하므로 시간은 대략적입니다."
           }
         },
         "zh-Hans": {
@@ -1789,16 +1845,16 @@
             "value": "Notify me about new articles"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 글 알림 받기"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "新着記事を通知"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 글 알림 받기"
           }
         },
         "zh-Hans": {
@@ -2341,6 +2397,34 @@
         }
       }
     },
+    "Rename Feed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Feed"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드 이름 변경"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィード名を変更"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名订阅源"
+          }
+        }
+      }
+    },
     "Rename Folder": {
       "localizations": {
         "en": {
@@ -2601,16 +2685,16 @@
             "value": "Show Original"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "원문 보기"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "原文を表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원문 보기"
           }
         },
         "zh-Hans": {
@@ -2938,16 +3022,16 @@
             "value": "Translated by Apple Intelligence"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple Intelligence로 번역됨"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Apple Intelligence による翻訳"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence로 번역됨"
           }
         },
         "zh-Hans": {
@@ -2966,16 +3050,16 @@
             "value": "Translating with Apple Intelligence…"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple Intelligence로 번역 중…"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Apple Intelligence で翻訳中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Intelligence로 번역 중…"
           }
         },
         "zh-Hans": {
@@ -2994,16 +3078,16 @@
             "value": "Translating…"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "번역 중…"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "翻訳中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "번역 중…"
           }
         },
         "zh-Hans": {
