@@ -286,6 +286,9 @@ private struct Sidebar: View {
                     .tag(SidebarItem.smart(source))
                 }
             }
+            // Transparent rows so the warm list background shows instead of the
+            // default white/dark grouped card fill.
+            .listRowBackground(Color.clear)
 
             if !store.feedFolders.isEmpty || !store.ungroupedFeeds.isEmpty {
                 Section("Feeds") {
@@ -313,6 +316,7 @@ private struct Sidebar: View {
                         }
                     }
                 }
+                .listRowBackground(Color.clear)
             }
         }
         .scrollContentBackground(.hidden)
