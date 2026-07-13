@@ -737,16 +737,16 @@
             "value": "Enter a new name, or leave empty to use the feed's own name."
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 이름을 입력하세요. 비워 두면 피드 본래 이름을 사용합니다."
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "新しい名前を入力してください。空欄にするとフィード本来の名前を使います。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 이름을 입력하세요. 비워 두면 피드 본래 이름을 사용합니다."
           }
         },
         "zh-Hans": {
@@ -821,16 +821,16 @@
             "value": "Feed Name"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 이름"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フィード名"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드 이름"
           }
         },
         "zh-Hans": {
@@ -1262,6 +1262,7 @@
       }
     },
     "Loading your feeds…": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1837,6 +1838,34 @@
         }
       }
     },
+    "Notification banners are turned off for Nook, so new-article alerts won't appear. Enable them in Settings › Nook › Notifications.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification banners are turned off for Nook, so new-article alerts won't appear. Enable them in Settings › Nook › Notifications."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook의 알림 배너가 꺼져 있어 새 글 알림이 표시되지 않습니다. 설정 › Nook › 알림에서 켜세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook の通知バナーがオフのため、新着記事の通知が表示されません。設定 › Nook › 通知 でオンにしてください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nook 的通知横幅已关闭，新文章提醒将不会显示。请在“设置 › Nook › 通知”中开启。"
+          }
+        }
+      }
+    },
     "Notify me about new articles": {
       "localizations": {
         "en": {
@@ -2405,16 +2434,16 @@
             "value": "Rename Feed"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피드 이름 변경"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "フィード名を変更"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드 이름 변경"
           }
         },
         "zh-Hans": {
@@ -3094,6 +3123,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "翻译中…"
+          }
+        }
+      }
+    },
+    "Turn on notifications in Settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on notifications in Settings"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정에서 알림 켜기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定で通知をオンにする"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在设置中开启通知"
           }
         }
       }

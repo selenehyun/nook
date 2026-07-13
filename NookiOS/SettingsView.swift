@@ -1,5 +1,7 @@
 import NookKit
 import SwiftUI
+import UIKit
+import UserNotifications
 
 /// iOS settings. Mirrors the macOS Settings tabs (General, Reading, Reader,
 /// Feeds, About) as a navigation drill-down — the idiomatic iOS equivalent of
@@ -171,10 +173,15 @@ private struct ReaderSettingsScreen: View {
 
 private struct FeedsSettingsScreen: View {
     @Bindable var store: ReaderStore
+    @Environment(\.openURL) private var openURL
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
+    /// True when notifications are on but iOS won't actually show alert banners
+    /// (denied, or authorized for badge only) — the usual reason "notifications
+    /// don't arrive."
+    @State private var alertsBlocked = false
 
     private var sortedFeeds: [Feed] {
         store.feeds.sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
@@ -190,8 +197,22 @@ private struct FeedsSettingsScreen: View {
 
             Section {
                 Toggle("Notify me about new articles", isOn: $newArticleNotifications)
+                if newArticleNotifications && alertsBlocked {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            openURL(url)
+                        }
+                    } label: {
+                        Label("Turn on notifications in Settings", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                }
             } footer: {
-                Text("Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.")
+                if newArticleNotifications && alertsBlocked {
+                    Text("Notification banners are turned off for Nook, so new-article alerts won't appear. Enable them in Settings › Nook › Notifications.")
+                } else {
+                    Text("Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.")
+                }
             }
 
             Section {
@@ -225,6 +246,18 @@ private struct FeedsSettingsScreen: View {
         }
         .navigationTitle("Feeds")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: newArticleNotifications) { await checkAlerts() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            Task { await checkAlerts() }
+        }
+    }
+
+    /// Notifications are "blocked" if the user turned them on but iOS won't show
+    /// banners — denied, or authorized for badge only (a stale earlier grant).
+    private func checkAlerts() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        alertsBlocked = settings.authorizationStatus == .denied
+            || (settings.authorizationStatus == .authorized && settings.alertSetting != .enabled)
     }
 
     private func viewModeBinding(for feed: Feed) -> Binding<ReaderViewMode?> {
