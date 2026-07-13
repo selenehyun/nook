@@ -329,9 +329,8 @@ public final class ReaderStore {
                 return
             }
 
-            self.reloadMerged()
-            self.lastKnownLibraryModDate = baselineDate
-            self.lastKnownStateModDate = stateDate
+            // reloadMerged decodes off-main and records the mod dates itself.
+            await self.reloadMerged()
         }
     }
 
@@ -387,20 +386,39 @@ public final class ReaderStore {
     /// Re-reads the baseline + all shards, merges, and applies the result only
     /// when it differs from what's in memory — so peer edits show up without
     /// churning the UI on our own writes. Preserves UI state (selection, search).
-    private func reloadMerged() {
-        guard let storage, let base = try? storage.load() else { return }
-        let shards = observedShards(from: storage)
+    ///
+    /// The disk read and JSON decode (the baseline can be several MB) run off the
+    /// main actor so a foreground/observer wake never stalls the UI; only the
+    /// merge with our in-memory shard and the apply run on the main actor.
+    private func reloadMerged() async {
+        guard let storage else { return }
+
+        let loaded = await Task.detached(priority: .userInitiated) { () -> (ReaderLibrary, [DeviceStateDocument])? in
+            guard let base = try? storage.load() else { return nil }
+            let peers = (try? storage.loadShards()) ?? []
+            return (base, peers)
+        }.value
+        guard let (base, peerShards) = loaded else { return }
+        // A refresh may have started during the off-main decode; its in-memory
+        // articles would be newer than this disk snapshot, so don't clobber them.
+        guard !isRefreshing else { return }
+
+        // Fold in this device's authoritative in-memory shard (a not-yet-flushed
+        // local edit must never be dropped) and advance the clock.
+        var shards = peerShards.filter { $0.deviceID != deviceID }
+        shards.append(ownShard)
         witness(shards)
         let merged = DeviceStateDocument.materialize(base: base, shards: shards)
 
         // Compare against the same folder normalization `apply` produces.
         let impliedFolders = merged.feeds.map(\.folderName).filter { !$0.isEmpty }
         let mergedFolders = Set(merged.folders).union(impliedFolders)
-        guard merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) else {
-            return
+        if merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) {
+            apply(merged)
+            pruneSelectionIfHidden()
         }
-        apply(merged)
-        pruneSelectionIfHidden()
+        lastKnownLibraryModDate = storage.libraryModificationDate
+        lastKnownStateModDate = storage.stateDirectoryModificationDate
     }
 
     /// Pulls the latest baseline and every peer's shard from iCloud and re-merges.
@@ -411,9 +429,8 @@ public final class ReaderStore {
         guard let storage, !isRefreshing else { return }
         storage.startDownloadingLibraryIfNeeded()
         storage.startDownloadingStateIfNeeded()
-        reloadMerged()
-        lastKnownLibraryModDate = storage.libraryModificationDate
-        lastKnownStateModDate = storage.stateDirectoryModificationDate
+        // reloadMerged decodes off-main and records the mod dates itself.
+        Task { await reloadMerged() }
     }
 
     public func feed(for feedID: Feed.ID) -> Feed? {
