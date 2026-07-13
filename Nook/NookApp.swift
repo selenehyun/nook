@@ -1,9 +1,14 @@
 import AppKit
 import NookKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct NookApp: App {
+    // Owns the app-lifetime background refresher so feeds keep updating (and new
+    // articles can notify) even when the window is closed.
+    @NSApplicationDelegateAdaptor(BackgroundRefreshController.self) private var backgroundRefresh
+
     init() {
         // Keep the AppleLanguages override in sync with the stored preference,
         // and capture the language Nook launched with so Settings can tell when
@@ -33,5 +38,69 @@ struct NookApp: App {
             ReaderSettingsView()
                 .environment(\.locale, AppLanguage.formattingLocale)
         }
+    }
+}
+
+/// macOS's equivalent of the iOS background task. Drives periodic feed refreshes
+/// for the whole app lifetime — not tied to a window, so refreshing continues
+/// when the window is closed — and posts a local notification when new articles
+/// arrive while Nook isn't the active app.
+@MainActor
+final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    private var loopTask: Task<Void, Never>?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
+        if NewArticleNotifier.isEnabled {
+            Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
+        }
+        loopTask = Task { [weak self] in await self?.runLoop() }
+    }
+
+    private func runLoop() async {
+        while !Task.isCancelled {
+            let defaults = UserDefaults.standard
+            let enabled = defaults.object(forKey: "autoRefreshEnabled") as? Bool ?? true
+            let minutes = defaults.object(forKey: "refreshIntervalMinutes") as? Int ?? 30
+
+            do {
+                try await Task.sleep(for: .seconds(max(5, minutes * 60)))
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled, enabled else { continue }
+            let store = ReaderStore.shared
+            guard store.isStorageConfigured, !store.isRefreshing else { continue }
+
+            let result = await store.refreshAllReportingNew()
+            // Only notify when there's genuinely new unread content, the user
+            // opted in, and Nook isn't already frontmost (the Dock badge covers
+            // the active case).
+            guard result.newArticleCount > 0, NewArticleNotifier.isEnabled, !NSApp.isActive else {
+                continue
+            }
+            await NewArticleNotifier.post(
+                title: String(localized: "New in Nook"),
+                body: Self.notificationBody(for: result),
+                badge: result.newArticleCount
+            )
+        }
+    }
+
+    // Present the banner even if Nook happens to become active as it fires.
+    // `nonisolated` because the delegate requirement isn't main-actor-isolated;
+    // the body touches no actor state.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
+    }
+
+    private static func notificationBody(for result: ReaderStore.BackgroundRefreshResult) -> String {
+        let summary = String(localized: "\(result.newArticleCount) new articles")
+        guard !result.sampleTitles.isEmpty else { return summary }
+        return summary + "\n" + result.sampleTitles.joined(separator: "\n")
     }
 }

@@ -8,12 +8,10 @@ import UserNotifications
 enum BackgroundRefresh {
     static let taskIdentifier = "com.tim.nook.ios.refresh"
 
-    static let enabledKey = "newArticleNotifications"
+    static let enabledKey = NewArticleNotifier.enabledKey
     private static let intervalKey = "refreshIntervalMinutes"
 
-    static var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? false
-    }
+    static var isEnabled: Bool { NewArticleNotifier.isEnabled }
 
     /// Asks iOS to wake the app for a refresh. The system decides the actual
     /// time; `earliestBeginDate` is only a lower bound.
@@ -44,20 +42,11 @@ enum BackgroundRefresh {
 
     @MainActor
     private static func postNotification(for result: ReaderStore.BackgroundRefreshResult) async {
-        let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = String(localized: "New in Nook")
-        content.body = body(for: result)
-        content.sound = .default
-        if result.newArticleCount > 0 {
-            content.badge = NSNumber(value: result.newArticleCount)
-        }
-
-        let request = UNNotificationRequest(identifier: "nook.new-articles", content: content, trigger: nil)
-        try? await center.add(request)
+        await NewArticleNotifier.post(
+            title: String(localized: "New in Nook"),
+            body: body(for: result),
+            badge: result.newArticleCount
+        )
     }
 
     private static func body(for result: ReaderStore.BackgroundRefreshResult) -> String {

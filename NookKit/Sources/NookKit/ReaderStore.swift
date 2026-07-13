@@ -641,13 +641,23 @@ public final class ReaderStore {
     /// the app again.
     public func refreshForBackground() async -> BackgroundRefreshResult {
         if !didBootstrap { bootstrap() }
+        let result = await refreshAllReportingNew()
+        // Write synchronously so the result is saved before the OS suspends the
+        // app again (the iOS background-task caller depends on this).
+        try? persistLibrary()
+        return result
+    }
+
+    /// Refreshes all feeds and reports the genuinely new (previously unseen,
+    /// unread) articles that arrived, so a background refresher can decide
+    /// whether to notify. Assumes the library is already loaded.
+    public func refreshAllReportingNew() async -> BackgroundRefreshResult {
         guard isStorageConfigured, !feeds.isEmpty else {
             return BackgroundRefreshResult(newArticleCount: 0, sampleTitles: [])
         }
 
         let knownIDs = Set(articles.map(\.id))
         await refreshAllFeeds()
-        try? persistLibrary()
 
         let fresh = articles.filter { !knownIDs.contains($0.id) && !$0.isRead }
         let sorted = fresh.sorted { $0.publishedAt > $1.publishedAt }
@@ -735,24 +745,6 @@ public final class ReaderStore {
         Task {
             await refreshAllFeeds()
             activationRefreshInFlight = false
-        }
-    }
-
-    public func runAutoRefreshLoop(intervalMinutes: Int) async {
-        let seconds = max(5, intervalMinutes * 60)
-
-        while !Task.isCancelled {
-            do {
-                try await Task.sleep(for: .seconds(seconds))
-            } catch {
-                return
-            }
-
-            guard !Task.isCancelled, isStorageConfigured, !feeds.isEmpty, !isRefreshing else {
-                continue
-            }
-
-            await refreshAllFeeds()
         }
     }
 

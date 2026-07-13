@@ -201,10 +201,8 @@ struct ContentView: View {
             store.syncFromDisk()
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
         }
-        .task(id: "\(autoRefreshEnabled)-\(refreshIntervalMinutes)-\(store.isStorageConfigured)") {
-            guard autoRefreshEnabled, store.isStorageConfigured else { return }
-            await store.runAutoRefreshLoop(intervalMinutes: refreshIntervalMinutes)
-        }
+        // Periodic auto-refresh is driven app-wide by BackgroundRefreshController
+        // (in NookApp) so it keeps running when the window is closed.
         .onChange(of: columnVisibility) { _, newValue in
             sidebarVisible = (newValue == .all)
         }
@@ -2037,6 +2035,7 @@ private struct FeedsSettingsTab: View {
     @Bindable private var store = ReaderStore.shared
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
+    @AppStorage(NewArticleNotifier.enabledKey) private var newArticleNotifications = false
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
     private var sortedFeeds: [Feed] {
@@ -2051,6 +2050,13 @@ private struct FeedsSettingsTab: View {
                 Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
                     .disabled(!autoRefreshEnabled)
+                Toggle("Notify me about new articles", isOn: $newArticleNotifications)
+                    .disabled(!autoRefreshEnabled)
+                    .onChange(of: newArticleNotifications) { _, enabled in
+                        if enabled {
+                            Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
+                        }
+                    }
             }
 
             Section {
