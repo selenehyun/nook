@@ -34,6 +34,12 @@ struct NestAssemblyView: View {
              color: Color(.displayP3, red: 0.28234, green: 0.23103, blue: 0.12362)),
     ]
 
+    // The twigs' rotated bounding box isn't centered on the 1024pt canvas — its
+    // center sits at (512.5, 573.9), i.e. ~62pt low. Shift the whole group by
+    // this so the assembled nest lands dead-center.
+    private static let centerDX: CGFloat = 512 - 512.5
+    private static let centerDY: CGFloat = 512 - 573.88
+
     var body: some View {
         let k = size / 1024
         ZStack(alignment: .topLeading) {
@@ -45,12 +51,12 @@ struct NestAssemblyView: View {
                     .rotationEffect(.degrees(twig.rotation), anchor: .topLeading)
                     // Start well above the screen; drop to the resting spot.
                     .offset(
-                        x: (twig.x + twig.tx) * k,
-                        y: (twig.y + twig.ty) * k + (assembled ? 0 : -size * 5)
+                        x: (twig.x + twig.tx + Self.centerDX) * k,
+                        y: (twig.y + twig.ty + Self.centerDY) * k + (assembled ? 0 : -size * 5)
                     )
                     .animation(
                         .spring(response: 0.5, dampingFraction: 0.62)
-                            .delay(Double(twig.id) * 0.11),
+                            .delay(Double(twig.id) * 0.09),
                         value: assembled
                     )
             }
@@ -60,5 +66,5 @@ struct NestAssemblyView: View {
     }
 
     /// Roughly how long the full drop-and-settle takes.
-    static var duration: Double { Double(twigs.count) * 0.11 + 0.7 }
+    static var duration: Double { Double(twigs.count) * 0.09 + 0.6 }
 }

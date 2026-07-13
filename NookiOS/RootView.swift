@@ -66,9 +66,9 @@ struct RootView: View {
             // Warm up WebKit so the first article web view opens without the
             // ~2-3s cold-start delay.
             WebViewWarmer.warmUp()
-            // Keep the splash up while the nest assembly animation plays, then
-            // reveal the loaded UI.
-            try? await Task.sleep(for: .milliseconds(1500))
+            // Keep the splash up while the nest assembles and the wordmark
+            // appears, then reveal the loaded UI.
+            try? await Task.sleep(for: .milliseconds(1850))
             withAnimation(.easeOut(duration: 0.35)) { isReady = true }
             // Ask for notification permission after the UI is shown (so the
             // prompt doesn't cover the splash), only for the features in use.
@@ -219,18 +219,31 @@ struct RootView: View {
 /// nest, matching the app icon.
 struct SplashView: View {
     @State private var assembled = false
+    @State private var showWordmark = false
 
     var body: some View {
         ZStack {
             Color("LaunchBackground")
                 .ignoresSafeArea()
+
             NestAssemblyView(size: 150, assembled: assembled)
+
+            // The wordmark fades in just below the nest once the twigs land.
+            // A fixed dark-brown reads on the always-cream splash (don't use
+            // .primary, which would be white in dark mode).
+            Text(verbatim: "Nook")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(Color(.displayP3, red: 0.26, green: 0.19, blue: 0.10))
+                .offset(y: 104 + (showWordmark ? 0 : 6))
+                .opacity(showWordmark ? 1 : 0)
+                .animation(.easeOut(duration: 0.3), value: showWordmark)
         }
         .task {
-            // Let the static launch background settle for a beat, then drop the
-            // twigs in.
+            // Static launch background → drop the twigs → reveal the wordmark.
             try? await Task.sleep(for: .milliseconds(120))
             assembled = true
+            try? await Task.sleep(for: .seconds(NestAssemblyView.duration))
+            showWordmark = true
         }
     }
 }
