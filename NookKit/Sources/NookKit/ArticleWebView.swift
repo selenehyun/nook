@@ -32,6 +32,11 @@ public struct ArticleWebView {
     var onOverscroll: (CGFloat) -> Void
     /// The gesture ended with the given overscroll amount (decide dismiss/snap).
     var onOverscrollEnded: (CGFloat) -> Void
+    /// Live overscroll amount while pulling up past the bottom of the page, so
+    /// the UI can reveal a close / next-article affordance (both platforms).
+    var onBottomOverscroll: (CGFloat) -> Void
+    /// The bottom pull ended with the given amount (decide close/next/snap).
+    var onBottomOverscrollEnded: (CGFloat) -> Void
 
     public init(
         url: URL,
@@ -43,7 +48,9 @@ public struct ArticleWebView {
         onTranslatingChange: @escaping (Bool) -> Void = { _ in },
         onLoadingProgress: @escaping (Double) -> Void = { _ in },
         onOverscroll: @escaping (CGFloat) -> Void = { _ in },
-        onOverscrollEnded: @escaping (CGFloat) -> Void = { _ in }
+        onOverscrollEnded: @escaping (CGFloat) -> Void = { _ in },
+        onBottomOverscroll: @escaping (CGFloat) -> Void = { _ in },
+        onBottomOverscrollEnded: @escaping (CGFloat) -> Void = { _ in }
     ) {
         self.url = url
         self.useReaderMode = useReaderMode
@@ -55,6 +62,8 @@ public struct ArticleWebView {
         self.onLoadingProgress = onLoadingProgress
         self.onOverscroll = onOverscroll
         self.onOverscrollEnded = onOverscrollEnded
+        self.onBottomOverscroll = onBottomOverscroll
+        self.onBottomOverscrollEnded = onBottomOverscrollEnded
     }
 
     @MainActor
@@ -78,14 +87,18 @@ public struct ArticleWebView {
     }
 
     /// Reports the page's scroll position so the native layer knows when the
-    /// content is at the very top.
+    /// content is at the very top or bottom (used to drive the overscroll
+    /// gestures that move the sheet).
     static let scrollReportScript = """
     (function () {
       function report() {
-        var top = window.scrollY || document.documentElement.scrollTop || 0;
-        try { window.webkit.messageHandlers.nookScroll.postMessage(top); } catch (e) {}
+        var doc = document.documentElement;
+        var top = window.scrollY || doc.scrollTop || 0;
+        var bottomGap = Math.max(0, (doc.scrollHeight || 0) - (top + window.innerHeight));
+        try { window.webkit.messageHandlers.nookScroll.postMessage({ top: top, bottomGap: bottomGap }); } catch (e) {}
       }
       window.addEventListener('scroll', report, { passive: true });
+      window.addEventListener('resize', report, { passive: true });
       report();
     })();
     """
@@ -160,6 +173,8 @@ extension ArticleWebView: NSViewRepresentable {
         context.coordinator.linkOpensInApp = linkOpensInApp
         context.coordinator.onOverscroll = onOverscroll
         context.coordinator.onOverscrollEnded = onOverscrollEnded
+        context.coordinator.onBottomOverscroll = onBottomOverscroll
+        context.coordinator.onBottomOverscrollEnded = onBottomOverscrollEnded
         context.coordinator.webView = webView
         context.coordinator.onTranslatingChange = onTranslatingChange
         context.coordinator.onLoadingProgress = onLoadingProgress
@@ -187,7 +202,10 @@ extension ArticleWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.onLoadingProgress = onLoadingProgress
+        context.coordinator.onBottomOverscroll = onBottomOverscroll
+        context.coordinator.onBottomOverscrollEnded = onBottomOverscrollEnded
         context.coordinator.observeProgress(of: webView)
+        webView.scrollView.panGestureRecognizer.addTarget(context.coordinator, action: #selector(Coordinator.handleScrollPan(_:)))
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -197,11 +215,14 @@ extension ArticleWebView: UIViewRepresentable {
         context.coordinator.webView = webView
         context.coordinator.onTranslatingChange = onTranslatingChange
         context.coordinator.onLoadingProgress = onLoadingProgress
+        context.coordinator.onBottomOverscroll = onBottomOverscroll
+        context.coordinator.onBottomOverscrollEnded = onBottomOverscrollEnded
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
     public static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         coordinator.stopObservingProgress()
+        webView.scrollView.panGestureRecognizer.removeTarget(coordinator, action: #selector(Coordinator.handleScrollPan(_:)))
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookScroll")
     }
 }
@@ -216,10 +237,13 @@ extension ArticleWebView {
         var onOverscrollEnded: (CGFloat) -> Void
         var onTranslatingChange: (Bool) -> Void = { _ in }
         var onLoadingProgress: (Double) -> Void = { _ in }
+        var onBottomOverscroll: (CGFloat) -> Void = { _ in }
+        var onBottomOverscrollEnded: (CGFloat) -> Void = { _ in }
         private var progressObservation: NSKeyValueObservation?
 
         weak var webView: WKWebView?
         private var atTop = true
+        private var atBottom = false
 
         // In-place translation state.
         private var translationApplied = false
@@ -231,6 +255,8 @@ extension ArticleWebView {
         private var monitor: Any?
         private var overscroll: CGFloat = 0
         private var engaged = false
+        private var bottomOverscroll: CGFloat = 0
+        private var bottomEngaged = false
         #endif
 
         init(linkOpensInApp: Bool, onOverscroll: @escaping (CGFloat) -> Void, onOverscrollEnded: @escaping (CGFloat) -> Void) {
@@ -347,44 +373,83 @@ extension ArticleWebView {
         }
 
         /// Returns true to consume the event (we are driving the sheet).
+        ///
+        /// Natural scrolling: a positive `scrollingDeltaY` pulls the page down
+        /// (a top overscroll → move the sheet), a negative one pulls it up (a
+        /// bottom overscroll → reveal the close / next-article affordance).
         private func handle(_ event: NSEvent) -> Bool {
-            guard let webView else { return false }
-
-            // Positive scrollingDeltaY at the top means pulling the page down
-            // (natural scrolling), i.e. an overscroll that should move the sheet.
+            guard let webView, event.window === webView.window else { return false }
             let delta = event.scrollingDeltaY
 
-            if !engaged {
-                // Engage only when starting a top overscroll over the web view.
-                guard atTop, delta > 0, event.momentumPhase == [],
-                      event.window === webView.window,
-                      webView.bounds.contains(webView.convert(event.locationInWindow, from: nil)) else {
+            // Engage a fresh top- or bottom-overscroll gesture over the web view.
+            if !engaged, !bottomEngaged {
+                let overPointer = webView.bounds.contains(webView.convert(event.locationInWindow, from: nil))
+                guard event.momentumPhase == [], overPointer else { return false }
+                if atTop, delta > 0 {
+                    engaged = true
+                    overscroll = 0
+                } else if atBottom, delta < 0 {
+                    bottomEngaged = true
+                    bottomOverscroll = 0
+                } else {
                     return false
                 }
-                engaged = true
-                overscroll = 0
             }
 
-            // Once engaged, keep driving the sheet regardless of where the
-            // pointer is (the sheet slides out from under it).
-            overscroll = max(0, overscroll + delta)
-            onOverscroll(overscroll)
-
-            if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
-                let amount = overscroll
-                engaged = false
-                overscroll = 0
-                onOverscrollEnded(amount)
+            if engaged {
+                overscroll = max(0, overscroll + delta)
+                onOverscroll(overscroll)
+                if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                    let amount = overscroll
+                    engaged = false
+                    overscroll = 0
+                    onOverscrollEnded(amount)
+                    return true
+                }
+                if overscroll == 0 {
+                    // Pulled back to the top: hand scrolling back to the web view.
+                    engaged = false
+                    return false
+                }
                 return true
             }
 
-            if overscroll == 0 {
-                // Pulled back to the top: hand scrolling back to the web view.
-                engaged = false
+            // Bottom overscroll: accumulate the upward pull (negative delta).
+            bottomOverscroll = max(0, bottomOverscroll - delta)
+            onBottomOverscroll(bottomOverscroll)
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                let amount = bottomOverscroll
+                bottomEngaged = false
+                bottomOverscroll = 0
+                onBottomOverscrollEnded(amount)
+                return true
+            }
+            if bottomOverscroll == 0 {
+                bottomEngaged = false
                 return false
             }
-
             return true
+        }
+        #endif
+
+        #if canImport(UIKit)
+        /// Drives the bottom-overscroll affordance from the web view's scroll
+        /// view. Added as an extra target on the built-in pan recognizer (not a
+        /// delegate), so it never interferes with WKWebView's own scrolling.
+        @objc func handleScrollPan(_ gesture: UIPanGestureRecognizer) {
+            guard let scrollView = gesture.view as? UIScrollView else { return }
+            let maxOffset = scrollView.contentSize.height
+                - scrollView.bounds.height
+                + scrollView.adjustedContentInset.bottom
+            let overscroll = max(0, scrollView.contentOffset.y - maxOffset)
+            switch gesture.state {
+            case .changed:
+                onBottomOverscroll(overscroll)
+            case .ended, .cancelled, .failed:
+                onBottomOverscrollEnded(overscroll)
+            default:
+                break
+            }
         }
         #endif
 
@@ -440,8 +505,14 @@ extension ArticleWebView {
 
         public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "nookScroll" else { return }
-            let top = (message.body as? NSNumber)?.doubleValue ?? 0
-            atTop = top <= 0.5
+            if let body = message.body as? [String: Any] {
+                let top = (body["top"] as? NSNumber)?.doubleValue ?? 0
+                let bottomGap = (body["bottomGap"] as? NSNumber)?.doubleValue ?? .greatestFiniteMagnitude
+                atTop = top <= 0.5
+                atBottom = bottomGap <= 1
+            } else if let top = (message.body as? NSNumber)?.doubleValue {
+                atTop = top <= 0.5
+            }
         }
     }
 }

@@ -430,6 +430,7 @@ struct InAppBrowserSheet: View {
     @State private var isTranslationOn = false
     @State private var translationInFlight = false
     @State private var loadingProgress: Double = 0
+    @State private var bottomPull: CGFloat = 0
 
     /// Web-view translation uses Apple Intelligence; offer it only when that's
     /// available and the article's language differs from the app's.
@@ -450,6 +451,19 @@ struct InAppBrowserSheet: View {
         return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
     }
 
+    /// A short bottom pull-up closes the browser; a longer one opens the next
+    /// article; anything less snaps back.
+    private func handleBottomRelease(_ amount: CGFloat) {
+        if amount >= BottomPullAffordance.nextThreshold {
+            store.selectNextArticle()
+            bottomPull = 0
+        } else if amount >= BottomPullAffordance.closeThreshold {
+            dismiss()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) { bottomPull = 0 }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ArticleWebView(
@@ -460,12 +474,17 @@ struct InAppBrowserSheet: View {
                 translate: isTranslationOn,
                 translationLanguage: targetLanguageName,
                 onTranslatingChange: { translationInFlight = $0 },
-                onLoadingProgress: { loadingProgress = $0 }
+                onLoadingProgress: { loadingProgress = $0 },
+                onBottomOverscroll: { bottomPull = $0 },
+                onBottomOverscrollEnded: handleBottomRelease
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
             .ignoresSafeArea(edges: .bottom)
             .overlay(alignment: .top) {
                 WebLoadingBar(progress: loadingProgress)
+            }
+            .overlay(alignment: .bottom) {
+                BottomPullAffordance(pull: bottomPull)
             }
             .overlay(alignment: .top) {
                 if translationInFlight {

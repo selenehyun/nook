@@ -1397,6 +1397,7 @@ private struct InAppBrowserPanel: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @State private var loadingProgress: Double = 0
+    @State private var bottomPull: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1418,9 +1419,14 @@ private struct InAppBrowserPanel: View {
                     } else {
                         withAnimation(.easeOut(duration: 0.2)) { dragOffset = 0 }
                     }
-                }
+                },
+                onBottomOverscroll: { bottomPull = $0 },
+                onBottomOverscrollEnded: handleBottomRelease
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
+            .overlay(alignment: .bottom) {
+                BottomPullAffordance(pull: bottomPull)
+            }
         }
         .frame(maxWidth: 980)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -1439,6 +1445,19 @@ private struct InAppBrowserPanel: View {
             if markReadOnOpen {
                 store.markArticleOpened(articleID: article.id)
             }
+        }
+    }
+
+    /// Decides what a bottom pull-up did on release: a short pull closes the
+    /// browser, a longer pull opens the next article, otherwise it snaps back.
+    private func handleBottomRelease(_ amount: CGFloat) {
+        if amount >= BottomPullAffordance.nextThreshold {
+            store.selectNextArticle()
+            bottomPull = 0
+        } else if amount >= BottomPullAffordance.closeThreshold {
+            onClose()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) { bottomPull = 0 }
         }
     }
 
