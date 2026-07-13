@@ -18,15 +18,14 @@
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2D105000000000000000000B /* NookiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000A /* NookiOSApp.swift */; };
 		2D105000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000C /* RootView.swift */; };
-		2D1051C7E6525A9C376F8FA4 /* BackgroundRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105108612B054201B57E97 /* BackgroundRefresh.swift */; };
 		2D105000000000000000000F /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2D105000000000000000000E /* NookKit */; };
 		2D1051A8D42008A8673C6254 /* HapticEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105149B0FA45C5262BC079 /* HapticEngine.swift */; };
+		2D1051C7E6525A9C376F8FA4 /* BackgroundRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105108612B054201B57E97 /* BackgroundRefresh.swift */; };
 		2D1051C92BFB2ED86FAF4C51 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1051F676CA2A7235F3240F /* SettingsView.swift */; };
 		2D1051CD906D767ED4F5EA6C /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D10517EDF4172A50DC4DC2C /* ReaderView.swift */; };
 		2D1051D56BA256E9CE91844B /* OPMLImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1051ED74D34D74A3BEBC6C /* OPMLImportView.swift */; };
 		2D1051F8859EA4B314398BBA /* AddFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1051B318278E8EC498651C /* AddFeedView.swift */; };
 		2D105296C152C93200E60E80 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2D1052500836257B764B55D2 /* Localizable.xcstrings */; };
-		2D105300000000000000000E /* NookShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2D1053000000000000000004 /* NookShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2DA1C0DF00000000000000E1 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */; };
 		2DA1C0DF2D8A4A4700A00001 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2DA1C0DE2D8A4A4700A00001 /* AppIcon.icon */; };
 		2DAAAAAA000000000000CAFE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2DAAAAAA000000000000BEEF /* Sparkle */; };
@@ -42,13 +41,6 @@
 			remoteGlobalIDString = 22E39C273000BD9900C3ECB6;
 			remoteInfo = NookWidgetExtension;
 		};
-		2D105300000000000000000B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 2D0E3A0A2D8A4A4700A00001 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 2D1053000000000000000003;
-			remoteInfo = NookShareExtension;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -59,17 +51,6 @@
 			dstSubfolderSpec = 13;
 			files = (
 				22E39C3C3000BD9A00C3ECB6 /* NookWidgetExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2D105300000000000000000D /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				2D105300000000000000000E /* NookShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -283,12 +264,10 @@
 				2D1050000000000000000006 /* Sources */,
 				2D1050000000000000000007 /* Frameworks */,
 				2D1050000000000000000008 /* Resources */,
-				2D105300000000000000000D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				2D105300000000000000000C /* PBXTargetDependency */,
 			);
 			name = NookiOS;
 			packageProductDependencies = (
@@ -458,11 +437,6 @@
 			target = 22E39C273000BD9900C3ECB6 /* NookWidgetExtension */;
 			targetProxy = 22E39C3A3000BD9A00C3ECB6 /* PBXContainerItemProxy */;
 		};
-		2D105300000000000000000C /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 2D1053000000000000000003 /* NookShareExtension */;
-			targetProxy = 2D105300000000000000000B /* PBXContainerItemProxy */;
-		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -477,7 +451,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = F7WUT95TT6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -517,7 +491,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = F7WUT95TT6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -668,10 +642,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F7WUT95TT6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Nook/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -697,9 +673,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F7WUT95TT6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Nook/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -720,12 +698,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F7WUT95TT6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NookiOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nook;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -740,6 +720,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
@@ -755,12 +736,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F7WUT95TT6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NookiOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nook;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -774,6 +757,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -786,6 +770,7 @@
 		2D1053000000000000000009 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F7WUT95TT6;
@@ -801,6 +786,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
@@ -814,6 +800,7 @@
 		2D105300000000000000000A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = F7WUT95TT6;
@@ -828,6 +815,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tim.nook.ios.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
