@@ -42,6 +42,9 @@ public struct Feed: Identifiable, Codable, Hashable, Sendable {
     /// global default (`readerViewMode`); set it when a feed reads better in one
     /// mode so its articles always open that way.
     public var preferredViewMode: ReaderViewMode? = nil
+    /// A user-chosen name that overrides the feed-provided `title`. `nil` (or
+    /// empty) uses `title`, which keeps updating from the feed on refresh.
+    public var customTitle: String? = nil
 
     public init(
         id: String,
@@ -53,7 +56,8 @@ public struct Feed: Identifiable, Codable, Hashable, Sendable {
         siteURL: URL,
         healthScore: Double,
         lastFetchedAt: Date? = nil,
-        preferredViewMode: ReaderViewMode? = nil
+        preferredViewMode: ReaderViewMode? = nil,
+        customTitle: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -65,6 +69,14 @@ public struct Feed: Identifiable, Codable, Hashable, Sendable {
         self.healthScore = healthScore
         self.lastFetchedAt = lastFetchedAt
         self.preferredViewMode = preferredViewMode
+        self.customTitle = customTitle
+    }
+
+    /// The name to show for this feed: the user's custom name when set,
+    /// otherwise the feed-provided title.
+    public var displayTitle: String {
+        if let customTitle, !customTitle.isEmpty { return customTitle }
+        return title
     }
 
     /// The folder this feed lives in, or empty for a top-level feed. The legacy

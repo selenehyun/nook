@@ -393,6 +393,8 @@ private struct FeedSidebar: View {
     @State private var folderPendingDeletion: String?
     @State private var folderPendingRename: String?
     @State private var renameFolderName = ""
+    @State private var feedPendingRename: Feed.ID?
+    @State private var renameFeedName = ""
     @State private var dropTargetFolder: String?
     @State private var isTopLevelDropTargeted = false
 
@@ -512,6 +514,20 @@ private struct FeedSidebar: View {
         } message: { _ in
             Text("Enter a new name for the folder.")
         }
+        .alert(
+            "Rename Feed",
+            isPresented: Binding(
+                get: { feedPendingRename != nil },
+                set: { if !$0 { feedPendingRename = nil } }
+            ),
+            presenting: feedPendingRename
+        ) { feedID in
+            TextField("Feed Name", text: $renameFeedName)
+            Button("Rename") { store.renameFeed(feedID, to: renameFeedName) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Enter a new name, or leave empty to use the feed's own name.")
+        }
     }
 
     /// Per-folder collapsed state, persisted so it is restored on relaunch.
@@ -608,7 +624,7 @@ private struct FeedSidebar: View {
     @ViewBuilder
     private func feedRow(_ feed: Feed) -> some View {
         SourceRow(
-            title: feed.title,
+            title: feed.displayTitle,
             subtitle: feed.siteDescription,
             systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
             iconImage: store.isRefreshing(feedID: feed.id) ? nil : store.faviconImage(for: feed),
@@ -669,6 +685,15 @@ private struct FeedSidebar: View {
             store.markFeedsRead(ids: targets)
         } label: {
             Text(isMultiple ? "Mark \(targets.count) Feeds as Read" : "Mark Feed as Read")
+        }
+
+        if !isMultiple {
+            Button {
+                renameFeedName = feed.displayTitle
+                feedPendingRename = feed.id
+            } label: {
+                Text("Rename Feed…")
+            }
         }
 
         if isMultiple {
@@ -1081,7 +1106,7 @@ private struct ArticleRow: View {
                     .lineLimit(2)
 
                 HStack(spacing: 6) {
-                    Text(feed?.title ?? String(localized: "Unknown Feed"))
+                    Text(feed?.displayTitle ?? String(localized: "Unknown Feed"))
                     Text("·")
                     RelativeTimeText(article.publishedAt)
                     Text("·")
@@ -1177,7 +1202,7 @@ private struct WindowBreadcrumb: View {
                         if let feed = store.feed(for: article.feedID), store.feedSelection != [article.feedID] {
                             chevron
                             MiddleCrumbSegment(
-                                title: feed.title,
+                                title: feed.displayTitle,
                                 icon: store.faviconImage(for: feed),
                                 breadcrumbHovered: isHovered
                             ) {
@@ -1561,7 +1586,7 @@ private struct ReaderDetailView: View {
             HStack(spacing: 8) {
                 if let feed = store.feed(for: article.feedID) {
                     Label {
-                        Text(feed.title)
+                        Text(feed.displayTitle)
                     } icon: {
                         if let icon = store.faviconImage(for: feed) {
                             icon
@@ -1643,7 +1668,7 @@ private struct ArticleInspector: View {
 
                 Section("Source") {
                     if let feed = store.feed(for: article.feedID) {
-                        LabeledContent("Feed", value: feed.title)
+                        LabeledContent("Feed", value: feed.displayTitle)
                         LabeledContent("Category", value: feed.category)
                         LabeledContent("Last Refresh", value: feed.lastFetchedAt?.localized(date: .abbreviated, time: .shortened) ?? String(localized: "Never"))
                         Link("Open Site", destination: feed.siteURL)
@@ -2070,7 +2095,7 @@ private struct FeedsSettingsTab: View {
                             Text(ReaderViewMode.reader.label).tag(ReaderViewMode?.some(.reader))
                             Text(ReaderViewMode.original.label).tag(ReaderViewMode?.some(.original))
                         } label: {
-                            Text(feed.title).lineLimit(1)
+                            Text(feed.displayTitle).lineLimit(1)
                         }
                     }
                 }

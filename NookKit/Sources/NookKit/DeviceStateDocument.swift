@@ -41,24 +41,30 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     public struct FeedState: Codable, Sendable, Equatable {
         public var category: LWWRegister<String>?
         public var preferredViewMode: LWWRegister<ReaderViewMode?>?
+        public var customTitle: LWWRegister<String?>?
         public var tombstone: LWWRegister<Bool>?
 
         public init(
             category: LWWRegister<String>? = nil,
             preferredViewMode: LWWRegister<ReaderViewMode?>? = nil,
+            customTitle: LWWRegister<String?>? = nil,
             tombstone: LWWRegister<Bool>? = nil
         ) {
             self.category = category
             self.preferredViewMode = preferredViewMode
+            self.customTitle = customTitle
             self.tombstone = tombstone
         }
 
-        var isEmpty: Bool { category == nil && preferredViewMode == nil && tombstone == nil }
+        var isEmpty: Bool {
+            category == nil && preferredViewMode == nil && customTitle == nil && tombstone == nil
+        }
 
         func merged(with other: FeedState) -> FeedState {
             FeedState(
                 category: mergeRegisters(category, other.category),
                 preferredViewMode: mergeRegisters(preferredViewMode, other.preferredViewMode),
+                customTitle: mergeRegisters(customTitle, other.customTitle),
                 tombstone: mergeRegisters(tombstone, other.tombstone)
             )
         }
@@ -139,6 +145,12 @@ extension DeviceStateDocument {
         feedState[id] = state
     }
 
+    public mutating func setFeedTitle(_ id: Feed.ID, _ value: String?, hlc: HLC) {
+        var state = feedState[id] ?? FeedState()
+        state.customTitle = LWWRegister(value: value, hlc: hlc)
+        feedState[id] = state
+    }
+
     public mutating func setFeedTombstone(_ id: Feed.ID, _ deleted: Bool, hlc: HLC) {
         var state = feedState[id] ?? FeedState()
         state.tombstone = LWWRegister(value: deleted, hlc: hlc)
@@ -161,6 +173,7 @@ extension DeviceStateDocument {
         for state in feedState.values {
             fold(state.category?.hlc)
             fold(state.preferredViewMode?.hlc)
+            fold(state.customTitle?.hlc)
             fold(state.tombstone?.hlc)
         }
         for register in folders.values { fold(register.hlc) }
@@ -218,6 +231,7 @@ extension DeviceStateDocument {
             }
             if let category = state?.category?.value { feed.category = category }
             if let viewMode = state?.preferredViewMode { feed.preferredViewMode = viewMode.value }
+            if let customTitle = state?.customTitle { feed.customTitle = customTitle.value }
             feeds.append(feed)
         }
 

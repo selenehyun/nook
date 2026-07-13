@@ -69,6 +69,24 @@ struct MaterializeTests {
         #expect(merged.articles.map(\.id) == ["a2"])
     }
 
+    @Test("A feed rename (custom title) merges by HLC and applies")
+    func feedRenameApplies() {
+        let base = Fixture.library(feeds: [Fixture.feed("f1")], articles: [])
+        // f1's fixture title is "f1". Two devices rename it; higher HLC wins.
+        let deviceA = shard("A") { $0.setFeedTitle("f1", "Old Name", hlc: Fixture.hlc(1000, node: "A")) }
+        let deviceB = shard("B") { $0.setFeedTitle("f1", "New Name", hlc: Fixture.hlc(2000, node: "B")) }
+
+        let merged = DeviceStateDocument.materialize(base: base, shards: [deviceA, deviceB])
+        #expect(merged.feeds.first?.customTitle == "New Name")
+        #expect(merged.feeds.first?.displayTitle == "New Name")
+
+        // Clearing the override (nil) reverts to the feed-provided title.
+        let clear = shard("A") { $0.setFeedTitle("f1", nil, hlc: Fixture.hlc(3000, node: "A")) }
+        let reverted = DeviceStateDocument.materialize(base: base, shards: [deviceB, clear])
+        #expect(reverted.feeds.first?.customTitle == nil)
+        #expect(reverted.feeds.first?.displayTitle == "f1")
+    }
+
     @Test("Feed category and view-mode overrides apply")
     func feedOverridesApply() {
         let base = Fixture.library(feeds: [Fixture.feed("f1", category: "Feeds")], articles: [])

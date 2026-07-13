@@ -254,7 +254,7 @@ struct ReaderDetailView: View {
                     } else {
                         Image(systemName: feed.systemImage)
                     }
-                    Text(feed.title)
+                    Text(feed.displayTitle)
                 }
                 Text("·")
                 Text(article.publishedAt.localized(date: .abbreviated, time: .shortened))
@@ -387,7 +387,7 @@ struct ArticleInfoView: View {
 
                 if let feed = store.feed(for: article.feedID) {
                     Section("Source") {
-                        LabeledContent("Feed", value: feed.title)
+                        LabeledContent("Feed", value: feed.displayTitle)
                         if !feed.category.isEmpty {
                             LabeledContent("Category", value: feed.category)
                         }

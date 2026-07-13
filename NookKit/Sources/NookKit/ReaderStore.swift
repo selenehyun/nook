@@ -448,7 +448,7 @@ public final class ReaderStore {
 
     public func feeds(inFolder folder: String) -> [Feed] {
         feeds.filter { $0.folderName == folder }
-            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            .sorted { $0.displayTitle.localizedStandardCompare($1.displayTitle) == .orderedAscending }
     }
 
     func feedCount(inFolder folder: String) -> Int {
@@ -457,7 +457,7 @@ public final class ReaderStore {
 
     public var ungroupedFeeds: [Feed] {
         feeds.filter { $0.folderName.isEmpty }
-            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            .sorted { $0.displayTitle.localizedStandardCompare($1.displayTitle) == .orderedAscending }
     }
 
     public func createFolder(_ name: String) {
@@ -519,6 +519,20 @@ public final class ReaderStore {
             folders.append(folder)
             recordFolder(folder, present: true)
         }
+        scheduleShardSave()
+        saveAfterMutation()
+    }
+
+    /// Renames a feed. A trimmed non-empty name becomes the feed's custom title;
+    /// an empty name clears the override so the feed-provided title is used again
+    /// (and keeps updating on refresh). No-op if nothing changed.
+    public func renameFeed(_ feedID: Feed.ID, to newName: String) {
+        guard let index = feeds.firstIndex(where: { $0.id == feedID }) else { return }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.isEmpty ? nil : trimmed
+        guard feeds[index].customTitle != value else { return }
+        feeds[index].customTitle = value
+        recordCustomTitle(feedID, value)
         scheduleShardSave()
         saveAfterMutation()
     }
@@ -1050,6 +1064,7 @@ public final class ReaderStore {
             // parsed feed always has an empty category and no view preference.
             updated.category = feeds[feedIndex].category
             updated.preferredViewMode = feeds[feedIndex].preferredViewMode
+            updated.customTitle = feeds[feedIndex].customTitle
             feeds[feedIndex] = updated
         } else {
             feeds.append(parsedFeed.feed)
@@ -1298,6 +1313,10 @@ public final class ReaderStore {
 
     private func recordViewMode(_ id: Feed.ID, _ value: ReaderViewMode?) {
         ownShard.setFeedViewMode(id, value, hlc: nextHLC())
+    }
+
+    private func recordCustomTitle(_ id: Feed.ID, _ value: String?) {
+        ownShard.setFeedTitle(id, value, hlc: nextHLC())
     }
 
     private func recordFeedDeleted(_ id: Feed.ID) {

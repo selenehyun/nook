@@ -177,7 +177,7 @@ private struct FeedsSettingsScreen: View {
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
     private var sortedFeeds: [Feed] {
-        store.feeds.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        store.feeds.sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
     }
 
     var body: some View {
@@ -205,7 +205,7 @@ private struct FeedsSettingsScreen: View {
                             Text(ReaderViewMode.reader.label).tag(ReaderViewMode?.some(.reader))
                             Text(ReaderViewMode.original.label).tag(ReaderViewMode?.some(.original))
                         } label: {
-                            Text(feed.title).lineLimit(1)
+                            Text(feed.displayTitle).lineLimit(1)
                         }
                     }
                 }

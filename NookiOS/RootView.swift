@@ -292,6 +292,8 @@ private struct Sidebar: View {
     @State private var selection: SidebarItem?
     @State private var folderPendingRename: String?
     @State private var renameFolderName = ""
+    @State private var feedPendingRename: Feed.ID?
+    @State private var renameFeedName = ""
 
     var body: some View {
         List(selection: $selection) {
@@ -423,6 +425,20 @@ private struct Sidebar: View {
         } message: { _ in
             Text("Enter a new name for the folder.")
         }
+        .alert(
+            "Rename Feed",
+            isPresented: Binding(
+                get: { feedPendingRename != nil },
+                set: { if !$0 { feedPendingRename = nil } }
+            ),
+            presenting: feedPendingRename
+        ) { feedID in
+            TextField("Feed Name", text: $renameFeedName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") { store.renameFeed(feedID, to: renameFeedName) }
+        } message: { _ in
+            Text("Enter a new name, or leave empty to use the feed's own name.")
+        }
     }
 
     private func feedRow(_ feed: Feed) -> some View {
@@ -432,7 +448,7 @@ private struct Sidebar: View {
             } else {
                 Image(systemName: feed.systemImage)
             }
-            Text(feed.title).lineLimit(1)
+            Text(feed.displayTitle).lineLimit(1)
             Spacer()
             let count = store.unreadCount(feedID: feed.id)
             if count > 0 {
@@ -460,6 +476,12 @@ private struct Sidebar: View {
                 store.markFeedsRead(ids: [feed.id])
             } label: {
                 Label("Mark All as Read", systemImage: "checkmark.circle")
+            }
+            Button {
+                renameFeedName = feed.displayTitle
+                feedPendingRename = feed.id
+            } label: {
+                Label("Rename Feed", systemImage: "pencil")
             }
             if !store.feedFolders.isEmpty {
                 Menu {
@@ -572,7 +594,7 @@ private struct ArticleList: View {
                 Text(article.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
             HStack(spacing: 6) {
-                Text(store.feed(for: article.feedID)?.title ?? "")
+                Text(store.feed(for: article.feedID)?.displayTitle ?? "")
                 Text("·")
                 RelativeTimeText(article.publishedAt)
             }
