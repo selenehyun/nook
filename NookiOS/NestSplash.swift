@@ -16,22 +16,33 @@ struct NestAssemblyView: View {
         let color: Color
     }
 
-    // Twig geometry (AppIcon.icon SVG layers) + per-layer fill/translation
-    // (icon.json), on the 1024pt canvas. Ordered back-to-front so the ZStack
-    // and the drop stagger build the nest up naturally.
+    /// An adaptive fill using the icon's light and dark layer colors, so the
+    /// splash uses the dark-mode icon's twig colors in dark mode.
+    private static func fill(
+        light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)
+    ) -> Color {
+        Color(UIColor { traits in
+            let c = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(displayP3Red: c.0, green: c.1, blue: c.2, alpha: 1)
+        })
+    }
+
+    // Twig geometry (AppIcon.icon SVG layers) + per-layer light/dark fills and
+    // translation (icon.json), on the 1024pt canvas. Ordered back-to-front so
+    // the ZStack and the drop stagger build the nest up naturally.
     private static let twigs: [Twig] = [
         Twig(id: 0, x: 455, y: 671.174, w: 532.752, h: 60.7009, rx: 30.3504, rotation: -38.5727, tx: 0, ty: 0,
-             color: Color(.displayP3, red: 0.52707, green: 0.34104, blue: 0.16485)),
+             color: fill(light: (0.52707, 0.34104, 0.16485), dark: (1.0, 0.81429, 0.65271))),
         Twig(id: 1, x: 176.275, y: 619, w: 462.978, h: 74, rx: 37, rotation: 2.5362, tx: 0, ty: 0,
-             color: Color(.displayP3, red: 0.33131, green: 0.18300, blue: 0.12426)),
+             color: fill(light: (0.33131, 0.18300, 0.12426), dark: (1.0, 0.78822, 0.70702))),
         Twig(id: 2, x: 248, y: 683.56, w: 708.947, h: 74, rx: 37, rotation: -22.5819, tx: 0, ty: 0,
-             color: Color(.displayP3, red: 0.39857, green: 0.26728, blue: 0.07585)),
+             color: fill(light: (0.39857, 0.26728, 0.07585), dark: (1.0, 0.83736, 0.72034))),
         Twig(id: 3, x: 133.696, y: 390, w: 664.22, h: 74, rx: 37, rotation: 32.4414, tx: 0, ty: 0,
-             color: Color(.displayP3, red: 0.47398, green: 0.28733, blue: 0.14062)),
+             color: fill(light: (0.47398, 0.28733, 0.14062), dark: (1.0, 0.83515, 0.69595))),
         Twig(id: 4, x: 110.209, y: 495, w: 701.451, h: 74, rx: 37, rotation: 11.8602, tx: 21.457819, ty: 1.551876,
-             color: Color(.displayP3, red: 0.36629, green: 0.22432, blue: 0.08458)),
+             color: fill(light: (0.36629, 0.22432, 0.08458), dark: (1.0, 0.75591, 0.61651))),
         Twig(id: 5, x: 359, y: 704.858, w: 571.721, h: 74, rx: 37, rotation: -17.5522, tx: -34.267837, ty: -13.052022,
-             color: Color(.displayP3, red: 0.28234, green: 0.23103, blue: 0.12362)),
+             color: fill(light: (0.28234, 0.23103, 0.12362), dark: (1.0, 0.87622, 0.81781))),
     ]
 
     // The twigs' rotated bounding box isn't centered on the 1024pt canvas — its

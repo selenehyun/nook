@@ -6,6 +6,14 @@
         "color-space" : "display-p3",
         "components" : { "red" : "1.000", "green" : "0.983", "blue" : "0.870", "alpha" : "1.000" }
       }
+    },
+    {
+      "idiom" : "universal",
+      "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
+      "color" : {
+        "color-space" : "display-p3",
+        "components" : { "red" : "0.130", "green" : "0.104", "blue" : "0.078", "alpha" : "1.000" }
+      }
     }
   ],
   "info" : { "author" : "xcode", "version" : 1 }

@@ -229,11 +229,15 @@ struct SplashView: View {
             NestAssemblyView(size: 150, assembled: assembled)
 
             // The wordmark fades in just below the nest once the twigs land.
-            // A fixed dark-brown reads on the always-cream splash (don't use
-            // .primary, which would be white in dark mode).
+            // Adaptive so it reads on both the cream (light) and warm-dark
+            // (dark) splash background.
             Text(verbatim: "Nook")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(.displayP3, red: 0.26, green: 0.19, blue: 0.10))
+                .foregroundStyle(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor(displayP3Red: 1.0, green: 0.86, blue: 0.78, alpha: 1)
+                        : UIColor(displayP3Red: 0.26, green: 0.19, blue: 0.10, alpha: 1)
+                }))
                 .offset(y: 104 + (showWordmark ? 0 : 6))
                 .opacity(showWordmark ? 1 : 0)
                 .animation(.easeOut(duration: 0.3), value: showWordmark)
