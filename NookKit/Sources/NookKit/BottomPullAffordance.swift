@@ -19,7 +19,7 @@ public struct BottomPullAffordance: View {
         self.pull = pull
     }
 
-    private enum Stage { case hint, close, next }
+    private enum Stage: Equatable { case hint, close, next }
 
     private var stage: Stage {
         if pull >= Self.nextThreshold { return .next }
@@ -28,18 +28,31 @@ public struct BottomPullAffordance: View {
     }
 
     public var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.title2)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, value: stage)
             Text(label)
-                .font(.footnote.weight(.medium))
+                .font(.footnote.weight(.semibold))
+                .contentTransition(.opacity)
         }
-        .foregroundStyle(stage == .hint ? Color.secondary : Color.accentColor)
+        .foregroundStyle(stage == .hint ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
         .frame(maxWidth: .infinity)
-        .frame(height: min(pull, Self.nextThreshold + 44))
+        .frame(height: min(pull, Self.nextThreshold + 48))
         .background(.bar)
         .opacity(pull > 6 ? 1 : 0)
-        .animation(.easeOut(duration: 0.15), value: stage)
+        .animation(.snappy(duration: 0.2), value: stage)
+        .animation(.easeOut(duration: 0.12), value: pull > 6)
+        // Native haptic tick each time the pull crosses into a new stage
+        // (a no-op on hardware without a haptic engine).
+        .sensoryFeedback(trigger: stage) { _, newStage in
+            switch newStage {
+            case .close: .impact(weight: .light)
+            case .next: .impact(weight: .medium)
+            case .hint: nil
+            }
+        }
         .allowsHitTesting(false)
     }
 
