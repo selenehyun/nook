@@ -248,21 +248,18 @@ struct SplashView: View {
     }
 }
 
-/// A row background rendered as a Liquid Glass card on iOS 26, so the grouped
-/// sidebar reads as floating glass pills; falls back to a grouped card color on
-/// earlier OSes.
+/// A row background that fills the row edge-to-edge with Liquid Glass on iOS 26
+/// (the inset-grouped section clips the contiguous rows into one rounded glass
+/// card); falls back to a grouped card color on earlier OSes.
 struct GlassRowBackground: View {
     var body: some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                Color.clear
-                    .glassEffect(.regular, in: .rect(cornerRadius: 14, style: .continuous))
-            } else {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            }
+        if #available(iOS 26.0, *) {
+            Rectangle()
+                .fill(.clear)
+                .glassEffect(.regular, in: Rectangle())
+        } else {
+            Color(.secondarySystemGroupedBackground)
         }
-        .padding(.vertical, 3)
     }
 }
 
@@ -333,10 +330,12 @@ private struct Sidebar: View {
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color("ListBackground").ignoresSafeArea())
+        // Edge-to-edge glass per row → the inset-grouped section clips it into
+        // one rounded glass card per section.
         .listRowBackground(GlassRowBackground())
-        .listRowSeparator(.hidden)
         .onChange(of: selection) { _, item in
             switch item {
             case .smart(let source):
