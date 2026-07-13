@@ -94,12 +94,21 @@ public struct ArticleWebView {
       function report() {
         var doc = document.documentElement;
         var top = window.scrollY || doc.scrollTop || 0;
-        var bottomGap = Math.max(0, (doc.scrollHeight || 0) - (top + window.innerHeight));
-        try { window.webkit.messageHandlers.nookScroll.postMessage({ top: top, bottomGap: bottomGap }); } catch (e) {}
+        var scrollHeight = doc.scrollHeight || 0;
+        var viewport = window.innerHeight || 0;
+        var scrollable = (scrollHeight - viewport) > 4;
+        var bottomGap = Math.max(0, scrollHeight - (top + viewport));
+        try {
+          window.webkit.messageHandlers.nookScroll.postMessage({ top: top, bottomGap: bottomGap, scrollable: scrollable });
+        } catch (e) {}
       }
       window.addEventListener('scroll', report, { passive: true });
       window.addEventListener('resize', report, { passive: true });
+      window.addEventListener('load', report, { passive: true });
       report();
+      // Re-report once layout settles (reader content, images), so a long page
+      // that momentarily measured as non-scrollable is corrected.
+      setTimeout(report, 300);
     })();
     """
 
@@ -451,10 +460,14 @@ extension ArticleWebView {
         /// delegate), so it never interferes with WKWebView's own scrolling.
         @objc func handleScrollPan(_ gesture: UIPanGestureRecognizer) {
             guard let scrollView = gesture.view as? UIScrollView else { return }
+            // Only a genuinely scrollable page has a bottom to overscroll; a
+            // freshly-loaded page can momentarily measure shorter than its
+            // bounds, which would otherwise read as an immediate overscroll.
+            let scrollable = scrollView.contentSize.height > scrollView.bounds.height + 4
             let maxOffset = scrollView.contentSize.height
                 - scrollView.bounds.height
                 + scrollView.adjustedContentInset.bottom
-            let overscroll = max(0, scrollView.contentOffset.y - maxOffset)
+            let overscroll = scrollable ? max(0, scrollView.contentOffset.y - maxOffset) : 0
             switch gesture.state {
             case .changed:
                 onBottomOverscroll(overscroll)
@@ -498,6 +511,21 @@ extension ArticleWebView {
             progressObservation = nil
         }
 
+        public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            // A new page starts at the top and hasn't reported its real height
+            // yet; clear stale scroll/overscroll state so it isn't mistaken for
+            // being at the bottom (which would trigger the pull gesture on the
+            // first downward scroll).
+            atTop = true
+            atBottom = false
+            #if canImport(AppKit)
+            engaged = false
+            bottomEngaged = false
+            overscroll = 0
+            bottomOverscroll = 0
+            #endif
+        }
+
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             // Translate after the page (and reader script) has loaded, if the
             // user toggled translation on.
@@ -521,8 +549,12 @@ extension ArticleWebView {
             if let body = message.body as? [String: Any] {
                 let top = (body["top"] as? NSNumber)?.doubleValue ?? 0
                 let bottomGap = (body["bottomGap"] as? NSNumber)?.doubleValue ?? .greatestFiniteMagnitude
+                let scrollable = (body["scrollable"] as? NSNumber)?.boolValue ?? false
                 atTop = top <= 0.5
-                atBottom = bottomGap <= 1
+                // Only a genuinely scrollable page can be "at the bottom"; a
+                // freshly-loaded long page momentarily measures short, and must
+                // not be treated as bottomed-out.
+                atBottom = scrollable && bottomGap <= 2
             } else if let top = (message.body as? NSNumber)?.doubleValue {
                 atTop = top <= 0.5
             }
