@@ -381,14 +381,22 @@ extension ArticleWebView {
             return limit * distance / (distance + softness)
         }
 
+        // The scroll monitor is app-wide, so only the newest web view may drive
+        // the gesture — otherwise the coordinator we navigated away from (still
+        // holding `atBottom == true`) would hijack the next page's scrolling.
+        static weak var activeMonitorOwner: Coordinator?
+
         func attach(to webView: WKWebView) {
             self.webView = webView
+            Coordinator.activeMonitorOwner?.detach()
+            Coordinator.activeMonitorOwner = self
             monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
                 self?.handle(event) == true ? nil : event
             }
         }
 
         func detach() {
+            if Coordinator.activeMonitorOwner === self { Coordinator.activeMonitorOwner = nil }
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
         }
@@ -399,6 +407,8 @@ extension ArticleWebView {
         /// (a top overscroll → move the sheet), a negative one pulls it up (a
         /// bottom overscroll → reveal the close / next-article affordance).
         private func handle(_ event: NSEvent) -> Bool {
+            // A stale monitor from a previous article must never act.
+            guard Coordinator.activeMonitorOwner === self else { return false }
             guard let webView, event.window === webView.window else { return false }
             let delta = event.scrollingDeltaY
 
