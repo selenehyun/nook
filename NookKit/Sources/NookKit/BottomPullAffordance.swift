@@ -11,7 +11,7 @@ public struct BottomPullAffordance: View {
     /// Release beyond this (but below `nextThreshold`) closes the browser.
     public static let closeThreshold: CGFloat = 80
     /// Release beyond this opens the next article instead.
-    public static let nextThreshold: CGFloat = 170
+    public static let nextThreshold: CGFloat = 130
 
     private let pull: CGFloat
 
