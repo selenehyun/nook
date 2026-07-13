@@ -220,9 +220,9 @@ struct RootView: View {
 /// show a spinner, the loading indicator fades in below afterward without
 /// moving the logo.
 struct SplashView: View {
-    /// Must match the launch screen's logo point size (LaunchLogo is rendered
-    /// at @2x = 168px / @3x = 252px = 84pt).
-    private static let logoSize: CGFloat = 84
+    /// Must match the launch storyboard's image-view size (96×96) so the OS
+    /// launch screen and this splash show the logo at the exact same size.
+    private static let logoSize: CGFloat = 96
 
     @State private var showLoading = false
 
