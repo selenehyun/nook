@@ -944,6 +944,16 @@ public final class ReaderStore {
         moveSelection(offset: 1)
     }
 
+    /// The article shown right after `id` in the current visible list, or nil if
+    /// `id` is the last one. Lets the UI preview what "next" would open.
+    public func article(after id: Article.ID) -> Article? {
+        let visible = visibleArticles
+        guard let index = visible.firstIndex(where: { $0.id == id }), index + 1 < visible.count else {
+            return nil
+        }
+        return visible[index + 1]
+    }
+
     public func selectPreviousArticle() {
         moveSelection(offset: -1)
     }

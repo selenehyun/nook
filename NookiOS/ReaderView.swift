@@ -453,14 +453,14 @@ struct InAppBrowserSheet: View {
         return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
     }
 
-    /// A short bottom pull-up closes the browser; a longer one opens the next
-    /// article; anything less snaps back.
+    /// A short bottom pull-up opens the next article; a longer one closes the
+    /// browser; anything less snaps back.
     private func handleBottomRelease(_ amount: CGFloat) {
-        if amount >= BottomPullAffordance.nextThreshold {
+        if amount >= BottomPullAffordance.closeThreshold {
+            dismiss()
+        } else if amount >= BottomPullAffordance.nextThreshold {
             store.selectNextArticle()
             bottomPull = 0
-        } else if amount >= BottomPullAffordance.closeThreshold {
-            dismiss()
         } else {
             withAnimation(.easeOut(duration: 0.2)) { bottomPull = 0 }
         }
@@ -486,7 +486,7 @@ struct InAppBrowserSheet: View {
                 WebLoadingBar(progress: loadingProgress)
             }
             .overlay(alignment: .bottom) {
-                BottomPullAffordance(pull: bottomPull)
+                BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
             }
             .overlay(alignment: .top) {
                 if translationInFlight {

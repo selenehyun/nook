@@ -1425,7 +1425,7 @@ private struct InAppBrowserPanel: View {
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
             .overlay(alignment: .bottom) {
-                BottomPullAffordance(pull: bottomPull)
+                BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
             }
         }
         .frame(maxWidth: 980)
@@ -1448,14 +1448,14 @@ private struct InAppBrowserPanel: View {
         }
     }
 
-    /// Decides what a bottom pull-up did on release: a short pull closes the
-    /// browser, a longer pull opens the next article, otherwise it snaps back.
+    /// Decides what a bottom pull-up did on release: a short pull opens the next
+    /// article, a longer pull closes the browser, otherwise it snaps back.
     private func handleBottomRelease(_ amount: CGFloat) {
-        if amount >= BottomPullAffordance.nextThreshold {
+        if amount >= BottomPullAffordance.closeThreshold {
+            onClose()
+        } else if amount >= BottomPullAffordance.nextThreshold {
             store.selectNextArticle()
             bottomPull = 0
-        } else if amount >= BottomPullAffordance.closeThreshold {
-            onClose()
         } else {
             withAnimation(.easeOut(duration: 0.2)) { bottomPull = 0 }
         }

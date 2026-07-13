@@ -3,27 +3,30 @@ import SwiftUI
 /// A floating indicator revealed at the bottom of the in-app browser when the
 /// user keeps pulling up past the end of the page. It rises in as a glass pill
 /// (never pushing the page content) and its label/icon escalate through two
-/// thresholds: pull a little to close, pull further to open the next article.
+/// thresholds: pull a little to open the next article (previewing its title),
+/// pull further to close.
 ///
 /// The thresholds are shared so the browser's release handler decides the same
 /// way the indicator reads.
 public struct BottomPullAffordance: View {
-    /// Release beyond this (but below `nextThreshold`) closes the browser.
-    public static let closeThreshold: CGFloat = 80
-    /// Release beyond this opens the next article instead.
-    public static let nextThreshold: CGFloat = 120
+    /// The primary action: pull a little past this to open the next article.
+    public static let nextThreshold: CGFloat = 80
+    /// Pull further, past this, to close the browser instead.
+    public static let closeThreshold: CGFloat = 130
 
     private let pull: CGFloat
+    private let nextTitle: String?
 
-    public init(pull: CGFloat) {
+    public init(pull: CGFloat, nextTitle: String?) {
         self.pull = pull
+        self.nextTitle = nextTitle
     }
 
-    private enum Stage: Equatable { case hint, close, next }
+    private enum Stage: Equatable { case hint, next, close }
 
     private var stage: Stage {
-        if pull >= Self.nextThreshold { return .next }
         if pull >= Self.closeThreshold { return .close }
+        if pull >= Self.nextThreshold { return .next }
         return .hint
     }
 
@@ -38,6 +41,10 @@ public struct BottomPullAffordance: View {
                 .symbolEffect(.bounce, value: stage)
             Text(label)
                 .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: 260)
+                .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
         }
         .foregroundStyle(foreground)
@@ -48,6 +55,7 @@ public struct BottomPullAffordance: View {
         .opacity(reveal)
         .offset(y: (1 - reveal) * 44)
         .padding(.bottom, 22)
+        .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, alignment: .center)
         .animation(.snappy(duration: 0.22), value: stage)
         // Native haptic tick each time the pull crosses into a new stage. iOS
@@ -58,11 +66,11 @@ public struct BottomPullAffordance: View {
             switch newStage {
             case .hint: nil
             #if os(macOS)
-            case .close: .alignment
-            case .next: .levelChange
+            case .next: .alignment
+            case .close: .levelChange
             #else
-            case .close: .impact(weight: .light)
-            case .next: .impact(weight: .medium)
+            case .next: .impact(weight: .light)
+            case .close: .impact(weight: .medium)
             #endif
             }
         }
@@ -72,24 +80,27 @@ public struct BottomPullAffordance: View {
     private var foreground: AnyShapeStyle {
         switch stage {
         case .hint: AnyShapeStyle(.secondary)
-        case .close: AnyShapeStyle(.primary)
         case .next: AnyShapeStyle(.tint)
+        case .close: AnyShapeStyle(.primary)
         }
     }
 
     private var icon: String {
         switch stage {
         case .hint: "chevron.up"
+        case .next: nextTitle == nil ? "checkmark.circle" : "arrow.right"
         case .close: "xmark"
-        case .next: "arrow.right"
         }
     }
 
     private var label: String {
         switch stage {
-        case .hint: String(localized: "Keep pulling", bundle: .module)
-        case .close: String(localized: "Release to close", bundle: .module)
-        case .next: String(localized: "Release for next article", bundle: .module)
+        case .hint:
+            String(localized: "Keep pulling", bundle: .module)
+        case .next:
+            nextTitle ?? String(localized: "You're all caught up", bundle: .module)
+        case .close:
+            String(localized: "Release to close", bundle: .module)
         }
     }
 }
