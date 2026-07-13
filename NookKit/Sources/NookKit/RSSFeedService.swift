@@ -501,18 +501,50 @@ private enum FeedDateParser {
 private extension String {
     func cleanedFeedText(fallback: String = "") -> String {
         let withoutTags = replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-        let decoded = withoutTags
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&apos;", with: "'")
+        let decoded = withoutTags.decodingHTMLEntities()
         let normalized = decoded
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
         return normalized.isEmpty ? fallback : normalized
+    }
+
+    /// Decodes HTML entities in feed text. Named entities are decoded first so a
+    /// double-encoded reference (e.g. "&amp;#039;", common in RSS titles)
+    /// collapses to "&#039;" and is then caught by the numeric pass — turning
+    /// "&#039;" into "'". Handles decimal and hex numeric references.
+    func decodingHTMLEntities() -> String {
+        let named: [String: String] = [
+            "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"",
+            "&apos;": "'", "&nbsp;": " ", "&hellip;": "…", "&mdash;": "—",
+            "&ndash;": "–", "&rsquo;": "\u{2019}", "&lsquo;": "\u{2018}",
+            "&ldquo;": "\u{201C}", "&rdquo;": "\u{201D}", "&middot;": "·",
+        ]
+        var text = self
+        for (entity, replacement) in named {
+            text = text.replacingOccurrences(of: entity, with: replacement)
+        }
+
+        guard text.contains("&#"),
+              let regex = try? NSRegularExpression(pattern: "&#([xX])?([0-9a-fA-F]+);") else {
+            return text
+        }
+        let ns = text as NSString
+        var result = ""
+        var cursor = 0
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            result += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            let isHex = match.range(at: 1).location != NSNotFound
+            let digits = ns.substring(with: match.range(at: 2))
+            if let code = UInt32(digits, radix: isHex ? 16 : 10), let scalar = Unicode.Scalar(code) {
+                result.append(Character(scalar))
+            } else {
+                result += ns.substring(with: match.range)
+            }
+            cursor = match.range.location + match.range.length
+        }
+        result += ns.substring(from: cursor)
+        return result
     }
 
     func paragraphsForReader() -> [String] {
