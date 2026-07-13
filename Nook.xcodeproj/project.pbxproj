@@ -18,6 +18,7 @@
 		2D0E3A3A2D8A4A4700A00001 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2D105000000000000000000B /* NookiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000A /* NookiOSApp.swift */; };
 		2D105000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105000000000000000000C /* RootView.swift */; };
+		2D10544597693E9EBB8A7A62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2D10545C5225873E388FAABE /* Assets.xcassets */; };
 		2D105000000000000000000F /* NookKit in Frameworks */ = {isa = PBXBuildFile; productRef = 2D105000000000000000000E /* NookKit */; };
 		2D1051A8D42008A8673C6254 /* HapticEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105149B0FA45C5262BC079 /* HapticEngine.swift */; };
 		2D1051C7E6525A9C376F8FA4 /* BackgroundRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D105108612B054201B57E97 /* BackgroundRefresh.swift */; };
@@ -73,6 +74,7 @@
 		2D1050000000000000000002 /* NookiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NookiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D105000000000000000000A /* NookiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NookiOSApp.swift; sourceTree = "<group>"; };
 		2D105000000000000000000C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2D10545C5225873E388FAABE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D105108612B054201B57E97 /* BackgroundRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefresh.swift; sourceTree = "<group>"; };
 		2D105149B0FA45C5262BC079 /* HapticEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticEngine.swift; sourceTree = "<group>"; };
 		2D10517EDF4172A50DC4DC2C /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
@@ -198,6 +200,7 @@
 			children = (
 				2D105000000000000000000A /* NookiOSApp.swift */,
 				2D105000000000000000000C /* RootView.swift */,
+				2D10545C5225873E388FAABE /* Assets.xcassets */,
 				2D105108612B054201B57E97 /* BackgroundRefresh.swift */,
 				2D105149B0FA45C5262BC079 /* HapticEngine.swift */,
 				2D1052500836257B764B55D2 /* Localizable.xcstrings */,
@@ -373,6 +376,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2D10544597693E9EBB8A7A62 /* Assets.xcassets in Resources */,
 				2D105296C152C93200E60E80 /* Localizable.xcstrings in Resources */,
 				2DA1C0DF00000000000000E1 /* AppIcon.icon in Resources */,
 			);
@@ -708,7 +712,6 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -746,7 +749,6 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
