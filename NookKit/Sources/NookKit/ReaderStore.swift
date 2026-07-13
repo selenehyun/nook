@@ -74,6 +74,16 @@ public final class ReaderStore {
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
+    // Git-like per-device sync. This device authors its own shard of user state
+    // (read/starred flags, folders, per-feed overrides, feed deletions), each
+    // change stamped with a monotonic HLC. Reads merge every device's shard over
+    // the content baseline, so concurrent edits converge without clobbering.
+    private var deviceID = ""
+    private var lastHLC: HLC = .zero
+    private var ownShard = DeviceStateDocument(deviceID: "")
+    private var pendingShard: DeviceStateDocument?
+    private var isDrainingShardSaves = false
+
     /// App-global instance. A singleton so the separate Settings scene can reach
     /// the same feeds/state as the main window (SwiftUI scenes can't share a
     /// view's `@State`).
@@ -94,6 +104,8 @@ public final class ReaderStore {
     public func bootstrap() {
         guard !didBootstrap else { return }
         didBootstrap = true
+        deviceID = DeviceIdentity.current()
+        ownShard = DeviceStateDocument(deviceID: deviceID)
         restoreStorageIfPossible()
         scheduleArticleFilter()
     }
@@ -239,9 +251,13 @@ public final class ReaderStore {
             self.storage = storage
             syncFolderDisplayPath = directoryURL.path(percentEncoded: false)
 
-            if let library = try storage.load() {
-                apply(library)
+            storage.resolveLibraryConflictsIfAny()
+            restoreOwnShard(storage: storage)
+            if let base = try storage.load() {
+                mergeShardsAndApply(base: base, storage: storage)
             } else {
+                // Fresh folder: seed the content baseline. The device's shard was
+                // already seeded by `restoreOwnShard`.
                 try persistLibrary()
             }
 
@@ -280,27 +296,88 @@ public final class ReaderStore {
         }
     }
 
-    /// Re-reads the library from disk and applies it when the file is newer than
-    /// what we last loaded or wrote — so it reflects another device's changes
-    /// but ignores our own saves. UI state (selection, search) is preserved.
+    /// Restores this device's shard (its clock and authored registers) from disk,
+    /// or seeds an empty one on first run — the one-time migration for an existing
+    /// `NookLibrary.json`, whose read/starred state stays valid as the merge
+    /// baseline. Seeding also registers this device so peers can see it.
+    private func restoreOwnShard(storage: ReaderStorage) {
+        if let own = storage.loadOwnShard(deviceID: deviceID) {
+            ownShard = own
+            lastHLC = own.clock
+        } else {
+            ownShard = DeviceStateDocument(deviceID: deviceID)
+            lastHLC = .zero
+            try? storage.saveShard(ownShard)
+        }
+    }
+
+    /// Merges the content baseline with every device's shard and applies the
+    /// result, advancing this device's clock past everything it has observed so
+    /// its next write beats any peer's latest edit.
+    private func mergeShardsAndApply(base: ReaderLibrary, storage: ReaderStorage) {
+        let shards = observedShards(from: storage)
+        witness(shards)
+        apply(DeviceStateDocument.materialize(base: base, shards: shards))
+    }
+
+    /// All shards on disk, but with this device's on-disk shard replaced by the
+    /// authoritative in-memory `ownShard` so a not-yet-flushed local edit is
+    /// never dropped when re-merging.
+    private func observedShards(from storage: ReaderStorage) -> [DeviceStateDocument] {
+        var shards = (try? storage.loadShards()) ?? []
+        shards.removeAll { $0.deviceID == deviceID }
+        shards.append(ownShard)
+        return shards
+    }
+
+    private func witness(_ shards: [DeviceStateDocument]) {
+        for shard in shards where shard.deviceID != deviceID {
+            lastHLC = lastHLC.witnessed(shard.maxObservedHLC)
+        }
+        ownShard.clock = lastHLC
+    }
+
+    /// Re-reads the baseline + all shards, merges, and applies the result only
+    /// when it differs from what's in memory — so peer edits show up without
+    /// churning the UI on our own writes. Preserves UI state (selection, search).
+    private func reloadMerged() {
+        guard let storage, let base = try? storage.load() else { return }
+        let shards = observedShards(from: storage)
+        witness(shards)
+        let merged = DeviceStateDocument.materialize(base: base, shards: shards)
+
+        // Compare against the same folder normalization `apply` produces.
+        let impliedFolders = merged.feeds.map(\.folderName).filter { !$0.isEmpty }
+        let mergedFolders = Set(merged.folders).union(impliedFolders)
+        guard merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) else {
+            return
+        }
+        apply(merged)
+        pruneSelectionIfHidden()
+    }
+
+    /// Re-reads from disk and applies another device's changes when the baseline
+    /// file is newer than what we last loaded or wrote. UI state is preserved.
     public func reloadFromDiskIfChanged() {
         guard let storage, !isRefreshing else { return }
         let diskDate = storage.libraryModificationDate
         if let diskDate, let known = lastKnownLibraryModDate, diskDate <= known {
             return
         }
-        guard let library = try? storage.load() else { return }
-        apply(library)
-        pruneSelectionIfHidden()
+        reloadMerged()
         lastKnownLibraryModDate = storage.libraryModificationDate
     }
 
-    /// Pulls the latest library from iCloud and reloads it. Call this when the
-    /// app returns to the foreground so device switches sync promptly.
+    /// Pulls the latest baseline and every peer's shard from iCloud and re-merges.
+    /// Call this when the app returns to the foreground so device switches sync
+    /// promptly — it bypasses the baseline mtime gate so shard-only edits (a read
+    /// on another device) are pulled even when the baseline is unchanged.
     public func syncFromDisk() {
-        guard let storage else { return }
+        guard let storage, !isRefreshing else { return }
         storage.startDownloadingLibraryIfNeeded()
-        reloadFromDiskIfChanged()
+        storage.startDownloadingStateIfNeeded()
+        reloadMerged()
+        lastKnownLibraryModDate = storage.libraryModificationDate
     }
 
     public func feed(for feedID: Feed.ID) -> Feed? {
@@ -334,6 +411,8 @@ public final class ReaderStore {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !folders.contains(trimmed) else { return }
         folders.append(trimmed)
+        recordFolder(trimmed, present: true)
+        scheduleShardSave()
         saveAfterMutation()
     }
 
@@ -347,6 +426,9 @@ public final class ReaderStore {
             feedSelection.remove(id)
         }
         folders.removeAll { $0 == name }
+        for id in removedIDs { recordFeedDeleted(id) }
+        recordFolder(name, present: false)
+        scheduleShardSave()
         pruneSelectionIfHidden()
         saveAfterMutation()
     }
@@ -361,10 +443,14 @@ public final class ReaderStore {
         }
         for index in feeds.indices where feeds[index].folderName == oldName {
             feeds[index].category = trimmed
+            recordCategory(feeds[index].id, trimmed)
         }
         if let index = folders.firstIndex(of: oldName) {
             folders[index] = trimmed
         }
+        recordFolder(oldName, present: false)
+        recordFolder(trimmed, present: true)
+        scheduleShardSave()
         saveAfterMutation()
     }
 
@@ -375,9 +461,12 @@ public final class ReaderStore {
             return
         }
         feeds[index].category = folder
+        recordCategory(feedID, folder)
         if !folder.isEmpty, !folders.contains(folder) {
             folders.append(folder)
+            recordFolder(folder, present: true)
         }
+        scheduleShardSave()
         saveAfterMutation()
     }
 
@@ -394,9 +483,13 @@ public final class ReaderStore {
             guard let index = feeds.firstIndex(where: { $0.id == id }),
                   feeds[index].preferredViewMode != mode else { continue }
             feeds[index].preferredViewMode = mode
+            recordViewMode(id, mode)
             changed = true
         }
-        if changed { saveAfterMutation() }
+        if changed {
+            scheduleShardSave()
+            saveAfterMutation()
+        }
     }
 
     /// Total unread across every feed, used for the app icon badge.
@@ -672,6 +765,8 @@ public final class ReaderStore {
               articles[index].isRead != isRead else { return }
 
         articles[index].isRead = isRead
+        recordRead(articleID, isRead)
+        scheduleShardSave()
         saveAfterMutation()
     }
 
@@ -688,6 +783,8 @@ public final class ReaderStore {
 
         feedSelection.remove(feedID)
 
+        recordFeedDeleted(feedID)
+        scheduleShardSave()
         pruneSelectionIfHidden()
         saveAfterMutation()
     }
@@ -697,11 +794,13 @@ public final class ReaderStore {
         for index in articles.indices where articles[index].feedID == feedID {
             if !articles[index].isRead {
                 articles[index].isRead = true
+                recordRead(articles[index].id, true)
                 didChange = true
             }
         }
 
         if didChange {
+            scheduleShardSave()
             saveAfterMutation()
         }
     }
@@ -712,9 +811,18 @@ public final class ReaderStore {
     }
 
     public func toggleStarred(articleID: Article.ID) {
-        updateArticle(articleID) { article in
-            article.isStarred.toggle()
-        }
+        guard let article = articles.first(where: { $0.id == articleID }) else { return }
+        setStarred(articleID: articleID, isStarred: !article.isStarred)
+    }
+
+    public func setStarred(articleID: Article.ID, isStarred: Bool) {
+        guard let index = articles.firstIndex(where: { $0.id == articleID }),
+              articles[index].isStarred != isStarred else { return }
+
+        articles[index].isStarred = isStarred
+        recordStarred(articleID, isStarred)
+        scheduleShardSave()
+        saveAfterMutation()
     }
 
     /// Clears the article selection if it is no longer in the visible list.
@@ -750,9 +858,7 @@ public final class ReaderStore {
         Binding {
             self.articles.first { $0.id == articleID }?.isStarred ?? false
         } set: { isStarred in
-            self.updateArticle(articleID) { article in
-                article.isStarred = isStarred
-            }
+            self.setStarred(articleID: articleID, isStarred: isStarred)
         }
     }
 
@@ -768,8 +874,10 @@ public final class ReaderStore {
             self.storage = storage
             syncFolderDisplayPath = directoryURL.path(percentEncoded: false)
 
-            if let library = try storage.load() {
-                apply(library)
+            storage.resolveLibraryConflictsIfAny()
+            restoreOwnShard(storage: storage)
+            if let base = try storage.load() {
+                mergeShardsAndApply(base: base, storage: storage)
             }
             lastKnownLibraryModDate = storage.libraryModificationDate
             startObservingLibrary()
@@ -926,12 +1034,6 @@ public final class ReaderStore {
 
         let nextIndex = min(max(currentIndex + offset, visible.startIndex), visible.index(before: visible.endIndex))
         self.selectedArticleID = visible[nextIndex].id
-    }
-
-    private func updateArticle(_ articleID: Article.ID, update: (inout Article) -> Void) {
-        guard let index = articles.firstIndex(where: { $0.id == articleID }) else { return }
-        update(&articles[index])
-        saveAfterMutation()
     }
 
     /// Debounces search input: an empty query clears instantly for a snappy
@@ -1096,5 +1198,62 @@ public final class ReaderStore {
         }
         try storage.save(snapshotLibrary())
         lastKnownLibraryModDate = storage.libraryModificationDate
+    }
+
+    // MARK: - Recording user-state changes into this device's shard
+
+    /// Issues the next monotonic HLC for a local write, always strictly greater
+    /// than anything this device has issued or observed.
+    private func nextHLC() -> HLC {
+        lastHLC = HLC.next(after: lastHLC, node: deviceID)
+        ownShard.clock = lastHLC
+        return lastHLC
+    }
+
+    private func recordRead(_ id: Article.ID, _ value: Bool) {
+        ownShard.setArticleRead(id, value, hlc: nextHLC())
+    }
+
+    private func recordStarred(_ id: Article.ID, _ value: Bool) {
+        ownShard.setArticleStarred(id, value, hlc: nextHLC())
+    }
+
+    private func recordCategory(_ id: Feed.ID, _ value: String) {
+        ownShard.setFeedCategory(id, value, hlc: nextHLC())
+    }
+
+    private func recordViewMode(_ id: Feed.ID, _ value: ReaderViewMode?) {
+        ownShard.setFeedViewMode(id, value, hlc: nextHLC())
+    }
+
+    private func recordFeedDeleted(_ id: Feed.ID) {
+        ownShard.setFeedTombstone(id, true, hlc: nextHLC())
+    }
+
+    private func recordFolder(_ name: String, present: Bool) {
+        ownShard.setFolderPresent(name, present, hlc: nextHLC())
+    }
+
+    /// Schedules a coalesced background write of this device's shard. Runs off
+    /// the main actor and, like the baseline save, only ever writes the latest
+    /// snapshot. The shard is a separate file from `NookLibrary.json`, so the two
+    /// writers never contend.
+    private func scheduleShardSave() {
+        guard let storage else { return }
+        ownShard.updatedAt = Date()
+        pendingShard = ownShard
+        guard !isDrainingShardSaves else { return }
+        isDrainingShardSaves = true
+        Task { await drainShardSaves(storage: storage) }
+    }
+
+    private func drainShardSaves(storage: ReaderStorage) async {
+        while let shard = pendingShard {
+            pendingShard = nil
+            await Task.detached(priority: .utility) {
+                try? storage.saveShard(shard)
+            }.value
+        }
+        isDrainingShardSaves = false
     }
 }
