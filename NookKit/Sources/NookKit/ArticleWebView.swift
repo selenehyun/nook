@@ -360,6 +360,16 @@ extension ArticleWebView {
         }
 
         #if canImport(AppKit)
+        /// iOS-style rubber-band resistance: the pull tracks the finger 1:1 at
+        /// first and grows ever more slowly, asymptotically approaching `limit`,
+        /// so the harder you pull the less it moves. (iOS gets this for free from
+        /// the scroll view's native bounce; macOS accumulates raw wheel deltas,
+        /// so it needs the curve applied explicitly.)
+        static func rubberBand(_ distance: CGFloat, limit: CGFloat = 420) -> CGFloat {
+            guard distance > 0 else { return 0 }
+            return (1 - 1 / (distance / limit + 1)) * limit
+        }
+
         func attach(to webView: WKWebView) {
             self.webView = webView
             monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
@@ -414,11 +424,12 @@ extension ArticleWebView {
                 return true
             }
 
-            // Bottom overscroll: accumulate the upward pull (negative delta).
+            // Bottom overscroll: accumulate the raw upward pull (negative delta),
+            // but report it through the rubber-band curve so it resists like iOS.
             bottomOverscroll = max(0, bottomOverscroll - delta)
-            onBottomOverscroll(bottomOverscroll)
+            onBottomOverscroll(Self.rubberBand(bottomOverscroll))
             if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
-                let amount = bottomOverscroll
+                let amount = Self.rubberBand(bottomOverscroll)
                 bottomEngaged = false
                 bottomOverscroll = 0
                 onBottomOverscrollEnded(amount)
