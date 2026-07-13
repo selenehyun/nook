@@ -8,16 +8,33 @@
         {
           "fill-specializations" : [
             {
+              "value" : {
+                "automatic-gradient" : "display-p3:0.28234,0.23103,0.12362,1.00000"
+              }
+            },
+            {
               "appearance" : "tinted",
               "value" : "automatic"
             }
           ],
           "image-name" : "6 – Layer 2.svg",
           "name" : "6 – Layer 2",
-          "opacity" : 0.8
+          "opacity" : 0.8,
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -34.267837365084006,
+              -13.052021803247612
+            ]
+          }
         },
         {
           "fill-specializations" : [
+            {
+              "value" : {
+                "automatic-gradient" : "display-p3:0.36629,0.22432,0.08458,1.00000"
+              }
+            },
             {
               "appearance" : "tinted",
               "value" : "automatic"
@@ -25,10 +42,22 @@
           ],
           "image-name" : "5 – Layer 2.svg",
           "name" : "5 – Layer 2",
-          "opacity" : 0.8
+          "opacity" : 0.8,
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              21.457818850950844,
+              1.551875876700933
+            ]
+          }
         },
         {
           "fill-specializations" : [
+            {
+              "value" : {
+                "solid" : "display-p3:0.47398,0.28733,0.14062,1.00000"
+              }
+            },
             {
               "appearance" : "tinted",
               "value" : "automatic"
@@ -41,6 +70,11 @@
         {
           "fill-specializations" : [
             {
+              "value" : {
+                "solid" : "display-p3:0.39857,0.26728,0.07585,1.00000"
+              }
+            },
+            {
               "appearance" : "tinted",
               "value" : "automatic"
             }
@@ -52,6 +86,11 @@
         {
           "fill-specializations" : [
             {
+              "value" : {
+                "automatic-gradient" : "display-p3:0.33131,0.18300,0.12426,1.00000"
+              }
+            },
+            {
               "appearance" : "tinted",
               "value" : "automatic"
             }
@@ -62,6 +101,11 @@
         },
         {
           "fill-specializations" : [
+            {
+              "value" : {
+                "solid" : "display-p3:0.52707,0.34104,0.16485,1.00000"
+              }
+            },
             {
               "appearance" : "tinted",
               "value" : "automatic"
