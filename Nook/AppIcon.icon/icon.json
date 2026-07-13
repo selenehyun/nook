@@ -1,8 +1,76 @@
 {
-  "fill" : "automatic",
+  "fill" : {
+    "automatic-gradient" : "srgb:1.00000,0.98311,0.86998,1.00000"
+  },
   "groups" : [
     {
       "layers" : [
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "image-name" : "6 – Layer 2.svg",
+          "name" : "6 – Layer 2",
+          "opacity" : 0.8
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "image-name" : "5 – Layer 2.svg",
+          "name" : "5 – Layer 2",
+          "opacity" : 0.8
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "image-name" : "4 – Layer 2.svg",
+          "name" : "4 – Layer 2",
+          "opacity" : 0.8
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "image-name" : "3 – Layer 2.svg",
+          "name" : "3 – Layer 2",
+          "opacity" : 0.8
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "image-name" : "2 – Layer 2.svg",
+          "name" : "2 – Layer 2",
+          "opacity" : 0.8
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : "automatic"
+            }
+          ],
+          "image-name" : "1 – Layer 2.svg",
+          "name" : "1 – Layer 2",
+          "opacity" : 0.8
+        },
         {
           "blend-mode-specializations" : [
             {
@@ -53,7 +121,7 @@
             }
           ],
           "glass" : false,
-          "hidden" : false,
+          "hidden" : true,
           "image-name" : "Adobe Express - file.png",
           "name" : "Adobe Express - file"
         }
