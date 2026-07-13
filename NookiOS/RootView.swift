@@ -248,6 +248,24 @@ struct SplashView: View {
     }
 }
 
+/// A row background rendered as a Liquid Glass card on iOS 26, so the grouped
+/// sidebar reads as floating glass pills; falls back to a grouped card color on
+/// earlier OSes.
+struct GlassRowBackground: View {
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                Color.clear
+                    .glassEffect(.regular, in: .rect(cornerRadius: 14, style: .continuous))
+            } else {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            }
+        }
+        .padding(.vertical, 3)
+    }
+}
+
 /// A selectable sidebar entry. Binding the List selection to this (rather than
 /// using plain buttons) is what lets a collapsed NavigationSplitView push to the
 /// article-list column when a row is tapped on iPhone.
@@ -317,6 +335,8 @@ private struct Sidebar: View {
         }
         .scrollContentBackground(.hidden)
         .background(Color("ListBackground").ignoresSafeArea())
+        .listRowBackground(GlassRowBackground())
+        .listRowSeparator(.hidden)
         .onChange(of: selection) { _, item in
             switch item {
             case .smart(let source):
