@@ -286,9 +286,9 @@ private struct Sidebar: View {
                     .tag(SidebarItem.smart(source))
                 }
             }
-            // Transparent rows so the warm list background shows instead of the
-            // default white/dark grouped card fill.
-            .listRowBackground(Color.clear)
+            // Frosted translucent cards (not the solid white/dark grouped fill)
+            // so the warm background shows through with a glassy feel.
+            .listRowBackground(Rectangle().fill(.ultraThinMaterial))
 
             if !store.feedFolders.isEmpty || !store.ungroupedFeeds.isEmpty {
                 Section("Feeds") {
@@ -316,7 +316,7 @@ private struct Sidebar: View {
                         }
                     }
                 }
-                .listRowBackground(Color.clear)
+                .listRowBackground(Rectangle().fill(.ultraThinMaterial))
             }
         }
         .scrollContentBackground(.hidden)
