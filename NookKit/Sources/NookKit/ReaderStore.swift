@@ -116,12 +116,12 @@ public final class ReaderStore {
     /// the JSON load in `init()`, that decoded `NookLibrary.json` synchronously on
     /// the main thread repeatedly and pinned the CPU near 100%. Deferring it to a
     /// one-time call from `.task` keeps those re-evaluations cheap.
-    public func bootstrap() {
+    public func bootstrap() async {
         guard !didBootstrap else { return }
         didBootstrap = true
         deviceID = DeviceIdentity.current()
         ownShard = DeviceStateDocument(deviceID: deviceID)
-        restoreStorageIfPossible()
+        await restoreStorageIfPossible()
         scheduleArticleFilter()
     }
 
@@ -654,7 +654,7 @@ public final class ReaderStore {
     /// writes it synchronously so the result is saved before the OS suspends
     /// the app again.
     public func refreshForBackground() async -> BackgroundRefreshResult {
-        if !didBootstrap { bootstrap() }
+        if !didBootstrap { await bootstrap() }
         let result = await refreshAllReportingNew()
         // Write synchronously so the result is saved before the OS suspends the
         // app again (the iOS background-task caller depends on this).
@@ -964,7 +964,7 @@ public final class ReaderStore {
         }
     }
 
-    private func restoreStorageIfPossible() {
+    private func restoreStorageIfPossible() async {
         do {
             guard let directoryURL = try ReaderStorage.resolveBookmarkedDirectory() else {
                 syncFolderDisplayPath = UserDefaults.standard.string(forKey: ReaderStorage.displayPathDefaultsKey)
@@ -976,11 +976,13 @@ public final class ReaderStore {
             self.storage = storage
             syncFolderDisplayPath = directoryURL.path(percentEncoded: false)
 
-            storage.resolveLibraryConflictsIfAny()
             restoreOwnShard(storage: storage)
-            if let base = try storage.load() {
-                mergeShardsAndApply(base: base, storage: storage)
-            }
+            // Resolve iCloud conflict copies and merge the (possibly multi-MB)
+            // library off the main actor, so the first frame paints immediately
+            // instead of freezing on a synchronous decode (a black screen on iOS,
+            // where nothing has been drawn yet).
+            await Task.detached(priority: .userInitiated) { storage.resolveLibraryConflictsIfAny() }.value
+            await reloadMerged()
             lastKnownLibraryModDate = storage.libraryModificationDate
             lastKnownStateModDate = storage.stateDirectoryModificationDate
             startObservingLibrary()

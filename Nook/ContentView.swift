@@ -184,7 +184,7 @@ struct ContentView: View {
             // Mirror the badge preference into the store before loading, so the
             // first badge update (driven by the store) already respects it.
             store.showsUnreadBadge = showUnreadBadge
-            store.bootstrap()
+            await store.bootstrap()
             // Let the window paint the loaded library first, then kick off the
             // launch-time bursts (WebKit warm-up and the network refresh) so
             // their CPU/IO spike doesn't stall the first frames.

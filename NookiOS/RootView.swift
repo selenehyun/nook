@@ -62,7 +62,7 @@ struct RootView: View {
                 UNUserNotificationCenter.current().setBadgeCount(count)
             }
             store.showsUnreadBadge = showUnreadBadge
-            store.bootstrap()
+            await store.bootstrap()
             // Warm up WebKit so the first article web view opens without the
             // ~2-3s cold-start delay.
             WebViewWarmer.warmUp()
