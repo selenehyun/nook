@@ -50,13 +50,20 @@ public struct BottomPullAffordance: View {
         .padding(.bottom, 22)
         .frame(maxWidth: .infinity, alignment: .center)
         .animation(.snappy(duration: 0.22), value: stage)
-        // Native haptic tick each time the pull crosses into a new stage
-        // (a no-op on hardware without a haptic engine).
+        // Native haptic tick each time the pull crosses into a new stage. iOS
+        // uses impact weights; macOS's Taptic Engine only supports the
+        // alignment/level-change patterns (and only on Force Touch trackpads),
+        // so map to those there. A no-op on hardware without a haptic engine.
         .sensoryFeedback(trigger: stage) { _, newStage in
             switch newStage {
+            case .hint: nil
+            #if os(macOS)
+            case .close: .alignment
+            case .next: .levelChange
+            #else
             case .close: .impact(weight: .light)
             case .next: .impact(weight: .medium)
-            case .hint: nil
+            #endif
             }
         }
         .allowsHitTesting(false)
