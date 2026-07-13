@@ -390,19 +390,6 @@ public final class ReaderStore {
         pruneSelectionIfHidden()
     }
 
-    /// Re-reads from disk and applies another device's changes when the baseline
-    /// file is newer than what we last loaded or wrote. UI state is preserved.
-    public func reloadFromDiskIfChanged() {
-        guard let storage, !isRefreshing else { return }
-        let diskDate = storage.libraryModificationDate
-        if let diskDate, let known = lastKnownLibraryModDate, diskDate <= known {
-            return
-        }
-        reloadMerged()
-        lastKnownLibraryModDate = storage.libraryModificationDate
-        lastKnownStateModDate = storage.stateDirectoryModificationDate
-    }
-
     /// Pulls the latest baseline and every peer's shard from iCloud and re-merges.
     /// Call this when the app returns to the foreground so device switches sync
     /// promptly — it bypasses the baseline mtime gate so shard-only edits (a read

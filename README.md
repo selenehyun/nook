@@ -39,14 +39,14 @@ Most RSS readers are either a web app behind a login or an Electron shell preten
 That one decision means **no lock-in**:
 
 - **Any cloud you like.** It's just a folder, so sync it however you already do — iCloud Drive, Dropbox, Google Drive, OneDrive, Syncthing, even a Git repo. Nook doesn't run a server or ask for an account.
-- **One library, every device.** Point the Mac and iOS apps at the same folder and your feeds, read state, and stars stay in step — Nook watches the file and pulls another device's changes the moment they arrive.
+- **One library, every device.** Point the Mac and iOS apps at the same folder and your feeds, read state, and stars stay in step — Nook watches the folder and merges another device's changes the moment they arrive, so a read on one device is never overwritten by another.
 - **Come and go via OPML.** Import your subscriptions from Reeder, NetNewsWire, Feedly, or anywhere else in seconds — and export them back out any time. Your feed list is always yours to take with you.
 
 ## Features
 
 - 🪶 **Truly native, everywhere.** One shared Swift core (`NookKit`) under a SwiftUI + AppKit Mac app and a SwiftUI iPhone/iPad app — `NavigationSplitView`, native toolbars, menus, commands, swipe actions, and share sheets. Not a webview wrapper, not Electron.
-- 🗂️ **Your data, your folder — any cloud.** Feeds, articles, read/starred state, and refresh metadata live as plain JSON (`NookLibrary.json`) in a folder you pick, Obsidian-vault style. Point it at iCloud Drive, Dropbox, Google Drive, OneDrive — whatever syncs folders for you. No account, no telemetry.
-- 🔁 **Fast cross-device sync.** Reads and writes are file-coordinated so edits reach the cloud promptly and don't create conflicts, and each app watches the library file to apply another device's changes live — no relaunch needed.
+- 🗂️ **Your data, your folder — any cloud.** Feeds and article content live as plain JSON (`NookLibrary.json`) in a folder you pick, Obsidian-vault style, and each device keeps its own small state shard beside it. Point it at iCloud Drive, Dropbox, Google Drive, OneDrive — whatever syncs folders for you. No account, no telemetry.
+- 🔁 **Conflict-free cross-device sync.** Every device writes only its own state shard, so two devices editing at once can't clobber each other; reads merge all shards with a last-writer-wins CRDT (each change carries a hybrid logical clock), and each app watches the folder to apply another device's changes live — no relaunch needed. A read on one device never erases a read on another.
 - 📥 **Painless migration, no lock-in.** Bring subscriptions in from any reader with **OPML import**, and **export** them whenever you want to move on.
 - 📰 **Real feeds.** Add an RSS/Atom URL, or just paste a website — Nook auto-discovers the feed from the page's `<link rel="alternate">`.
 - 📲 **Add from anywhere (iOS).** Share a page from Safari with **“Add Feed to Nook”** and it finds and subscribes to that site's feed.
@@ -92,7 +92,7 @@ Nook is built so you're never trapped:
 
 - **Switching to Nook?** Export an OPML from your current reader, then **Import OPML** in Nook. Your feeds and folders come across in one step.
 - **Switching away?** **Export OPML** and take your list anywhere.
-- **Moving devices or clouds?** Just move the sync folder. Because everything is in `NookLibrary.json`, there's nothing else to migrate.
+- **Moving devices or clouds?** Just move the sync folder. Everything — the `NookLibrary.json` content and the per-device state shards beside it — lives in that one folder, so there's nothing else to migrate.
 
 ## How your data is stored
 
@@ -100,11 +100,17 @@ Nook is folder-first. Pick any folder — on any cloud, or none — and Nook kee
 
 ```
 YourSyncFolder/
-├── NookLibrary.json      # feeds, articles, read & starred state, refresh metadata
-└── Icons/                # cached feed favicons
+├── NookLibrary.json      # feeds, article content, refresh metadata (shared baseline)
+├── .nook/
+│   └── state/
+│       ├── <deviceA>.json  # device A's read/starred/folder edits
+│       └── <deviceB>.json  # device B's — each device writes only its own
+└── Icons/                  # cached feed favicons
 ```
 
-Since it's just a file in a folder you control, "sync" is whatever your folder already does: iCloud Drive across your Apple devices, Dropbox/Google Drive/OneDrive across platforms, or your own backup. Nook coordinates its reads and writes (via `NSFileCoordinator`) and watches the file, so a change on one device shows up on the others as soon as the cloud delivers it — no relaunch. `NookLibrary.json` is treated as user data and evolves with backward-compatible migrations.
+Since it's just files in a folder you control, "sync" is whatever your folder already does: iCloud Drive across your Apple devices, Dropbox/Google Drive/OneDrive across platforms, or your own backup.
+
+The split is deliberate, and it's what makes multi-device sync safe. `NookLibrary.json` is the shared **content baseline** (the feeds and articles themselves). Your mutable **state** — what's read, starred, foldered — lives in a per-device shard under `.nook/state/`, and **each device writes only its own shard**. Because no two devices ever write the same file, iCloud can't produce a losing "last write" — the failure that used to make a read on one device disappear when another synced. On load, Nook merges every shard with a last-writer-wins CRDT (each edit stamped with a hybrid logical clock), so all your devices converge on the same state no matter what order changes arrive in. Nook coordinates reads and writes (via `NSFileCoordinator`) and watches the folder (via `NSFilePresenter`), so another device's change shows up as soon as the cloud delivers it — no relaunch. `NookLibrary.json` is treated as user data and evolves with backward-compatible migrations.
 
 ## Auto-updates (macOS)
 
@@ -145,7 +151,7 @@ xcodebuild -project Nook.xcodeproj -scheme NookiOS \
 - **Networking & parsing:** `URLSession` + `XMLParser` for RSS/Atom and OPML.
 - **Reader mode:** `WKWebView` with a self-contained injected readability script.
 - **Translation (iOS):** Apple's on-device **Foundation Models** (Apple Intelligence) with a **Translation** framework fallback; language detection via **NaturalLanguage**.
-- **Sync:** `NSFileCoordinator` + `NSFilePresenter` for coordinated, live-updating file access.
+- **Sync:** per-device state shards merged with a last-writer-wins CRDT (hybrid logical clocks); `NSFileCoordinator` + `NSFilePresenter` for coordinated, live-updating file access.
 - **Widget:** WidgetKit. **Updates (macOS):** Sparkle (EdDSA-signed appcast, built and published by GitHub Actions).
 - No third-party UI frameworks. No Electron.
 

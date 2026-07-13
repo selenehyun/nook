@@ -22,8 +22,8 @@ Nook is a native macOS RSS reader. Keep it native.
 - Favor standard macOS UI patterns: `NavigationSplitView`, toolbars, menus, settings scenes, share links, context menus, keyboard commands, and AppKit bridges when SwiftUI is unreliable.
 - The app should fetch real RSS/Atom data. Do not reintroduce mock feed/article data for production reader behavior.
 - RSS data belongs in a user-selected sync folder, preferably in iCloud Drive, similar to an Obsidian vault.
-- Persist RSS reader state in that folder: feeds, articles, read state, starred state, and refresh metadata.
-- Treat `NookLibrary.json` as user data. Make schema changes carefully and prefer backward-compatible migrations.
+- Persistence is split so multi-device sync is conflict-free: `NookLibrary.json` is the shared **content baseline** (feeds, article content, refresh metadata), while each device's mutable **user state** (read, starred, folders, per-feed overrides, feed deletions) lives in its own shard at `.nook/state/<deviceID>.json`. Each device writes only its own shard, so devices never clobber each other; loads merge every shard over the baseline with a last-writer-wins CRDT stamped by a hybrid logical clock (`HLC`/`LWWRegister`/`DeviceStateDocument.materialize`). Do not go back to writing all user state into a single shared file.
+- Treat `NookLibrary.json` and the `.nook/state` shards as user data. Make schema changes carefully and prefer backward-compatible migrations.
 
 ## Current App Shape
 
