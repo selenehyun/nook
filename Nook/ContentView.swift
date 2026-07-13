@@ -185,10 +185,14 @@ struct ContentView: View {
             // first badge update (driven by the store) already respects it.
             store.showsUnreadBadge = showUnreadBadge
             store.bootstrap()
+            // Let the window paint the loaded library first, then kick off the
+            // launch-time bursts (WebKit warm-up and the network refresh) so
+            // their CPU/IO spike doesn't stall the first frames.
+            try? await Task.sleep(for: .milliseconds(600))
             // Warm up WebKit so the first in-app browser opens without the
             // ~2-3s cold-start delay.
             WebViewWarmer.warmUp()
-            // Sync immediately on launch so the reader opens on fresh articles.
+            // Sync on launch so the reader opens on fresh articles.
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: false) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

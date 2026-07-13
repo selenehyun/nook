@@ -6,7 +6,16 @@ import SwiftUI
 @Observable
 public final class ReaderStore {
     public var feeds: [Feed] = [] { didSet { scheduleArticleFilter() } }
-    var articles: [Article] = [] { didSet { scheduleArticleFilter(); updateUnreadBadge() } }
+    var articles: [Article] = [] { didSet { recomputeCounts(); scheduleArticleFilter(); updateUnreadBadge() } }
+
+    // Sidebar badge counts, recomputed in a single pass whenever `articles`
+    // changes, so rendering a feed/folder/source badge is an O(1)/O(feeds)
+    // lookup instead of an O(articles) scan on every re-render (the sidebar
+    // re-renders constantly while a refresh streams articles in).
+    private(set) var unreadByFeed: [Feed.ID: Int] = [:]
+    private(set) var totalUnread = 0
+    private(set) var todayCount = 0
+    private(set) var starredCount = 0
     // Library and Feeds are independent selection scopes: a single smart
     // source acts as navigation, while feeds support multiple selection.
     public var smartSelection: SmartSource? = .all { didSet { scheduleArticleFilter() } }
@@ -73,6 +82,10 @@ public final class ReaderStore {
     // written, and whether a writer task is already draining them.
     private var pendingSave: ReaderLibrary?
     private var isDrainingSaves = false
+    // While a full refresh runs, per-feed saves are held so the whole (large)
+    // library isn't re-encoded and rewritten once per feed; one write flushes
+    // the final state when the refresh finishes.
+    private var isBatchRefreshing = false
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
@@ -516,8 +529,29 @@ public final class ReaderStore {
     }
 
     /// Total unread across every feed, used for the app icon badge.
-    var totalUnreadCount: Int {
-        articles.reduce(0) { $1.isRead ? $0 : $0 + 1 }
+    var totalUnreadCount: Int { totalUnread }
+
+    /// Recomputes every sidebar count in one pass over `articles`. Called from
+    /// the `articles` didSet so the cached values stay exact without the sidebar
+    /// re-scanning all articles per badge, per render.
+    private func recomputeCounts() {
+        var byFeed: [Feed.ID: Int] = [:]
+        var total = 0
+        var today = 0
+        var starred = 0
+        let calendar = Calendar.current
+        for article in articles {
+            if !article.isRead {
+                byFeed[article.feedID, default: 0] += 1
+                total += 1
+            }
+            if article.isStarred { starred += 1 }
+            if calendar.isDateInToday(article.publishedAt) { today += 1 }
+        }
+        unreadByFeed = byFeed
+        totalUnread = total
+        todayCount = today
+        starredCount = starred
     }
 
     /// Installed by the platform app to reflect the unread badge (macOS Dock,
@@ -535,14 +569,12 @@ public final class ReaderStore {
     }
 
     public func unreadCount(feedID: Feed.ID? = nil) -> Int {
-        articles.filter { article in
-            !article.isRead && (feedID == nil || article.feedID == feedID)
-        }.count
+        guard let feedID else { return totalUnread }
+        return unreadByFeed[feedID] ?? 0
     }
 
     public func unreadCount(inFolder folder: String) -> Int {
-        let ids = Set(feeds.filter { $0.folderName == folder }.map(\.id))
-        return articles.reduce(0) { $1.isRead || !ids.contains($1.feedID) ? $0 : $0 + 1 }
+        feeds.reduce(0) { $1.folderName == folder ? $0 + (unreadByFeed[$1.id] ?? 0) : $0 }
     }
 
     /// Selecting a folder selects all feeds inside it, so the article list
@@ -560,14 +592,10 @@ public final class ReaderStore {
 
     public func count(for source: SmartSource) -> Int {
         switch source {
-        case .unread:
-            unreadCount()
-        case .today:
-            articles.filter { Calendar.current.isDateInToday($0.publishedAt) }.count
-        case .starred:
-            articles.filter(\.isStarred).count
-        case .all:
-            articles.count
+        case .unread: totalUnread
+        case .today: todayCount
+        case .starred: starredCount
+        case .all: articles.count
         }
     }
 
@@ -962,6 +990,14 @@ public final class ReaderStore {
     }
 
     private func refreshAllFeeds() async {
+        // Hold per-feed writes and flush once at the end, so a refresh of many
+        // feeds doesn't rewrite the whole library repeatedly. `defer` guarantees
+        // the flag clears and the final state is saved even on early exit.
+        isBatchRefreshing = true
+        defer {
+            isBatchRefreshing = false
+            scheduleSave()
+        }
         for feed in feeds {
             await refreshFeed(feed)
         }
@@ -1192,14 +1228,19 @@ public final class ReaderStore {
     /// recent state is written — keeping the UI lag-free while syncing.
     private func scheduleSave() {
         guard let storage else { return }
+        // Always capture the latest snapshot (cheap: arrays are copy-on-write)...
         pendingSave = snapshotLibrary()
+        // ...but hold the actual write until a batch refresh flushes it once.
+        guard !isBatchRefreshing else { return }
         guard !isDrainingSaves else { return }
         isDrainingSaves = true
         Task { await drainSaves(storage: storage) }
     }
 
     private func drainSaves(storage: ReaderStorage) async {
-        while let library = pendingSave {
+        // Pause if a batch refresh starts mid-drain; the held snapshot stays in
+        // `pendingSave` and is flushed once when the batch finishes.
+        while !isBatchRefreshing, let library = pendingSave {
             pendingSave = nil
             let modificationDate = await Task.detached(priority: .utility) { () -> Date? in
                 try? storage.save(library)
