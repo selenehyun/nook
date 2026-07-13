@@ -360,14 +360,16 @@ extension ArticleWebView {
         }
 
         #if canImport(AppKit)
-        /// iOS-style rubber-band resistance: the pull tracks the finger 1:1 at
-        /// first and grows ever more slowly, asymptotically approaching `limit`,
-        /// so the harder you pull the less it moves. (iOS gets this for free from
-        /// the scroll view's native bounce; macOS accumulates raw wheel deltas,
-        /// so it needs the curve applied explicitly.)
-        static func rubberBand(_ distance: CGFloat, limit: CGFloat = 420) -> CGFloat {
+        /// iOS-style rubber-band resistance: the pull grows ever more slowly,
+        /// asymptotically approaching `limit`, so the harder you pull the less it
+        /// moves. `softness` sets how much raw travel it takes to reach half of
+        /// `limit` — larger means stronger resistance (decoupled from `limit` so
+        /// the thresholds stay reachable). (iOS gets this for free from the
+        /// scroll view's native bounce; macOS accumulates raw wheel deltas, so it
+        /// needs the curve applied explicitly.)
+        static func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 1000) -> CGFloat {
             guard distance > 0 else { return 0 }
-            return (1 - 1 / (distance / limit + 1)) * limit
+            return limit * distance / (distance + softness)
         }
 
         func attach(to webView: WKWebView) {
