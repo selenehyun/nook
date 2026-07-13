@@ -87,6 +87,8 @@ struct ReaderDetailView: View {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color("ListBackground").ignoresSafeArea())
     }
 
     private func reader(_ article: Article) -> some View {
