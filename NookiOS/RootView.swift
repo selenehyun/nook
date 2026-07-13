@@ -530,7 +530,12 @@ private struct ArticleList: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
+                // Transparent rows so the warm list background shows through.
+                .listRowBackground(Color.clear)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color("ArticleListBackground").ignoresSafeArea())
         .navigationTitle(store.selectedSourceTitle)
         .searchable(text: $store.searchText, prompt: "Search Articles")
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
