@@ -21,10 +21,7 @@ struct NookApp: App {
         // A single Window (not WindowGroup) so deep links reuse the one main
         // window instead of opening a new one each time.
         Window("Nook", id: "main") {
-            ContentView()
-                // Format dates/numbers with the chosen UI language, not the OS
-                // locale (`Text(_, format:)` otherwise follows the environment).
-                .environment(\.locale, AppLanguage.formattingLocale)
+            MainWindowContent()
         }
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
@@ -41,6 +38,30 @@ struct NookApp: App {
     }
 }
 
+/// The main window's content. Captures the `openWindow` action so the app
+/// delegate can re-open the window after it's been closed (the app keeps
+/// running in the background rather than quitting on last-window-close).
+private struct MainWindowContent: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        ContentView()
+            // Format dates/numbers with the chosen UI language, not the OS
+            // locale (`Text(_, format:)` otherwise follows the environment).
+            .environment(\.locale, AppLanguage.formattingLocale)
+            .onAppear { WindowReopener.shared.reopen = { openWindow(id: "main") } }
+    }
+}
+
+/// Bridges the SwiftUI `openWindow` action to the AppKit app delegate, which has
+/// no environment of its own.
+@MainActor
+final class WindowReopener {
+    static let shared = WindowReopener()
+    var reopen: (() -> Void)?
+    private init() {}
+}
+
 /// macOS's equivalent of the iOS background task. Drives periodic feed refreshes
 /// for the whole app lifetime — not tied to a window, so refreshing continues
 /// when the window is closed — and posts a local notification when new articles
@@ -55,6 +76,20 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
             Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
         }
         loopTask = Task { [weak self] in await self?.runLoop() }
+    }
+
+    // Keep running in the background when the window is closed so scheduled
+    // refreshes and notifications continue; the user quits explicitly with ⌘Q.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    // Re-open the main window when the Dock icon is clicked and nothing's shown.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows {
+            WindowReopener.shared.reopen?()
+        }
+        return true
     }
 
     private func runLoop() async {
