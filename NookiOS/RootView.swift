@@ -248,21 +248,6 @@ struct SplashView: View {
     }
 }
 
-/// A row background that fills the row edge-to-edge with Liquid Glass on iOS 26
-/// (the inset-grouped section clips the contiguous rows into one rounded glass
-/// card); falls back to a grouped card color on earlier OSes.
-struct GlassRowBackground: View {
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            Rectangle()
-                .fill(.clear)
-                .glassEffect(.regular, in: Rectangle())
-        } else {
-            Color(.secondarySystemGroupedBackground)
-        }
-    }
-}
-
 /// A selectable sidebar entry. Binding the List selection to this (rather than
 /// using plain buttons) is what lets a collapsed NavigationSplitView push to the
 /// article-list column when a row is tapped on iPhone.
@@ -330,12 +315,8 @@ private struct Sidebar: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color("ListBackground").ignoresSafeArea())
-        // Edge-to-edge glass per row → the inset-grouped section clips it into
-        // one rounded glass card per section.
-        .listRowBackground(GlassRowBackground())
+        .background(Color("ArticleListBackground").ignoresSafeArea())
         .onChange(of: selection) { _, item in
             switch item {
             case .smart(let source):
@@ -556,7 +537,7 @@ private struct ArticleList: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color("ListBackground").ignoresSafeArea())
+        .background(Color("ArticleListBackground").ignoresSafeArea())
         .navigationTitle(store.selectedSourceTitle)
         .searchable(text: $store.searchText, prompt: "Search Articles")
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
