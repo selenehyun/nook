@@ -670,15 +670,43 @@ public final class ReaderStore {
             return BackgroundRefreshResult(newArticleCount: 0, sampleTitles: [])
         }
 
+        // Sync the shared baseline and every device's shard first, so an article
+        // another device already fetched (and possibly read) is already known
+        // here and isn't re-announced as new.
+        await reloadMerged()
         let knownIDs = Set(articles.map(\.id))
+        // Article ids read on ANY device (from its shard) — covers the case where
+        // a peer read an article that hasn't reached this device's baseline yet,
+        // so a freshly-fetched copy still isn't announced as new.
+        let readElsewhere = await readArticleIDsAcrossShards()
+
         await refreshAllFeeds()
 
-        let fresh = articles.filter { !knownIDs.contains($0.id) && !$0.isRead }
+        let fresh = articles.filter {
+            !knownIDs.contains($0.id) && !$0.isRead && !readElsewhere.contains($0.id)
+        }
         let sorted = fresh.sorted { $0.publishedAt > $1.publishedAt }
         return BackgroundRefreshResult(
             newArticleCount: fresh.count,
             sampleTitles: sorted.prefix(3).map(\.title)
         )
+    }
+
+    /// Article ids marked read in any device's on-disk shard. The read registers
+    /// are keyed by article id, so this catches a peer's read even before the
+    /// article itself has synced into this device's baseline.
+    private func readArticleIDsAcrossShards() async -> Set<Article.ID> {
+        guard let storage else { return [] }
+        let shards = await Task.detached(priority: .userInitiated) {
+            (try? storage.loadShards()) ?? []
+        }.value
+        var ids: Set<Article.ID> = []
+        for shard in shards {
+            for (id, state) in shard.articleState where state.isRead?.value == true {
+                ids.insert(id)
+            }
+        }
+        return ids
     }
 
     /// Parses an OPML file into feed candidates for the import preview. Returns
