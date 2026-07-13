@@ -19,5 +19,9 @@ let package = Package(
                 .copy("Readability.js"),
             ]
         ),
+        .testTarget(
+            name: "NookKitTests",
+            dependencies: ["NookKit"]
+        ),
     ]
 )
