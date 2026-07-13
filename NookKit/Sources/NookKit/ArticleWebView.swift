@@ -24,6 +24,9 @@ public struct ArticleWebView {
     let translationLanguage: String
     /// Reports when in-place translation is running so the UI can show progress.
     var onTranslatingChange: (Bool) -> Void
+    /// Reports the page's estimated load progress (0...1) so the UI can show a
+    /// loading bar. Fires 1.0 when a load finishes or fails.
+    var onLoadingProgress: (Double) -> Void
     /// Live overscroll amount while pulling down at the top (sheet follows).
     /// macOS only; ignored on iOS where the sheet has native drag-to-dismiss.
     var onOverscroll: (CGFloat) -> Void
@@ -38,6 +41,7 @@ public struct ArticleWebView {
         translate: Bool = false,
         translationLanguage: String = "",
         onTranslatingChange: @escaping (Bool) -> Void = { _ in },
+        onLoadingProgress: @escaping (Double) -> Void = { _ in },
         onOverscroll: @escaping (CGFloat) -> Void = { _ in },
         onOverscrollEnded: @escaping (CGFloat) -> Void = { _ in }
     ) {
@@ -48,6 +52,7 @@ public struct ArticleWebView {
         self.translate = translate
         self.translationLanguage = translationLanguage
         self.onTranslatingChange = onTranslatingChange
+        self.onLoadingProgress = onLoadingProgress
         self.onOverscroll = onOverscroll
         self.onOverscrollEnded = onOverscrollEnded
     }
@@ -144,7 +149,9 @@ extension ArticleWebView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: makeConfiguration(coordinator: context.coordinator))
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.attach(to: webView)
+        context.coordinator.observeProgress(of: webView)
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -155,11 +162,13 @@ extension ArticleWebView: NSViewRepresentable {
         context.coordinator.onOverscrollEnded = onOverscrollEnded
         context.coordinator.webView = webView
         context.coordinator.onTranslatingChange = onTranslatingChange
+        context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
     public static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
         coordinator.detach()
+        coordinator.stopObservingProgress()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookScroll")
     }
 }
@@ -177,6 +186,8 @@ extension ArticleWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: makeConfiguration(coordinator: context.coordinator))
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        context.coordinator.onLoadingProgress = onLoadingProgress
+        context.coordinator.observeProgress(of: webView)
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -185,10 +196,12 @@ extension ArticleWebView: UIViewRepresentable {
         context.coordinator.linkOpensInApp = linkOpensInApp
         context.coordinator.webView = webView
         context.coordinator.onTranslatingChange = onTranslatingChange
+        context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
     public static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.stopObservingProgress()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookScroll")
     }
 }
@@ -202,6 +215,8 @@ extension ArticleWebView {
         var onOverscroll: (CGFloat) -> Void
         var onOverscrollEnded: (CGFloat) -> Void
         var onTranslatingChange: (Bool) -> Void = { _ in }
+        var onLoadingProgress: (Double) -> Void = { _ in }
+        private var progressObservation: NSKeyValueObservation?
 
         weak var webView: WKWebView?
         private var atTop = true
@@ -390,10 +405,37 @@ extension ArticleWebView {
             decisionHandler(.allow)
         }
 
+        /// Observes `estimatedProgress` (0...1) via KVO and forwards it so the UI
+        /// can drive a loading bar. `change.newValue` is a plain `Double`, so the
+        /// closure never touches the main-actor-isolated web view off-main.
+        func observeProgress(of webView: WKWebView) {
+            progressObservation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] _, change in
+                guard let self, let progress = change.newValue else { return }
+                Task { @MainActor in self.onLoadingProgress(progress) }
+            }
+        }
+
+        func stopObservingProgress() {
+            progressObservation?.invalidate()
+            progressObservation = nil
+        }
+
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             // Translate after the page (and reader script) has loaded, if the
             // user toggled translation on.
             runTranslationIfNeeded()
+        }
+
+        // A failed load leaves estimatedProgress below 1; report completion so
+        // the loading bar hides instead of hanging.
+        public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            let report = onLoadingProgress
+            Task { @MainActor in report(1) }
+        }
+
+        public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            let report = onLoadingProgress
+            Task { @MainActor in report(1) }
         }
 
         public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

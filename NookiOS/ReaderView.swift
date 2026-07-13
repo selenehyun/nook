@@ -429,6 +429,7 @@ struct InAppBrowserSheet: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @State private var isTranslationOn = false
     @State private var translationInFlight = false
+    @State private var loadingProgress: Double = 0
 
     /// Web-view translation uses Apple Intelligence; offer it only when that's
     /// available and the article's language differs from the app's.
@@ -458,10 +459,14 @@ struct InAppBrowserSheet: View {
                 linkOpensInApp: linkOpensInApp,
                 translate: isTranslationOn,
                 translationLanguage: targetLanguageName,
-                onTranslatingChange: { translationInFlight = $0 }
+                onTranslatingChange: { translationInFlight = $0 },
+                onLoadingProgress: { loadingProgress = $0 }
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
             .ignoresSafeArea(edges: .bottom)
+            .overlay(alignment: .top) {
+                WebLoadingBar(progress: loadingProgress)
+            }
             .overlay(alignment: .top) {
                 if translationInFlight {
                     TranslationProgressBanner()

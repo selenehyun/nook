@@ -1396,16 +1396,19 @@ private struct InAppBrowserPanel: View {
 
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @State private var loadingProgress: Double = 0
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            WebLoadingBar(progress: loadingProgress)
             Divider()
             ArticleWebView(
                 url: article.url,
                 useReaderMode: store.browserMode == .reader,
                 style: style,
                 linkOpensInApp: linkOpensInApp,
+                onLoadingProgress: { loadingProgress = $0 },
                 onOverscroll: { amount in
                     dragOffset = amount
                 },
