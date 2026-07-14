@@ -8,6 +8,40 @@ public extension CodingUserInfoKey {
     static let stripArticleContent = CodingUserInfoKey(rawValue: "nook.stripArticleContent")!
 }
 
+/// A feed's identity/content, recorded in the per-device shard so a feed a
+/// device added survives even if the shared baseline file is overwritten by
+/// another device before the add propagates. Small (no articles), so keeping it
+/// in every shard is cheap; it lets `materialize` reconstruct a usable feed when
+/// the baseline lost it (its articles refetch on the next refresh).
+public struct FeedSeed: Codable, Sendable, Equatable {
+    public var id: String
+    public var title: String
+    public var siteDescription: String
+    public var category: String
+    public var systemImage: String
+    public var feedURL: URL
+    public var siteURL: URL
+
+    public init(from feed: Feed) {
+        id = feed.id
+        title = feed.title
+        siteDescription = feed.siteDescription
+        category = feed.category
+        systemImage = feed.systemImage
+        feedURL = feed.feedURL
+        siteURL = feed.siteURL
+    }
+
+    /// A Feed rebuilt from the seed, healthy by default; user overrides
+    /// (folder/view-mode/custom title) are applied over it from the shard.
+    public func makeFeed() -> Feed {
+        Feed(
+            id: id, title: title, siteDescription: siteDescription, category: category,
+            systemImage: systemImage, feedURL: feedURL, siteURL: siteURL, healthScore: 1
+        )
+    }
+}
+
 /// An article's heavy body, stored apart from the list metadata in the content
 /// sidecar so the launch-critical baseline stays small.
 public struct ArticleBody: Codable, Sendable, Equatable {

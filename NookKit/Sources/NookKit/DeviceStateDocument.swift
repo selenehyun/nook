@@ -43,21 +43,27 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         public var preferredViewMode: LWWRegister<ReaderViewMode?>?
         public var customTitle: LWWRegister<String?>?
         public var tombstone: LWWRegister<Bool>?
+        /// The feed's identity/content, so its membership is CRDT state (not just
+        /// a baseline-file entry that a peer's overwrite could drop).
+        public var seed: LWWRegister<FeedSeed>?
 
         public init(
             category: LWWRegister<String>? = nil,
             preferredViewMode: LWWRegister<ReaderViewMode?>? = nil,
             customTitle: LWWRegister<String?>? = nil,
-            tombstone: LWWRegister<Bool>? = nil
+            tombstone: LWWRegister<Bool>? = nil,
+            seed: LWWRegister<FeedSeed>? = nil
         ) {
             self.category = category
             self.preferredViewMode = preferredViewMode
             self.customTitle = customTitle
             self.tombstone = tombstone
+            self.seed = seed
         }
 
         var isEmpty: Bool {
-            category == nil && preferredViewMode == nil && customTitle == nil && tombstone == nil
+            category == nil && preferredViewMode == nil && customTitle == nil
+                && tombstone == nil && seed == nil
         }
 
         func merged(with other: FeedState) -> FeedState {
@@ -65,7 +71,8 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
                 category: mergeRegisters(category, other.category),
                 preferredViewMode: mergeRegisters(preferredViewMode, other.preferredViewMode),
                 customTitle: mergeRegisters(customTitle, other.customTitle),
-                tombstone: mergeRegisters(tombstone, other.tombstone)
+                tombstone: mergeRegisters(tombstone, other.tombstone),
+                seed: mergeRegisters(seed, other.seed)
             )
         }
     }
@@ -157,6 +164,12 @@ extension DeviceStateDocument {
         feedState[id] = state
     }
 
+    public mutating func setFeedSeed(_ id: Feed.ID, _ seed: FeedSeed, hlc: HLC) {
+        var state = feedState[id] ?? FeedState()
+        state.seed = LWWRegister(value: seed, hlc: hlc)
+        feedState[id] = state
+    }
+
     public mutating func setFolderPresent(_ name: String, _ present: Bool, hlc: HLC) {
         folders[name] = LWWRegister(value: present, hlc: hlc)
     }
@@ -175,6 +188,7 @@ extension DeviceStateDocument {
             fold(state.preferredViewMode?.hlc)
             fold(state.customTitle?.hlc)
             fold(state.tombstone?.hlc)
+            fold(state.seed?.hlc)
         }
         for register in folders.values { fold(register.hlc) }
         return result
@@ -219,16 +233,25 @@ extension DeviceStateDocument {
     ) -> ReaderLibrary {
         let merged = mergedState(from: shards)
 
-        // Feeds: drop tombstoned ones, apply category / view-mode overrides.
+        // Feeds: the membership is the union of the baseline's feeds and any a
+        // shard seeded (added on a device but perhaps not yet in this baseline),
+        // minus the tombstoned ones — so a feed can't be lost to a baseline-file
+        // overwrite, and a re-add (newer seed/untombstone) beats an old delete.
+        // Baseline order is preserved; seed-only feeds append deterministically.
+        let baseByID = Dictionary(base.feeds.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var orderedIDs = base.feeds.map(\.id)
+        orderedIDs.append(contentsOf: merged.feeds.keys.filter { baseByID[$0] == nil }.sorted())
+
         var deletedFeedIDs: Set<Feed.ID> = []
         var feeds: [Feed] = []
-        feeds.reserveCapacity(base.feeds.count)
-        for var feed in base.feeds {
-            let state = merged.feeds[feed.id]
+        feeds.reserveCapacity(orderedIDs.count)
+        for id in orderedIDs {
+            let state = merged.feeds[id]
             if state?.tombstone?.value == true {
-                deletedFeedIDs.insert(feed.id)
+                deletedFeedIDs.insert(id)
                 continue
             }
+            guard var feed = baseByID[id] ?? state?.seed?.value.makeFeed() else { continue }
             if let category = state?.category?.value { feed.category = category }
             if let viewMode = state?.preferredViewMode { feed.preferredViewMode = viewMode.value }
             if let customTitle = state?.customTitle { feed.customTitle = customTitle.value }

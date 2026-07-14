@@ -1203,6 +1203,9 @@ public final class ReaderStore {
             updated.preferredViewMode = feeds[feedIndex].preferredViewMode
             updated.customTitle = feeds[feedIndex].customTitle
             feeds[feedIndex] = updated
+            // Keep the shard's seed current so every known feed's membership is
+            // CRDT-protected (deduplicated, so an unchanged refresh is a no-op).
+            recordFeedSeed(updated)
         } else {
             feeds.append(parsedFeed.feed)
             // A feed appearing for the first time in memory clears any stale
@@ -1210,6 +1213,7 @@ public final class ReaderStore {
             // re-adding a previously removed feed isn't suppressed at materialize
             // by the old delete. The fresh HLC also beats a peer's older delete.
             recordFeedRestored(parsedFeed.feed.id)
+            recordFeedSeed(parsedFeed.feed)
             scheduleShardSave()
         }
 
@@ -1520,6 +1524,16 @@ public final class ReaderStore {
     /// beats any earlier deletion of the same URL under last-writer-wins.
     private func recordFeedRestored(_ id: Feed.ID) {
         ownShard.setFeedTombstone(id, false, hlc: nextHLC())
+    }
+
+    /// Seeds a feed's identity into this device's shard so its membership is CRDT
+    /// state, immune to a baseline-file overwrite by another device. Deduplicated
+    /// so a refresh that changes nothing doesn't churn the shard.
+    private func recordFeedSeed(_ feed: Feed) {
+        let seed = FeedSeed(from: feed)
+        guard ownShard.feedState[feed.id]?.seed?.value != seed else { return }
+        ownShard.setFeedSeed(feed.id, seed, hlc: nextHLC())
+        scheduleShardSave()
     }
 
     private func recordFolder(_ name: String, present: Bool) {
