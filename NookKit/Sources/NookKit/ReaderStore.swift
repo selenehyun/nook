@@ -465,12 +465,19 @@ public final class ReaderStore {
     /// cache. Bodies aren't shown in the list, so this never churns it.
     private func applyBodyCache() {
         guard !bodyCache.isEmpty else { return }
-        for index in articles.indices where !articles[index].hasBody {
-            if let body = bodyCache[articles[index].id] {
-                articles[index].bodyParagraphs = body.bodyParagraphs
-                articles[index].contentHTML = body.contentHTML
+        // Mutate a local copy and assign once: `articles` has a didSet that
+        // recomputes counts and the filter, so per-element writes would make
+        // this O(n²) and stall the main actor.
+        var updated = articles
+        var changed = false
+        for index in updated.indices where !updated[index].hasBody {
+            if let body = bodyCache[updated[index].id] {
+                updated[index].bodyParagraphs = body.bodyParagraphs
+                updated[index].contentHTML = body.contentHTML
+                changed = true
             }
         }
+        if changed { articles = updated }
     }
 
     /// Returns `library` with each article's body filled in from the cache where
@@ -1307,8 +1314,42 @@ public final class ReaderStore {
     }
 
     private func loadCachedFavicons() {
-        for feed in feeds {
-            ensureFavicon(for: feed)
+        guard let storage else { return }
+        // Only feeds without an in-memory icon need any disk work. Re-reading
+        // every favicon on each merge (apply runs on every sync) needlessly
+        // thrashed iCloud — and did the reads synchronously on the main actor,
+        // which blocked (a spinning cursor) whenever a file had been evicted.
+        let missing = feeds.filter { feedIcons[$0.id] == nil }
+        guard !missing.isEmpty else { return }
+        let items = missing.map { (id: $0.id, key: faviconKey(for: $0)) }
+
+        Task { [weak self] in
+            // Read the cached bytes (and the TTL check) off the main actor; the
+            // small PNG decode then happens back on the main actor (Data is
+            // Sendable, the platform image type isn't).
+            let outcome = await Task.detached(priority: .userInitiated) { () -> [(id: Feed.ID, key: String, data: Data?, needsFetch: Bool)] in
+                items.map { item in
+                    let data = storage.cachedFaviconData(forKey: item.key)
+                    let needsFetch = data == nil && storage.faviconNeedsRefresh(forKey: item.key)
+                    return (item.id, item.key, data, needsFetch)
+                }
+            }.value
+            guard let self else { return }
+
+            for entry in outcome {
+                if let data = entry.data, let image = makePlatformImage(data: data) {
+                    self.feedIcons[entry.id] = image
+                }
+            }
+            // Fetch over the network only when there's no cached icon at all and
+            // the TTL allows a retry — a cached icon is used as-is, never
+            // re-downloaded just because the app synced again.
+            for entry in outcome where entry.needsFetch && !self.faviconAttemptedKeys.contains(entry.key) {
+                guard let feed = self.feed(for: entry.id) else { continue }
+                self.faviconAttemptedKeys.insert(entry.key)
+                self.faviconQueue.append(feed)
+            }
+            self.pumpFaviconQueue()
         }
     }
 
