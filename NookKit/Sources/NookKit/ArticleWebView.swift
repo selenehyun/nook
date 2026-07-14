@@ -1,3 +1,4 @@
+import QuartzCore
 import SwiftUI
 import WebKit
 
@@ -254,6 +255,35 @@ extension ArticleWebView {
         private var atTop = true
         private var atBottom = false
 
+        // Rate-limited "reported" bottom pull. The raw pull is speed-agnostic —
+        // a short, hard flick piles up as much distance as a slow deliberate
+        // drag — so instead of reporting it directly we ease a displayed value
+        // up toward it at a capped rate (points/second). Crossing a threshold
+        // then takes *sustained* pulling (~0.24s to close) rather than a fast
+        // impulse, which makes the gesture far easier to control. Shrinking
+        // (release or pull-back) is applied instantly so it still feels snappy.
+        private var displayedBottomPull: CGFloat = 0
+        private var lastBottomPullTime: CFTimeInterval = 0
+
+        /// Eases `displayedBottomPull` toward `target`, capping how fast it may
+        /// grow; shrinking is immediate. `now` is a monotonic timestamp.
+        private func easedBottomPull(target: CGFloat, now: CFTimeInterval) -> CGFloat {
+            let maxGrowthPerSecond: CGFloat = 700
+            let dt = lastBottomPullTime == 0 ? (1.0 / 60.0) : min(0.1, max(0, now - lastBottomPullTime))
+            lastBottomPullTime = now
+            if target <= displayedBottomPull {
+                displayedBottomPull = target
+            } else {
+                displayedBottomPull = min(target, displayedBottomPull + maxGrowthPerSecond * CGFloat(dt))
+            }
+            return displayedBottomPull
+        }
+
+        private func resetBottomEase() {
+            displayedBottomPull = 0
+            lastBottomPullTime = 0
+        }
+
         // In-place translation state.
         private var translationApplied = false
         private var translationInFlight = false
@@ -446,6 +476,7 @@ extension ArticleWebView {
                     // phase-less mouse wheel scroll is discrete, so allow it.
                     bottomEngaged = true
                     bottomOverscroll = 0
+                    resetBottomEase()
                     hapticRatchetStep = 0
                     hapticStageLevel = 0
                 } else {
@@ -472,20 +503,23 @@ extension ArticleWebView {
             }
 
             // Bottom overscroll: accumulate the raw upward pull (negative delta),
-            // but report it through the rubber-band curve so it resists like iOS.
+            // rubber-band it for iOS-like resistance, then rate-limit its growth
+            // so a hard flick can't slam straight past a threshold.
             bottomOverscroll = max(0, bottomOverscroll - delta)
-            let reported = Self.rubberBand(bottomOverscroll)
+            let reported = easedBottomPull(target: Self.rubberBand(bottomOverscroll), now: event.timestamp)
             onBottomOverscroll(reported)
             performBottomPullHaptics(reported: reported, rawPull: bottomOverscroll)
             if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
-                let amount = Self.rubberBand(bottomOverscroll)
+                let amount = reported
                 bottomEngaged = false
                 bottomOverscroll = 0
+                resetBottomEase()
                 onBottomOverscrollEnded(amount)
                 return true
             }
             if bottomOverscroll == 0 {
                 bottomEngaged = false
+                resetBottomEase()
                 return false
             }
             return true
@@ -549,11 +583,18 @@ extension ArticleWebView {
                 // The pull only counts if the drag starts from rest at the very
                 // bottom — not when a fast scroll flings past it mid-drag.
                 panBeganAtBottom = scrollable && scrollView.contentOffset.y >= maxOffset - 2
+                resetBottomEase()
             case .changed:
-                onBottomOverscroll(panBeganAtBottom ? overscroll : 0)
+                // Rate-limit the reported pull so a short, hard flick can't slam
+                // past a threshold; only a sustained drag climbs.
+                let target = panBeganAtBottom ? overscroll : 0
+                onBottomOverscroll(easedBottomPull(target: target, now: CACurrentMediaTime()))
             case .ended, .cancelled, .failed:
-                onBottomOverscrollEnded(panBeganAtBottom ? overscroll : 0)
+                // Decide on the eased value, so a flick that never let it catch
+                // up settles back instead of triggering.
+                onBottomOverscrollEnded(panBeganAtBottom ? displayedBottomPull : 0)
                 panBeganAtBottom = false
+                resetBottomEase()
             default:
                 break
             }
@@ -599,6 +640,7 @@ extension ArticleWebView {
             // first downward scroll).
             atTop = true
             atBottom = false
+            resetBottomEase()
             #if canImport(AppKit)
             engaged = false
             bottomEngaged = false

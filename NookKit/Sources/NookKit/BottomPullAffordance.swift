@@ -15,8 +15,9 @@ import SwiftUI
 public struct BottomPullAffordance: View {
     /// The primary action: pull a little past this to open the next article.
     public static let nextThreshold: CGFloat = 80
-    /// Pull further, past this, to close the browser instead.
-    public static let closeThreshold: CGFloat = 130
+    /// Pull further, past this, to close the browser instead. Kept well clear of
+    /// the next threshold so the over-pull can't slip into close by accident.
+    public static let closeThreshold: CGFloat = 170
 
     private let pull: CGFloat
     private let nextTitle: String?
