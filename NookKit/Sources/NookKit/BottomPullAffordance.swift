@@ -73,19 +73,24 @@ public struct BottomPullAffordance: View {
                 .offset(y: -52)
                 .opacity(stage == .next ? 0.14 + 0.22 * overPull : 0)
 
-            // The active pill: next OR close, swapped discretely at the threshold.
+            // The active pill: next OR close, swapped discretely at the
+            // threshold. Explicit vertical offsets keep the motion straight down
+            // / down-from-above (a plain `.move(edge:)` drifts diagonally as the
+            // pills' widths differ).
             if stage == .close {
                 closeCard
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    // Drops in from above, where the ✕ hint was.
+                    .transition(.offset(y: -46).combined(with: .opacity))
             } else {
                 nextCard
-                    // Resist the over-pull: a small upward nudge and slight
-                    // compression that plateau, so it feels like pushing against
-                    // a wall rather than sliding toward close.
-                    .offset(y: -12 * overPull)
-                    .scaleEffect(1 - 0.04 * overPull, anchor: .bottom)
+                    // Resist the over-pull: a small downward nudge and slight
+                    // compression that plateau, foreshadowing the pill being
+                    // pushed straight down and out when close takes over.
+                    .offset(y: 14 * overPull)
+                    .scaleEffect(1 - 0.04 * overPull, anchor: .center)
                     .opacity(nextIn)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // Slides straight down and out.
+                    .transition(.offset(y: 46).combined(with: .opacity))
             }
         }
         // Overall rise-in from the bottom edge.
