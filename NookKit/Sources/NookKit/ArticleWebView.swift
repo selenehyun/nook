@@ -266,6 +266,16 @@ extension ArticleWebView {
         private var engaged = false
         private var bottomOverscroll: CGFloat = 0
         private var bottomEngaged = false
+        // Whether the current trackpad scroll gesture began already at the
+        // bottom. A bottom pull only counts as deliberate when it starts from
+        // rest at the end of the page — not when a hard scroll flings into it.
+        private var gestureBeganAtBottom = false
+        #endif
+
+        #if canImport(UIKit)
+        // Whether the current scroll-view drag began already at the bottom, so a
+        // hard fling into the bottom doesn't count as a deliberate pull.
+        private var panBeganAtBottom = false
         #endif
 
         init(linkOpensInApp: Bool, onOverscroll: @escaping (CGFloat) -> Void, onOverscrollEnded: @escaping (CGFloat) -> Void) {
@@ -412,6 +422,13 @@ extension ArticleWebView {
             guard let webView, event.window === webView.window else { return false }
             let delta = event.scrollingDeltaY
 
+            // Record, at the start of each trackpad gesture, whether it began
+            // already at the bottom — so a hard scroll that flings into the
+            // bottom (which began mid-page) can't trigger the pull.
+            if event.phase.contains(.began) {
+                gestureBeganAtBottom = atBottom
+            }
+
             // Engage a fresh top- or bottom-overscroll gesture over the web view.
             if !engaged, !bottomEngaged {
                 let overPointer = webView.bounds.contains(webView.convert(event.locationInWindow, from: nil))
@@ -419,7 +436,9 @@ extension ArticleWebView {
                 if atTop, delta > 0 {
                     engaged = true
                     overscroll = 0
-                } else if atBottom, delta < 0 {
+                } else if atBottom, delta < 0, event.phase.isEmpty || gestureBeganAtBottom {
+                    // A phased (trackpad) pull must have begun at the bottom; a
+                    // phase-less mouse wheel scroll is discrete, so allow it.
                     bottomEngaged = true
                     bottomOverscroll = 0
                 } else {
@@ -479,10 +498,15 @@ extension ArticleWebView {
                 + scrollView.adjustedContentInset.bottom
             let overscroll = scrollable ? max(0, scrollView.contentOffset.y - maxOffset) : 0
             switch gesture.state {
+            case .began:
+                // The pull only counts if the drag starts from rest at the very
+                // bottom — not when a fast scroll flings past it mid-drag.
+                panBeganAtBottom = scrollable && scrollView.contentOffset.y >= maxOffset - 2
             case .changed:
-                onBottomOverscroll(overscroll)
+                onBottomOverscroll(panBeganAtBottom ? overscroll : 0)
             case .ended, .cancelled, .failed:
-                onBottomOverscrollEnded(overscroll)
+                onBottomOverscrollEnded(panBeganAtBottom ? overscroll : 0)
+                panBeganAtBottom = false
             default:
                 break
             }
