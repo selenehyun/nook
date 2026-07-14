@@ -18,15 +18,18 @@ import AppKit
 public struct BottomPullToAdvance: ViewModifier {
     @Binding private var pull: CGFloat
     private let isEnabled: Bool
+    private let thresholds: BottomPullThresholds
     private let onRelease: (CGFloat) -> Void
 
     public init(
         pull: Binding<CGFloat>,
         isEnabled: Bool = true,
+        thresholds: BottomPullThresholds = .reader,
         onRelease: @escaping (CGFloat) -> Void
     ) {
         self._pull = pull
         self.isEnabled = isEnabled
+        self.thresholds = thresholds
         self.onRelease = onRelease
     }
 
@@ -113,13 +116,13 @@ public struct BottomPullToAdvance: ViewModifier {
     /// `BottomPullAffordance` uses for iOS, doesn't reliably re-fire the trackpad
     /// patterns on a repeated pull, so macOS drives them here off the scroll.)
     private func updateMacHaptics(for pull: CGFloat) {
-        let stage = pull >= BottomPullAffordance.closeThreshold ? 2
-            : (pull >= BottomPullAffordance.nextThreshold ? 1 : 0)
+        let stage = pull >= thresholds.close ? 2
+            : (pull >= thresholds.next ? 1 : 0)
         if stage > lastStage { performTicks(3) }
         lastStage = stage
 
         if stage == 0 {
-            let bucket = Int(pull / 24)
+            let bucket = Int(pull / max(1, thresholds.next / 3))
             if bucket > lastHintBucket { performTicks(2) }
             lastHintBucket = bucket
         } else {

@@ -94,12 +94,13 @@ struct ReaderDetailView: View {
 
     /// Pulling up past the end of the reader: a small pull opens the next
     /// article, a larger one closes the reader back to the list (popping the
-    /// navigation split view) — the same two thresholds the in-app browser uses.
+    /// navigation split view). Uses the reader's smaller thresholds (the native
+    /// bounce doesn't travel far).
     private func handleBottomPull(_ amount: CGFloat) {
-        if amount >= BottomPullAffordance.closeThreshold {
+        if amount >= BottomPullThresholds.reader.close {
             bottomPull = 0
             store.selectedArticleID = nil
-        } else if amount >= BottomPullAffordance.nextThreshold {
+        } else if amount >= BottomPullThresholds.reader.next {
             bottomPull = 0
             store.selectNextArticle()
         } else {
@@ -178,7 +179,11 @@ struct ReaderDetailView: View {
             .id(article.id)
         }
         .overlay(alignment: .bottom) {
-            BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
+            BottomPullAffordance(
+                pull: bottomPull,
+                nextTitle: store.article(after: article.id)?.title,
+                thresholds: .reader
+            )
         }
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")

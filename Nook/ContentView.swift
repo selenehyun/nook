@@ -1618,7 +1618,11 @@ private struct ReaderDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
         .overlay(alignment: .bottom) {
-            BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
+            BottomPullAffordance(
+                pull: bottomPull,
+                nextTitle: store.article(after: article.id)?.title,
+                thresholds: .reader
+            )
         }
         .task(id: article.id) {
             await markReadAfterDwell(article)
@@ -1626,13 +1630,13 @@ private struct ReaderDetailView: View {
     }
 
     /// Pulling up past the end of the reader: a small pull opens the next
-    /// article, a larger one closes the reader back to the list — the same two
-    /// thresholds the in-app browser uses.
+    /// article, a larger one closes the reader back to the list. Uses the
+    /// reader's smaller thresholds (the native bounce doesn't travel far).
     private func handleBottomPull(_ amount: CGFloat) {
-        if amount >= BottomPullAffordance.closeThreshold {
+        if amount >= BottomPullThresholds.reader.close {
             bottomPull = 0
             store.selectedArticleID = nil
-        } else if amount >= BottomPullAffordance.nextThreshold {
+        } else if amount >= BottomPullThresholds.reader.next {
             bottomPull = 0
             store.selectNextArticle()
         } else {
