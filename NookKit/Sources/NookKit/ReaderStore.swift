@@ -177,7 +177,22 @@ public final class ReaderStore {
     }
 
     private func applyDisplayed(_ result: [Article]) {
-        displayedArticles = result
+        // Animate only when the visible rows actually change and still overlap
+        // the current list — i.e. articles arriving (or filtering out) — so new
+        // stories slide in instead of the list snapping/jumping. A full swap
+        // (switching source) or the very first fill isn't animated, which would
+        // otherwise look like a jarring reshuffle. This runs for both the sync
+        // and background filter paths, so large libraries animate too.
+        let oldIDs = displayedArticles.map(\.id)
+        let newIDs = result.map(\.id)
+        let oldSet = Set(oldIDs)
+        if oldIDs != newIDs, !oldSet.isEmpty, !oldSet.isDisjoint(with: newIDs) {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                displayedArticles = result
+            }
+        } else {
+            displayedArticles = result
+        }
         pruneSelectionIfHidden()
     }
 

@@ -381,6 +381,9 @@ private struct FeedSidebar: View {
     @State private var renameFeedName = ""
     @State private var dropTargetFolder: String?
     @State private var isTopLevelDropTargeted = false
+    /// Bumped on each action-bar tap to drive a haptic tick on Force Touch
+    /// trackpads (a no-op elsewhere).
+    @State private var actionFeedback = 0
 
     var body: some View {
         List(selection: $store.feedSelection) {
@@ -512,14 +515,22 @@ private struct FeedSidebar: View {
     private var sidebarActionBar: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(spacing: 2) {
-                Button(action: onAddFeed) {
-                    Image(systemName: "plus")
+            HStack(spacing: 8) {
+                // Primary action reads as a proper labeled macOS button (like
+                // Reminders' "New List"), so it's unmistakably clickable.
+                Button {
+                    actionFeedback += 1
+                    onAddFeed()
+                } label: {
+                    Label("Add Feed", systemImage: "plus")
                 }
-                .help(store.isStorageConfigured ? "Add Feed" : "Choose a sync folder first")
                 .disabled(!store.isStorageConfigured || store.isRefreshing)
+                .help(store.isStorageConfigured ? "Add a feed" : "Choose a sync folder first")
+
+                Spacer(minLength: 0)
 
                 Button {
+                    actionFeedback += 1
                     newFolderName = ""
                     isCreatingFolder = true
                 } label: {
@@ -527,8 +538,6 @@ private struct FeedSidebar: View {
                 }
                 .help("New Folder")
                 .disabled(!store.isStorageConfigured)
-
-                Spacer()
 
                 Menu {
                     Button(action: onImportOPML) {
@@ -541,19 +550,22 @@ private struct FeedSidebar: View {
                     }
                     .disabled(store.feeds.isEmpty)
                 } label: {
-                    Image(systemName: "tray.and.arrow.down")
+                    Image(systemName: "ellipsis")
                 }
-                .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("Import or Export Subscriptions")
+                .help("Import or export subscriptions (OPML)")
             }
-            .buttonStyle(.borderless)
-            .imageScale(.medium)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            // Liquid Glass controls: translucent glass shapes that react to
+            // hover and press with the system's built-in interactive feedback,
+            // at the standard macOS control size.
+            .buttonStyle(.glass)
+            .menuStyle(.button)
+            .controlSize(.large)
+            .sensoryFeedback(.levelChange, trigger: actionFeedback)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
-        .background(.bar)
     }
 
     /// Per-folder collapsed state, persisted so it is restored on relaunch.
