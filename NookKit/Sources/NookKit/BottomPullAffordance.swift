@@ -66,26 +66,24 @@ public struct BottomPullAffordance: View {
             hintCard
                 .opacity(1 - nextIn)
 
-            // A faint little ✕ waiting above during the next stage. It stays a
-            // hint — barely brightening with the over-pull, never descending.
-            closeHint
-                .scaleEffect(0.7)
-                .offset(y: -52)
-                .opacity(stage == .next ? 0.14 + 0.22 * overPull : 0)
-
             // Both pills are always present (so the ZStack never reflows and
             // shifts things sideways); stage only drives their vertical offset
-            // and opacity. Next resists the over-pull with a small downward
-            // nudge, then slides straight down and out; close drops in from
-            // directly above, where the ✕ hint was.
+            // and opacity.
+
+            // Next-article pill: resists the over-pull with a small downward
+            // nudge, then slides straight down and out.
             nextCard
                 .scaleEffect(1 - 0.04 * overPull, anchor: .center)
                 .offset(y: stage == .close ? 46 : 14 * overPull)
                 .opacity(stage == .close ? 0 : nextIn)
 
-            closeCard
-                .offset(y: stage == .close ? 0 : -46)
-                .opacity(stage == .close ? 1 : 0)
+            // The one close indicator: it hints above during the next stage —
+            // darkening, growing, and creeping down as the over-pull nears the
+            // threshold — then descends into the anchor and reveals its label.
+            closeIndicator
+                .scaleEffect(stage == .close ? 1 : 0.72 + 0.12 * overPull, anchor: .center)
+                .offset(y: stage == .close ? 0 : -52 + 8 * overPull)
+                .opacity(closeOpacity)
         }
         // Overall rise-in from the bottom edge.
         .scaleEffect(0.86 + 0.14 * reveal, anchor: .bottom)
@@ -138,21 +136,27 @@ public struct BottomPullAffordance: View {
         .foregroundStyle(.tint)
     }
 
-    private var closeCard: some View {
+    /// The single close indicator — a bare ✕ while it hints above, gaining its
+    /// "Release to close" label as it descends into the anchor.
+    private var closeIndicator: some View {
         pill {
             Image(systemName: "xmark").font(.headline)
-            Text("Release to close", bundle: .module)
-                .font(.subheadline.weight(.semibold))
+            if stage == .close {
+                Text("Release to close", bundle: .module)
+                    .font(.subheadline.weight(.semibold))
+                    .transition(.opacity)
+            }
         }
         .foregroundStyle(.primary)
     }
 
-    /// The faint standalone ✕ badge shown above during the next stage.
-    private var closeHint: some View {
-        pill {
-            Image(systemName: "xmark").font(.subheadline.weight(.bold))
-        }
-        .foregroundStyle(.secondary)
+    /// How opaque the close indicator is: it stays a visible hint while in the
+    /// next stage, darkening interactively with the over-pull, then goes solid
+    /// once it's the active action.
+    private var closeOpacity: Double {
+        if stage == .close { return 1 }
+        if stage == .next { return Double(0.4 + 0.5 * overPull) }
+        return 0
     }
 
     private func pill<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
