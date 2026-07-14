@@ -2,13 +2,13 @@ import SwiftUI
 
 /// A floating indicator revealed at the bottom of the in-app browser when the
 /// user keeps pulling up past the end of the page. It rises in as a glass pill
-/// (never pushing the page content) and escalates through two thresholds: pull
-/// a little to open the next article (previewing its title), and — hinted by a
-/// faint little "✕" that floats above — pull further to close, at which point
-/// the ✕ grows in and shoulders the next-article pill out of the way.
+/// (never pushing the page content) and escalates through two thresholds.
 ///
-/// Everything is a continuous function of `pull`, so it tracks the scroll, and a
-/// retargeting spring gives it an elastic, tactile feel.
+/// In the next-article stage, over-pulling doesn't smoothly morph into close —
+/// instead the pill *resists*, nudging against the scroll with diminishing give
+/// while a faint little "✕" hint waits above. Only when the pull crosses the
+/// close threshold does it snap — with a haptic — to the close indicator, the ✕
+/// dropping in from above and shouldering the next-article pill out.
 ///
 /// The thresholds are shared so the browser's release handler decides the same
 /// way the indicator reads.
@@ -38,21 +38,19 @@ public struct BottomPullAffordance: View {
     private var reveal: CGFloat { min(1, pull / 64) }
 
     /// How far the next-article card has faded in (0 below the next threshold, 1
-    /// at it), used to cross-fade the hint out and the escalation cards in.
+    /// at it), used to cross-fade the hint out.
     private var nextIn: CGFloat {
         clamp01((pull - (Self.nextThreshold - 22)) / 22)
     }
 
-    /// Progress from the next threshold (0) to the close threshold (1) — drives
-    /// the ✕ growing in and the next card being pushed out.
-    private var closeProgress: CGFloat {
+    /// How far into the next→close over-pull the scroll is (0 at the next
+    /// threshold, 1 at the close threshold). Drives the *resistance* nudge only —
+    /// not a morph — so the ✕ never tracks the scroll into place.
+    private var overPull: CGFloat {
         let span = Self.closeThreshold - Self.nextThreshold
-        guard span > 0 else { return pull >= Self.closeThreshold ? 1 : 0 }
+        guard span > 0 else { return 0 }
         return clamp01((pull - Self.nextThreshold) / span)
     }
-
-    /// The ✕ only reads its label once it has grown enough to be the focus.
-    private var showCloseLabel: Bool { closeProgress > 0.55 }
 
     /// A stepped value that climbs as the pull grows through the "hint" zone, so
     /// a very light haptic can tick in response to the scroll before either
@@ -64,24 +62,31 @@ public struct BottomPullAffordance: View {
 
     public var body: some View {
         ZStack {
-            // "Keep pulling" — the initial hint, cross-fading out into the next card.
+            // "Keep pulling" hint, cross-fading out as the next card takes over.
             hintCard
                 .opacity(1 - nextIn)
 
-            // Next article — primary once you cross into it, then scaled down,
-            // blurred, and shouldered downward as the ✕ takes over.
-            nextCard
-                .scaleEffect(1 - 0.15 * closeProgress, anchor: .center)
-                .offset(y: 48 * closeProgress)
-                .blur(radius: 2.5 * closeProgress)
-                .opacity(nextIn * (1 - closeProgress))
+            // A faint little ✕ waiting above during the next stage. It stays a
+            // hint — barely brightening with the over-pull, never descending.
+            closeHint
+                .scaleEffect(0.7)
+                .offset(y: -52)
+                .opacity(stage == .next ? 0.14 + 0.22 * overPull : 0)
 
-            // Close — a faint little ✕ floating above, growing and descending
-            // into the anchor position as the pull nears the close threshold.
-            closeCard
-                .scaleEffect(0.56 + 0.44 * closeProgress, anchor: .center)
-                .offset(y: -58 * (1 - closeProgress))
-                .opacity(nextIn * (0.24 + 0.76 * closeProgress))
+            // The active pill: next OR close, swapped discretely at the threshold.
+            if stage == .close {
+                closeCard
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            } else {
+                nextCard
+                    // Resist the over-pull: a small upward nudge and slight
+                    // compression that plateau, so it feels like pushing against
+                    // a wall rather than sliding toward close.
+                    .offset(y: -12 * overPull)
+                    .scaleEffect(1 - 0.04 * overPull, anchor: .bottom)
+                    .opacity(nextIn)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         // Overall rise-in from the bottom edge.
         .scaleEffect(0.86 + 0.14 * reveal, anchor: .bottom)
@@ -90,9 +95,10 @@ public struct BottomPullAffordance: View {
         .padding(.bottom, 22)
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, alignment: .center)
-        // A retargeting spring makes the whole thing chase the scroll elastically.
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: pull)
-        .animation(.spring(response: 0.34, dampingFraction: 0.68), value: showCloseLabel)
+        // The resistance nudge tracks the scroll with a light elastic spring…
+        .animation(.spring(response: 0.24, dampingFraction: 0.72), value: pull)
+        // …while crossing a threshold snaps with a bouncier one.
+        .animation(.spring(response: 0.34, dampingFraction: 0.62), value: stage)
         // iOS haptics. macOS ones are performed in the web view coordinator
         // (ArticleWebView), off the scroll, because SwiftUI's `.sensoryFeedback`
         // doesn't reliably re-fire the trackpad patterns on a repeated pull.
@@ -136,13 +142,18 @@ public struct BottomPullAffordance: View {
     private var closeCard: some View {
         pill {
             Image(systemName: "xmark").font(.headline)
-            if showCloseLabel {
-                Text("Release to close", bundle: .module)
-                    .font(.subheadline.weight(.semibold))
-                    .transition(.opacity)
-            }
+            Text("Release to close", bundle: .module)
+                .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(.primary)
+    }
+
+    /// The faint standalone ✕ badge shown above during the next stage.
+    private var closeHint: some View {
+        pill {
+            Image(systemName: "xmark").font(.subheadline.weight(.bold))
+        }
+        .foregroundStyle(.secondary)
     }
 
     private func pill<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
