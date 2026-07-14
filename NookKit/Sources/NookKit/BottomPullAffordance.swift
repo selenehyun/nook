@@ -71,10 +71,11 @@ public struct BottomPullAffordance: View {
             // and opacity.
 
             // Next-article pill: resists the over-pull with a small downward
-            // nudge, then slides straight down and out.
+            // nudge — quadratic and capped low, so it barely gives until it's
+            // right at the threshold — then slides straight down and out.
             nextCard
-                .scaleEffect(1 - 0.04 * overPull, anchor: .center)
-                .offset(y: stage == .close ? 46 : 14 * overPull)
+                .scaleEffect(1 - 0.03 * overPull, anchor: .center)
+                .offset(y: stage == .close ? 46 : 8 * overPull * overPull)
                 .opacity(stage == .close ? 0 : nextIn)
 
             // The one close indicator: it hints above during the next stage —
