@@ -30,11 +30,15 @@ public struct BottomPullToAdvance: ViewModifier {
         self.onRelease = onRelease
     }
 
-    /// Whether the user's finger/trackpad is actively driving the scroll. Only a
-    /// hand-driven pull engages the gesture; momentum bouncing into the bottom
-    /// (decelerating/animating) is ignored, so a hard fling to the end never
-    /// trips it — the same "must start the pull yourself" rule the web view has.
-    @State private var isDragging = false
+    /// The peak overscroll of the current pull, and whether a pull is in
+    /// progress (armed for release).
+    @State private var peak: CGFloat = 0
+    @State private var armed = false
+    /// Whether scroll-phase callbacks are reaching us at all. When they are, they
+    /// give the precise finger-lift moment for the release; when they never fire
+    /// (some configurations don't deliver them), we fall back to detecting the
+    /// spring-back to rest instead.
+    @State private var sawPhaseChange = false
     #if os(macOS)
     @State private var lastStage = 0
     @State private var lastHintBucket = 0
@@ -54,28 +58,49 @@ public struct BottomPullToAdvance: ViewModifier {
                 let maxOffset = geometry.contentSize.height - geometry.containerSize.height
                 return max(0, geometry.contentOffset.y - maxOffset)
             } action: { _, overscroll in
-                guard isEnabled, isDragging else { return }
+                guard isEnabled else { return }
                 pull = overscroll
-                #if os(macOS)
-                updateMacHaptics(for: overscroll)
-                #endif
+                if overscroll > 1 {
+                    armed = true
+                    if overscroll > peak { peak = overscroll }
+                    #if os(macOS)
+                    updateMacHaptics(for: overscroll)
+                    #endif
+                } else if armed {
+                    // Sprung back to rest. If scroll phases never reached us this
+                    // is the only release signal we get; otherwise the phase
+                    // handler already fired and we just clear.
+                    if sawPhaseChange {
+                        resetTransient()
+                    } else {
+                        fireRelease(amount: peak)
+                    }
+                }
             }
             .onScrollPhaseChange { oldPhase, newPhase, _ in
                 guard isEnabled else { return }
+                sawPhaseChange = true
                 let wasActive = oldPhase == .interacting || oldPhase == .tracking
                 let isActive = newPhase == .interacting || newPhase == .tracking
-                if isActive { isDragging = true }
-                if wasActive && !isActive {
-                    isDragging = false
-                    #if os(macOS)
-                    lastStage = 0
-                    lastHintBucket = 0
-                    #endif
-                    // Only report a release that actually pulled something, so a
-                    // plain scroll-to-rest doesn't fire a no-op snap-back.
-                    if pull > 1 { onRelease(pull) }
-                }
+                // The finger just lifted — report the pull at that moment.
+                if wasActive && !isActive { fireRelease(amount: pull) }
             }
+    }
+
+    /// Hand the release amount to the caller once per pull, then disarm.
+    private func fireRelease(amount: CGFloat) {
+        guard armed else { return }
+        resetTransient()
+        if amount > 1 { onRelease(amount) }
+    }
+
+    private func resetTransient() {
+        armed = false
+        peak = 0
+        #if os(macOS)
+        lastStage = 0
+        lastHintBucket = 0
+        #endif
     }
 
     #if os(macOS)

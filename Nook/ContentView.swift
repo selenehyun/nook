@@ -1609,12 +1609,14 @@ private struct ReaderDetailView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        // Attach the pull gesture directly to the scroll view so its scroll
+        // observers resolve to it.
+        .bottomPullToAdvance(pull: $bottomPull) { handleBottomPull($0) }
         // A fresh scroll view per article so pulling to the next one lands at the
         // top instead of inheriting this article's bottom offset.
         .id(article.id)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
-        .bottomPullToAdvance(pull: $bottomPull) { handleBottomPull($0) }
         .overlay(alignment: .bottom) {
             BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
         }

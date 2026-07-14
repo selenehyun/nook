@@ -171,10 +171,11 @@ struct ReaderDetailView: View {
                     }
                 }
             }
-            // A fresh scroll view per article so pulling to the next one lands at
-            // the top instead of inheriting this article's bottom offset.
-            .id(article.id)
+            // Attach the pull gesture directly to the scroll view so its scroll
+            // observers resolve to it; keep a fresh scroll view per article
+            // (.id) so pulling to the next one lands at the top.
             .bottomPullToAdvance(pull: $bottomPull) { handleBottomPull($0) }
+            .id(article.id)
         }
         .overlay(alignment: .bottom) {
             BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
