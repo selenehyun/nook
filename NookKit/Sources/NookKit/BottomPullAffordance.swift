@@ -12,82 +12,44 @@ import SwiftUI
 ///
 /// The thresholds are shared so the browser's release handler decides the same
 /// way the indicator reads.
-/// The pull distances at which the affordance escalates. The web view's raw,
-/// lightly-resisted overscroll travels far, so it can afford large thresholds;
-/// a native `ScrollView`'s system rubber-band is much stiffer and gives far
-/// less travel, so the reader needs noticeably smaller ones.
-public struct BottomPullThresholds: Equatable, Sendable {
-    /// Pull a little past this to open the next article.
-    public var next: CGFloat
-    /// Pull further, past this, to close instead.
-    public var close: CGFloat
-
-    public init(next: CGFloat, close: CGFloat) {
-        self.next = next
-        self.close = close
-    }
-
-    /// The in-app browser (WKWebView) values.
-    public static let browser = BottomPullThresholds(next: 80, close: 130)
-    /// The native reader (SwiftUI ScrollView) values — much smaller, because the
-    /// system bounce's reported content offset is heavily compressed and barely
-    /// travels, so large thresholds are never reached.
-    public static let reader = BottomPullThresholds(next: 10, close: 24)
-}
-
 public struct BottomPullAffordance: View {
     /// The primary action: pull a little past this to open the next article.
-    /// Kept for the browser's release handlers; equals `.browser.next`.
-    public static let nextThreshold: CGFloat = BottomPullThresholds.browser.next
+    public static let nextThreshold: CGFloat = 80
     /// Pull further, past this, to close the browser instead.
-    public static let closeThreshold: CGFloat = BottomPullThresholds.browser.close
+    public static let closeThreshold: CGFloat = 130
 
     private let pull: CGFloat
     private let nextTitle: String?
-    private let thresholds: BottomPullThresholds
 
-    public init(
-        pull: CGFloat,
-        nextTitle: String?,
-        thresholds: BottomPullThresholds = .browser
-    ) {
+    public init(pull: CGFloat, nextTitle: String?) {
         self.pull = pull
         self.nextTitle = nextTitle
-        self.thresholds = thresholds
     }
-
-    private var nextThreshold: CGFloat { thresholds.next }
-    private var closeThreshold: CGFloat { thresholds.close }
 
     private enum Stage: Equatable { case hint, next, close }
 
     private var stage: Stage {
-        if pull >= closeThreshold { return .close }
-        if pull >= nextThreshold { return .next }
+        if pull >= Self.closeThreshold { return .close }
+        if pull >= Self.nextThreshold { return .next }
         return .hint
     }
 
-    /// The pill rises in over the first ~80% of the way to the next threshold,
-    /// then holds — proportional so it feels the same at either scale.
-    private var reveal: CGFloat { min(1, pull / max(1, nextThreshold * 0.8)) }
-
-    /// The width of the hint→next cross-fade band, proportional to the next
-    /// threshold (≈22pt at the browser's 80).
-    private var fadeBand: CGFloat { max(1, nextThreshold * 0.28) }
+    /// The pill rises in over the first stretch of the pull, then holds.
+    private var reveal: CGFloat { min(1, pull / 64) }
 
     /// How far the next-article card has faded in (0 below the next threshold, 1
     /// at it), used to cross-fade the hint out.
     private var nextIn: CGFloat {
-        clamp01((pull - (nextThreshold - fadeBand)) / fadeBand)
+        clamp01((pull - (Self.nextThreshold - 22)) / 22)
     }
 
     /// How far into the next→close over-pull the scroll is (0 at the next
     /// threshold, 1 at the close threshold). Drives the *resistance* nudge only —
     /// not a morph — so the ✕ never tracks the scroll into place.
     private var overPull: CGFloat {
-        let span = closeThreshold - nextThreshold
+        let span = Self.closeThreshold - Self.nextThreshold
         guard span > 0 else { return 0 }
-        return clamp01((pull - nextThreshold) / span)
+        return clamp01((pull - Self.nextThreshold) / span)
     }
 
     /// A stepped value that climbs as the pull grows through the "hint" zone, so
