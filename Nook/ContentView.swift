@@ -212,7 +212,9 @@ struct ContentView: View {
                 toggleSelectedStarred: store.toggleSelectedStarred,
                 selectNextArticle: store.selectNextArticle,
                 selectPreviousArticle: store.selectPreviousArticle,
-                toggleReaderMode: store.toggleBrowserMode
+                toggleReaderMode: store.toggleBrowserMode,
+                closeReader: { store.selectedArticleID = nil },
+                canCloseReader: store.selectedArticle != nil
             )
         )
     }
@@ -1544,6 +1546,7 @@ private struct ReaderDetailView: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @State private var bottomPull: CGFloat = 0
 
     var body: some View {
         baseContent
@@ -1606,10 +1609,32 @@ private struct ReaderDetailView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        // A fresh scroll view per article so pulling to the next one lands at the
+        // top instead of inheriting this article's bottom offset.
+        .id(article.id)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
+        .bottomPullToAdvance(pull: $bottomPull) { handleBottomPull($0) }
+        .overlay(alignment: .bottom) {
+            BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
+        }
         .task(id: article.id) {
             await markReadAfterDwell(article)
+        }
+    }
+
+    /// Pulling up past the end of the reader: a small pull opens the next
+    /// article, a larger one closes the reader back to the list — the same two
+    /// thresholds the in-app browser uses.
+    private func handleBottomPull(_ amount: CGFloat) {
+        if amount >= BottomPullAffordance.closeThreshold {
+            bottomPull = 0
+            store.selectedArticleID = nil
+        } else if amount >= BottomPullAffordance.nextThreshold {
+            bottomPull = 0
+            store.selectNextArticle()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) { bottomPull = 0 }
         }
     }
 
@@ -2278,6 +2303,11 @@ struct ReaderCommandActions {
     var selectNextArticle: @MainActor () -> Void
     var selectPreviousArticle: @MainActor () -> Void
     var toggleReaderMode: @MainActor () -> Void
+    var closeReader: @MainActor () -> Void
+    /// Whether an article is open, so ⌘W closes the reader; when nothing is
+    /// open the command disables itself and ⌘W falls through to closing the
+    /// window as usual.
+    var canCloseReader: Bool
 }
 
 private struct ReaderCommandActionsKey: FocusedValueKey {
@@ -2329,6 +2359,12 @@ struct ReaderAppCommands: Commands {
             }
             .keyboardShortcut(.upArrow, modifiers: [.command])
             .disabled(actions == nil)
+
+            Button("Close Reader") {
+                actions?.closeReader()
+            }
+            .keyboardShortcut("w", modifiers: [.command])
+            .disabled(!(actions?.canCloseReader ?? false))
 
             Divider()
 

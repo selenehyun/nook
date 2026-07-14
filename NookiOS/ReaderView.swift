@@ -24,6 +24,7 @@ struct ReaderDetailView: View {
     @State private var isShowingInfo = false
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
+    @State private var bottomPull: CGFloat = 0
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -91,6 +92,21 @@ struct ReaderDetailView: View {
         .background(Color("ListBackground").ignoresSafeArea())
     }
 
+    /// Pulling up past the end of the reader: a small pull opens the next
+    /// article, a larger one closes the reader back to the list (popping the
+    /// navigation split view) — the same two thresholds the in-app browser uses.
+    private func handleBottomPull(_ amount: CGFloat) {
+        if amount >= BottomPullAffordance.closeThreshold {
+            bottomPull = 0
+            store.selectedArticleID = nil
+        } else if amount >= BottomPullAffordance.nextThreshold {
+            bottomPull = 0
+            store.selectNextArticle()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) { bottomPull = 0 }
+        }
+    }
+
     private func reader(_ article: Article) -> some View {
         GeometryReader { proxy in
             ScrollView {
@@ -155,6 +171,13 @@ struct ReaderDetailView: View {
                     }
                 }
             }
+            // A fresh scroll view per article so pulling to the next one lands at
+            // the top instead of inheriting this article's bottom offset.
+            .id(article.id)
+            .bottomPullToAdvance(pull: $bottomPull) { handleBottomPull($0) }
+        }
+        .overlay(alignment: .bottom) {
+            BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
         }
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
