@@ -497,20 +497,35 @@ extension ArticleWebView {
         /// macOS. A firm tick marks crossing into the next / close stages; a
         /// lighter ratchet follows the scroll while still in the hint zone.
         private func performBottomPullHaptics(reported: CGFloat, rawPull: CGFloat) {
-            let performer = NSHapticFeedbackManager.defaultPerformer
             let level = reported >= BottomPullAffordance.closeThreshold ? 2
                 : (reported >= BottomPullAffordance.nextThreshold ? 1 : 0)
             if level > hapticStageLevel {
-                performer.perform(.levelChange, performanceTime: .now)
+                performStrongTick(count: 3) // firm thunk on crossing a threshold
             }
             hapticStageLevel = level
 
             if level == 0 {
-                let step = Int(rawPull / 26)
+                let step = Int(rawPull / 30)
                 if step > hapticRatchetStep {
-                    performer.perform(.levelChange, performanceTime: .now)
+                    performStrongTick(count: 2) // firmer ratchet following the scroll
                 }
                 hapticRatchetStep = step
+            }
+        }
+
+        /// A stronger macOS tick. The Taptic Engine exposes no intensity control,
+        /// so a rapid burst of `.levelChange` reads as one firmer bump than a
+        /// single perform.
+        private func performStrongTick(count: Int) {
+            for i in 0..<max(1, count) {
+                let delay = 0.03 * Double(i)
+                if delay == 0 {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+                    }
+                }
             }
         }
         #endif
