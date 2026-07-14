@@ -695,7 +695,8 @@ public final class ReaderStore {
         // so a freshly-fetched copy still isn't announced as new.
         let readElsewhere = await readArticleIDsAcrossShards()
 
-        await refreshAllFeeds()
+        // Already synced above; skip the redundant reload inside refreshAllFeeds.
+        await refreshAllFeeds(syncFirst: false)
 
         let fresh = articles.filter {
             !knownIDs.contains($0.id) && !$0.isRead && !readElsewhere.contains($0.id)
@@ -806,19 +807,22 @@ public final class ReaderStore {
     }
 
     func refresh(feedID: Feed.ID) {
-        guard let feed = feed(for: feedID) else { return }
+        guard feed(for: feedID) != nil else { return }
         feedSelection = [feedID]
 
         Task {
-            await refreshFeed(feed)
+            // Sync first so the save can't drop a peer-added feed; re-resolve the
+            // feed after the merge in case its stored URL changed.
+            await reloadMerged()
+            if let feed = feed(for: feedID) { await refreshFeed(feed) }
         }
     }
 
     public func refreshFeeds(ids: [Feed.ID]) {
-        let targets = ids.compactMap(feed(for:))
-        guard !targets.isEmpty else { return }
+        guard ids.contains(where: { feed(for: $0) != nil }) else { return }
         Task {
-            for feed in targets {
+            await reloadMerged()
+            for feed in ids.compactMap(feed(for:)) {
                 await refreshFeed(feed)
             }
         }
@@ -834,8 +838,8 @@ public final class ReaderStore {
     /// Awaitable refresh of specific feeds, for pull-to-refresh in a single
     /// feed's article list.
     public func refreshFeedsAndWait(ids: [Feed.ID]) async {
-        let targets = ids.compactMap(feed(for:))
-        for feed in targets {
+        await reloadMerged()
+        for feed in ids.compactMap(feed(for:)) {
             await refreshFeed(feed)
         }
     }
@@ -1067,7 +1071,12 @@ public final class ReaderStore {
         scheduleSave()
     }
 
-    private func refreshAllFeeds() async {
+    private func refreshAllFeeds(syncFirst: Bool = true) async {
+        // Pull the latest baseline + peer shards before fetching, so the save at
+        // the end can't clobber a feed another device just added but that hasn't
+        // reached this device's in-memory list yet. (Callers that already synced
+        // — e.g. the background reporter — pass false to avoid a redundant read.)
+        if syncFirst { await reloadMerged() }
         // Hold per-feed writes and flush once at the end, so a refresh of many
         // feeds doesn't rewrite the whole library repeatedly. `defer` guarantees
         // the flag clears and the final state is saved even on early exit.
