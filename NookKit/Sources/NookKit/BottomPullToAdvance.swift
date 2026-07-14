@@ -43,12 +43,16 @@ public struct BottomPullToAdvance: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                // The distance the content is bounced past its bottom edge.
-                // Require genuine scrollability so a short, non-scrolling article
+                // The distance the scroll is bounced past its bottom edge.
+                // `contentOffset` tracks the elastic bounce past the end (unlike
+                // `visibleRect`, which clamps to the content), matching the
+                // convention the breadcrumb strip already relies on. Require
+                // genuine scrollability so a short, non-scrolling article
                 // (content no taller than the viewport) never reads as a
                 // constant overscroll and self-triggers.
                 guard geometry.contentSize.height > geometry.containerSize.height + 1 else { return 0 }
-                return max(0, geometry.visibleRect.maxY - geometry.contentSize.height)
+                let maxOffset = geometry.contentSize.height - geometry.containerSize.height
+                return max(0, geometry.contentOffset.y - maxOffset)
             } action: { _, overscroll in
                 guard isEnabled, isDragging else { return }
                 pull = overscroll
