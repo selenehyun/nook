@@ -89,6 +89,15 @@ public final class ReaderStore {
     private var isAccessingSecurityScopedResource = false
     private var refreshingFeedIDs: Set<Feed.ID> = []
 
+    // Article bodies live in a separate sidecar so the launch baseline stays
+    // small. This in-memory cache lets a re-merge (which reloads the light
+    // baseline) restore bodies without re-reading the sidecar each time.
+    private var bodyCache: [Article.ID: ArticleBody] = [:]
+    private var didLoadBodyCache = false
+    private var isLoadingBodyCache = false
+    /// Bodies are kept on disk for at most this many of the most-recent articles.
+    private nonisolated static let bodyRetentionLimit = 600
+
     // Git-like per-device sync. This device authors its own shard of user state
     // (read/starred flags, folders, per-feed overrides, feed deletions), each
     // change stamped with a monotonic HLC. Reads merge every device's shard over
@@ -296,6 +305,7 @@ public final class ReaderStore {
             lastKnownLibraryModDate = storage.libraryModificationDate
             lastKnownStateModDate = storage.stateDirectoryModificationDate
             startObservingLibrary()
+            Task { await loadBodyCacheIfNeeded() }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -423,7 +433,9 @@ public final class ReaderStore {
         var shards = peerShards.filter { $0.deviceID != deviceID }
         shards.append(ownShard)
         witness(shards)
-        let merged = DeviceStateDocument.materialize(base: base, shards: shards)
+        // Fill bodies from the cache so the (list-light) baseline's stripped
+        // bodies don't read as a change and the applied result keeps content.
+        let merged = hydratedFromCache(DeviceStateDocument.materialize(base: base, shards: shards))
 
         // Compare against the same folder normalization `apply` produces.
         let impliedFolders = merged.feeds.map(\.folderName).filter { !$0.isEmpty }
@@ -434,6 +446,54 @@ public final class ReaderStore {
         }
         lastKnownLibraryModDate = storage.libraryModificationDate
         lastKnownStateModDate = storage.stateDirectoryModificationDate
+    }
+
+    /// Loads the content sidecar once (off-main) into the in-memory body cache,
+    /// then fills the current articles' bodies from it. The list already shows
+    /// from the light baseline, so this runs after launch without blocking it.
+    private func loadBodyCacheIfNeeded() async {
+        guard !didLoadBodyCache, !isLoadingBodyCache, let storage else { applyBodyCache(); return }
+        isLoadingBodyCache = true
+        let bodies = await Task.detached(priority: .userInitiated) { storage.loadContent() }.value
+        isLoadingBodyCache = false
+        didLoadBodyCache = true
+        if !bodies.isEmpty { bodyCache.merge(bodies) { _, new in new } }
+        applyBodyCache()
+    }
+
+    /// Fills bodies into any in-memory article that is missing one, from the
+    /// cache. Bodies aren't shown in the list, so this never churns it.
+    private func applyBodyCache() {
+        guard !bodyCache.isEmpty else { return }
+        for index in articles.indices where !articles[index].hasBody {
+            if let body = bodyCache[articles[index].id] {
+                articles[index].bodyParagraphs = body.bodyParagraphs
+                articles[index].contentHTML = body.contentHTML
+            }
+        }
+    }
+
+    /// Returns `library` with each article's body filled in from the cache where
+    /// the (list-light) baseline left it empty, so a re-merge comparison ignores
+    /// the stripped bodies and the applied result keeps its content.
+    private func hydratedFromCache(_ library: ReaderLibrary) -> ReaderLibrary {
+        guard !bodyCache.isEmpty else { return library }
+        var library = library
+        for index in library.articles.indices where !library.articles[index].hasBody {
+            if let body = bodyCache[library.articles[index].id] {
+                library.articles[index].bodyParagraphs = body.bodyParagraphs
+                library.articles[index].contentHTML = body.contentHTML
+            }
+        }
+        return library
+    }
+
+    /// The ids whose bodies are worth persisting: the most recent articles, so
+    /// the content sidecar stays bounded.
+    nonisolated static func recentArticleIDs(from articles: [Article]) -> Set<Article.ID> {
+        guard articles.count > bodyRetentionLimit else { return Set(articles.map(\.id)) }
+        let recent = articles.sorted { $0.publishedAt > $1.publishedAt }.prefix(bodyRetentionLimit)
+        return Set(recent.map(\.id))
     }
 
     /// Pulls the latest baseline and every peer's shard from iCloud and re-merges.
@@ -1018,6 +1078,9 @@ public final class ReaderStore {
             lastKnownLibraryModDate = storage.libraryModificationDate
             lastKnownStateModDate = storage.stateDirectoryModificationDate
             startObservingLibrary()
+            // The list is up from the light baseline; pull the (heavier) article
+            // bodies in from the sidecar in the background so it never blocks.
+            Task { await loadBodyCacheIfNeeded() }
         } catch {
             errorMessage = error.localizedDescription
             syncFolderDisplayPath = UserDefaults.standard.string(forKey: ReaderStorage.displayPathDefaultsKey)
@@ -1167,6 +1230,13 @@ public final class ReaderStore {
             }
         } else {
             articles = merged
+        }
+
+        // Keep the body cache current with freshly fetched content, so a later
+        // re-merge (which reloads the list-light baseline) restores these bodies
+        // rather than blanking them until the next refresh.
+        for article in parsedFeed.articles where article.hasBody {
+            bodyCache[article.id] = article.body
         }
     }
 
@@ -1341,6 +1411,15 @@ public final class ReaderStore {
             pendingSave = nil
             let modificationDate = await Task.detached(priority: .utility) { () -> Date? in
                 try? storage.save(library)
+                // Persist article bodies to the sidecar too (union + capped to
+                // the most-recent ids). Only articles that actually carry a body
+                // are written, so a not-yet-hydrated snapshot can't blank a body
+                // another device stored.
+                let bodies = Dictionary(
+                    library.articles.filter(\.hasBody).map { ($0.id, $0.body) },
+                    uniquingKeysWith: { current, _ in current }
+                )
+                try? storage.saveContent(bodies, retain: ReaderStore.recentArticleIDs(from: library.articles))
                 return storage.libraryModificationDate
             }.value
             // Record our own write so the file observer doesn't treat it as an

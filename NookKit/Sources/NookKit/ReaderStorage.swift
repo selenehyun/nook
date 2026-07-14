@@ -19,6 +19,10 @@ public struct ReaderStorage: Sendable {
     public static let displayPathDefaultsKey = "syncFolderDisplayPath"
 
     private static let libraryFileName = "NookLibrary.json"
+    // Article bodies (contentHTML / paragraphs) live apart from the list-light
+    // baseline so launch only decodes the small file; this holds the bodies,
+    // loaded lazily and capped to the most recent articles.
+    private static let contentFileName = "NookContent.json"
     private static let iconsDirectoryName = "Icons"
     // Per-device user-state shards live in a hidden folder so they don't clutter
     // the user's vault, next to the `NookLibrary.json` content baseline.
@@ -34,6 +38,11 @@ public struct ReaderStorage: Sendable {
 
     public var libraryURL: URL {
         directoryURL.appending(path: Self.libraryFileName, directoryHint: .notDirectory)
+    }
+
+    /// The content sidecar holding article bodies keyed by article id.
+    public var contentURL: URL {
+        directoryURL.appending(path: Self.contentFileName, directoryHint: .notDirectory)
     }
 
     /// Folder holding every device's state shard (`<deviceID>.json`).
@@ -145,7 +154,7 @@ public struct ReaderStorage: Sendable {
             do {
                 let existing = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.nook.decode(ReaderLibrary.self, from: $0) }
                 let merged = Self.additivelyMerged(incoming: library, onDisk: existing)
-                let data = try JSONEncoder.nook.encode(merged)
+                let data = try JSONEncoder.nookStrippingContent.encode(merged)
                 try data.write(to: url, options: [.atomic])
             } catch { writeError = error }
         }
@@ -178,6 +187,44 @@ public struct ReaderStorage: Sendable {
     /// changes instead of waiting for iCloud to push them opportunistically.
     public func startDownloadingLibraryIfNeeded() {
         try? FileManager.default.startDownloadingUbiquitousItem(at: libraryURL)
+        try? FileManager.default.startDownloadingUbiquitousItem(at: contentURL)
+    }
+
+    // MARK: - Content sidecar (article bodies)
+
+    /// Loads the article-body sidecar (id → body), or an empty map when absent.
+    /// Kept off the launch-critical path: the list renders from the light
+    /// baseline, and bodies hydrate in from here afterward.
+    public func loadContent() -> [Article.ID: ArticleBody] {
+        guard FileManager.default.fileExists(atPath: contentURL.path(percentEncoded: false)),
+              let data = try? coordinatedRead(contentURL),
+              let bodies = try? JSONDecoder.nook.decode([Article.ID: ArticleBody].self, from: data) else {
+            return [:]
+        }
+        return bodies
+    }
+
+    /// Writes the content sidecar as a coordinated read-modify-write union (so a
+    /// peer's freshly-added body is never dropped), then caps it to `retain` —
+    /// the ids worth keeping bodies for (the most recent articles). Bodies are
+    /// regenerable, so dropping an old one just means a refetch when reopened.
+    public func saveContent(_ bodies: [Article.ID: ArticleBody], retain: Set<Article.ID>) throws {
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        var writeError: Error?
+        var coordinatorError: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: contentURL, options: [.forReplacing], error: &coordinatorError) { url in
+            do {
+                var merged = (try? Data(contentsOf: url))
+                    .flatMap { try? JSONDecoder.nook.decode([Article.ID: ArticleBody].self, from: $0) } ?? [:]
+                merged.merge(bodies) { _, new in new }
+                merged = merged.filter { retain.contains($0.key) }
+                let data = try JSONEncoder.nook.encode(merged)
+                try data.write(to: url, options: [.atomic])
+            } catch { writeError = error }
+        }
+        if let coordinatorError { throw coordinatorError }
+        if let writeError { throw writeError }
     }
 
     // MARK: - Per-device state shards
@@ -348,6 +395,14 @@ private extension JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return encoder
+    }
+
+    /// The baseline encoder, with `Article` bodies stripped so `NookLibrary.json`
+    /// stays list-light (bodies persist in the content sidecar instead).
+    static var nookStrippingContent: JSONEncoder {
+        let encoder = nook
+        encoder.userInfo[.stripArticleContent] = true
         return encoder
     }
 }

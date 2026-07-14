@@ -1,5 +1,25 @@
 import Foundation
 
+public extension CodingUserInfoKey {
+    /// When set to `true` in an encoder's `userInfo`, `Article` omits its heavy
+    /// body fields (`bodyParagraphs`, `contentHTML`) so the content baseline
+    /// (`NookLibrary.json`) stays list-light. The bodies persist separately in
+    /// the content sidecar and are re-hydrated after launch.
+    static let stripArticleContent = CodingUserInfoKey(rawValue: "nook.stripArticleContent")!
+}
+
+/// An article's heavy body, stored apart from the list metadata in the content
+/// sidecar so the launch-critical baseline stays small.
+public struct ArticleBody: Codable, Sendable, Equatable {
+    public var bodyParagraphs: [String]
+    public var contentHTML: String?
+
+    public init(bodyParagraphs: [String], contentHTML: String?) {
+        self.bodyParagraphs = bodyParagraphs
+        self.contentHTML = contentHTML
+    }
+}
+
 public struct ReaderLibrary: Codable, Sendable {
     public var feeds: [Feed]
     public var articles: [Article]
@@ -135,6 +155,58 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
         self.isRead = isRead
         self.isStarred = isStarred
         self.contentHTML = contentHTML
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, feedID, title, summary, bodyParagraphs, publishedAt
+        case url, estimatedReadMinutes, isRead, isStarred, contentHTML
+    }
+
+    /// Tolerant of a list-light baseline (bodies absent) as well as the legacy
+    /// inline form, so the migration from the old single-file layout is lossless.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        feedID = try c.decode(Feed.ID.self, forKey: .feedID)
+        title = try c.decode(String.self, forKey: .title)
+        summary = try c.decode(String.self, forKey: .summary)
+        bodyParagraphs = try c.decodeIfPresent([String].self, forKey: .bodyParagraphs) ?? []
+        publishedAt = try c.decode(Date.self, forKey: .publishedAt)
+        url = try c.decode(URL.self, forKey: .url)
+        estimatedReadMinutes = try c.decode(Int.self, forKey: .estimatedReadMinutes)
+        isRead = try c.decode(Bool.self, forKey: .isRead)
+        isStarred = try c.decode(Bool.self, forKey: .isStarred)
+        contentHTML = try c.decodeIfPresent(String.self, forKey: .contentHTML)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(feedID, forKey: .feedID)
+        try c.encode(title, forKey: .title)
+        try c.encode(summary, forKey: .summary)
+        try c.encode(publishedAt, forKey: .publishedAt)
+        try c.encode(url, forKey: .url)
+        try c.encode(estimatedReadMinutes, forKey: .estimatedReadMinutes)
+        try c.encode(isRead, forKey: .isRead)
+        try c.encode(isStarred, forKey: .isStarred)
+        // The content baseline is persisted list-light; the bodies live in the
+        // sidecar. Any other encoder (e.g. the sidecar itself) keeps them.
+        let strip = encoder.userInfo[.stripArticleContent] as? Bool ?? false
+        if !strip {
+            try c.encode(bodyParagraphs, forKey: .bodyParagraphs)
+            try c.encodeIfPresent(contentHTML, forKey: .contentHTML)
+        }
+    }
+
+    /// The article's body, for persisting to / hydrating from the sidecar.
+    public var body: ArticleBody {
+        ArticleBody(bodyParagraphs: bodyParagraphs, contentHTML: contentHTML)
+    }
+
+    /// Whether this article actually carries body content worth persisting.
+    public var hasBody: Bool {
+        contentHTML != nil || !bodyParagraphs.isEmpty
     }
 }
 
