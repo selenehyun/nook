@@ -2228,6 +2228,16 @@ private struct AboutSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+
+                Link(destination: URL(string: "https://github.com/selenehyun/nook")!) {
+                    Label {
+                        Text(verbatim: "GitHub")
+                    } icon: {
+                        Image("GitHubMark").renderingMode(.template)
+                    }
+                }
+                .buttonStyle(.link)
+                .padding(.top, 4)
             }
             .padding(.bottom, 24)
         }

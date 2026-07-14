@@ -271,6 +271,8 @@ private struct FeedsSettingsScreen: View {
 // MARK: - About
 
 private struct AboutSettingsScreen: View {
+    static let repositoryURL = URL(string: "https://github.com/selenehyun/nook")!
+
     private var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
     private var build: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1" }
 
@@ -281,6 +283,13 @@ private struct AboutSettingsScreen: View {
                 if let url = feedbackURL {
                     Link(destination: url) {
                         Label("Send Feedback…", systemImage: "envelope")
+                    }
+                }
+                Link(destination: Self.repositoryURL) {
+                    Label {
+                        Text(verbatim: "GitHub")
+                    } icon: {
+                        Image("GitHubMark").renderingMode(.template)
                     }
                 }
             }
