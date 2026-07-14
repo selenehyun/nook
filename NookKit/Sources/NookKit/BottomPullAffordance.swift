@@ -73,25 +73,19 @@ public struct BottomPullAffordance: View {
                 .offset(y: -52)
                 .opacity(stage == .next ? 0.14 + 0.22 * overPull : 0)
 
-            // The active pill: next OR close, swapped discretely at the
-            // threshold. Explicit vertical offsets keep the motion straight down
-            // / down-from-above (a plain `.move(edge:)` drifts diagonally as the
-            // pills' widths differ).
-            if stage == .close {
-                closeCard
-                    // Drops in from above, where the ✕ hint was.
-                    .transition(.offset(y: -46).combined(with: .opacity))
-            } else {
-                nextCard
-                    // Resist the over-pull: a small downward nudge and slight
-                    // compression that plateau, foreshadowing the pill being
-                    // pushed straight down and out when close takes over.
-                    .offset(y: 14 * overPull)
-                    .scaleEffect(1 - 0.04 * overPull, anchor: .center)
-                    .opacity(nextIn)
-                    // Slides straight down and out.
-                    .transition(.offset(y: 46).combined(with: .opacity))
-            }
+            // Both pills are always present (so the ZStack never reflows and
+            // shifts things sideways); stage only drives their vertical offset
+            // and opacity. Next resists the over-pull with a small downward
+            // nudge, then slides straight down and out; close drops in from
+            // directly above, where the ✕ hint was.
+            nextCard
+                .scaleEffect(1 - 0.04 * overPull, anchor: .center)
+                .offset(y: stage == .close ? 46 : 14 * overPull)
+                .opacity(stage == .close ? 0 : nextIn)
+
+            closeCard
+                .offset(y: stage == .close ? 0 : -46)
+                .opacity(stage == .close ? 1 : 0)
         }
         // Overall rise-in from the bottom edge.
         .scaleEffect(0.86 + 0.14 * reveal, anchor: .bottom)
