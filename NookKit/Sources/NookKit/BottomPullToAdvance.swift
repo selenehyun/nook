@@ -46,16 +46,19 @@ public struct BottomPullToAdvance: ViewModifier {
 
     public func body(content: Content) -> some View {
         content
+            // Bounce vertically even when the article is too short to scroll, so
+            // there's an overscroll to pull on. Without this a short reader has
+            // no bottom to pull past at all and the gesture can't start.
+            .scrollBounceBehavior(.always, axes: .vertical)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 // The distance the scroll is bounced past its bottom edge.
                 // `contentOffset` tracks the elastic bounce past the end (unlike
                 // `visibleRect`, which clamps to the content), matching the
-                // convention the breadcrumb strip already relies on. Require
-                // genuine scrollability so a short, non-scrolling article
-                // (content no taller than the viewport) never reads as a
-                // constant overscroll and self-triggers.
-                guard geometry.contentSize.height > geometry.containerSize.height + 1 else { return 0 }
-                let maxOffset = geometry.contentSize.height - geometry.containerSize.height
+                // convention the breadcrumb strip already relies on. Clamp the
+                // max offset at zero so a short, non-scrolling article — where
+                // any positive offset *is* a bottom overscroll — works too,
+                // while still reading zero at rest.
+                let maxOffset = max(0, geometry.contentSize.height - geometry.containerSize.height)
                 return max(0, geometry.contentOffset.y - maxOffset)
             } action: { _, overscroll in
                 guard isEnabled else { return }
