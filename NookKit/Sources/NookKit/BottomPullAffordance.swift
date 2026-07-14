@@ -29,9 +29,10 @@ public struct BottomPullThresholds: Equatable, Sendable {
 
     /// The in-app browser (WKWebView) values.
     public static let browser = BottomPullThresholds(next: 80, close: 130)
-    /// The native reader (SwiftUI ScrollView) values — smaller, because the
-    /// system bounce resists harder and doesn't travel as far.
-    public static let reader = BottomPullThresholds(next: 30, close: 64)
+    /// The native reader (SwiftUI ScrollView) values — much smaller, because the
+    /// system bounce's reported content offset is heavily compressed and barely
+    /// travels, so large thresholds are never reached.
+    public static let reader = BottomPullThresholds(next: 10, close: 24)
 }
 
 public struct BottomPullAffordance: View {
