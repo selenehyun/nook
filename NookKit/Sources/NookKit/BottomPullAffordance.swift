@@ -33,6 +33,15 @@ public struct BottomPullAffordance: View {
     /// The pill rises in over the first stretch of the pull, then holds.
     private var reveal: CGFloat { min(1, pull / 64) }
 
+    /// A stepped value that climbs as the pull grows through the "hint" zone, so
+    /// a very light haptic can tick in response to the scroll before either
+    /// threshold is reached. Zero outside the hint stage, so the ticking stops
+    /// once the stronger stage-crossing feedback takes over.
+    private var hintTick: Int {
+        guard stage == .hint, pull > 6 else { return 0 }
+        return Int(pull / 10)
+    }
+
     public var body: some View {
         HStack(spacing: 9) {
             Image(systemName: icon)
@@ -73,6 +82,18 @@ public struct BottomPullAffordance: View {
             case .close: .impact(weight: .medium)
             #endif
             }
+        }
+        // A very light ratchet tick that follows the scroll while "Keep pulling"
+        // shows, only as the pull grows (never on release). macOS uses the
+        // trackpad's subtle alignment pattern; iOS uses the picker-style
+        // selection tick. Both no-op without a haptic engine.
+        .sensoryFeedback(trigger: hintTick) { oldTick, newTick in
+            guard newTick > oldTick else { return nil }
+            #if os(macOS)
+            return .alignment
+            #else
+            return .selection
+            #endif
         }
         .allowsHitTesting(false)
     }
