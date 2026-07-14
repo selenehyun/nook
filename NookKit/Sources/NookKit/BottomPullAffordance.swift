@@ -71,30 +71,24 @@ public struct BottomPullAffordance: View {
         // uses impact weights; macOS's Taptic Engine only supports the
         // alignment/level-change patterns (and only on Force Touch trackpads),
         // so map to those there. A no-op on hardware without a haptic engine.
+        // iOS haptics. macOS ones are performed in the web view coordinator
+        // (ArticleWebView), off the scroll, because SwiftUI's `.sensoryFeedback`
+        // doesn't reliably re-fire the trackpad patterns on a repeated pull.
+        #if !os(macOS)
+        // A firm tick each time the pull crosses into a new stage.
         .sensoryFeedback(trigger: stage) { _, newStage in
             switch newStage {
             case .hint: nil
-            #if os(macOS)
-            case .next: .alignment
-            case .close: .levelChange
-            #else
             case .next: .impact(weight: .light)
             case .close: .impact(weight: .medium)
-            #endif
             }
         }
-        // A very light ratchet tick that follows the scroll while "Keep pulling"
-        // shows, only as the pull grows (never on release). macOS uses the
-        // trackpad's subtle alignment pattern; iOS uses the picker-style
-        // selection tick. Both no-op without a haptic engine.
+        // A very light ratchet that follows the scroll while "Keep pulling"
+        // shows, only as the pull grows (never on release).
         .sensoryFeedback(trigger: hintTick) { oldTick, newTick in
-            guard newTick > oldTick else { return nil }
-            #if os(macOS)
-            return .alignment
-            #else
-            return .selection
-            #endif
+            newTick > oldTick ? .selection : nil
         }
+        #endif
         .allowsHitTesting(false)
     }
 

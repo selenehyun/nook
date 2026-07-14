@@ -270,6 +270,11 @@ extension ArticleWebView {
         // bottom. A bottom pull only counts as deliberate when it starts from
         // rest at the end of the page — not when a hard scroll flings into it.
         private var gestureBeganAtBottom = false
+        // macOS haptics for the bottom pull are performed here rather than via
+        // SwiftUI's `.sensoryFeedback`, which doesn't reliably re-fire the
+        // trackpad patterns on a repeated pull.
+        private var hapticRatchetStep = 0
+        private var hapticStageLevel = 0
         #endif
 
         #if canImport(UIKit)
@@ -441,6 +446,8 @@ extension ArticleWebView {
                     // phase-less mouse wheel scroll is discrete, so allow it.
                     bottomEngaged = true
                     bottomOverscroll = 0
+                    hapticRatchetStep = 0
+                    hapticStageLevel = 0
                 } else {
                     return false
                 }
@@ -467,7 +474,9 @@ extension ArticleWebView {
             // Bottom overscroll: accumulate the raw upward pull (negative delta),
             // but report it through the rubber-band curve so it resists like iOS.
             bottomOverscroll = max(0, bottomOverscroll - delta)
-            onBottomOverscroll(Self.rubberBand(bottomOverscroll))
+            let reported = Self.rubberBand(bottomOverscroll)
+            onBottomOverscroll(reported)
+            performBottomPullHaptics(reported: reported, rawPull: bottomOverscroll)
             if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
                 let amount = Self.rubberBand(bottomOverscroll)
                 bottomEngaged = false
@@ -480,6 +489,29 @@ extension ArticleWebView {
                 return false
             }
             return true
+        }
+
+        /// Trackpad haptics for the bottom pull, driven straight off the scroll
+        /// so they respond to the drag and reliably re-fire on a repeated pull.
+        /// `.levelChange` is the strongest pattern the Taptic Engine exposes on
+        /// macOS. A firm tick marks crossing into the next / close stages; a
+        /// lighter ratchet follows the scroll while still in the hint zone.
+        private func performBottomPullHaptics(reported: CGFloat, rawPull: CGFloat) {
+            let performer = NSHapticFeedbackManager.defaultPerformer
+            let level = reported >= BottomPullAffordance.closeThreshold ? 2
+                : (reported >= BottomPullAffordance.nextThreshold ? 1 : 0)
+            if level > hapticStageLevel {
+                performer.perform(.levelChange, performanceTime: .now)
+            }
+            hapticStageLevel = level
+
+            if level == 0 {
+                let step = Int(rawPull / 26)
+                if step > hapticRatchetStep {
+                    performer.perform(.levelChange, performanceTime: .now)
+                }
+                hapticRatchetStep = step
+            }
         }
         #endif
 
