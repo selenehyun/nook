@@ -211,6 +211,9 @@ extension ArticleWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: makeConfiguration(coordinator: context.coordinator))
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
+        // Bounce vertically even when the content fits, so a short (non-scrollable)
+        // page can still be pulled up past its bottom to reveal the affordance.
+        webView.scrollView.alwaysBounceVertical = true
         context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.onBottomOverscroll = onBottomOverscroll
         context.coordinator.onBottomOverscrollEnded = onBottomOverscrollEnded
@@ -254,6 +257,12 @@ extension ArticleWebView {
         weak var webView: WKWebView?
         private var atTop = true
         private var atBottom = false
+        // Set once the page finishes loading. A genuinely short (non-scrollable)
+        // page has no bottom to scroll to, so it only counts as "bottomed out"
+        // — and thus pull-able — after load, never while a long page is still
+        // laying out and momentarily measuring shorter than the viewport.
+        private var hasFinishedLoading = false
+        private var lastBottomGap: Double = .greatestFiniteMagnitude
 
         // Rate-limited "reported" bottom pull. The raw pull is speed-agnostic —
         // a short, hard flick piles up as much distance as a slow deliberate
@@ -570,19 +579,23 @@ extension ArticleWebView {
         /// delegate), so it never interferes with WKWebView's own scrolling.
         @objc func handleScrollPan(_ gesture: UIPanGestureRecognizer) {
             guard let scrollView = gesture.view as? UIScrollView else { return }
-            // Only a genuinely scrollable page has a bottom to overscroll; a
-            // freshly-loaded page can momentarily measure shorter than its
-            // bounds, which would otherwise read as an immediate overscroll.
+            // A scrollable page can be pulled past its bottom; a short page has
+            // no bottom to scroll to, so it only becomes pull-able once loaded
+            // (a still-laying-out long page must not read as an instant pull).
             let scrollable = scrollView.contentSize.height > scrollView.bounds.height + 4
-            let maxOffset = scrollView.contentSize.height
-                - scrollView.bounds.height
-                + scrollView.adjustedContentInset.bottom
-            let overscroll = scrollable ? max(0, scrollView.contentOffset.y - maxOffset) : 0
+            let bottomReachable = scrollable || hasFinishedLoading
+            // Clamp to the top resting offset so a short page's "bottom" is its
+            // rest position (overscroll 0 at rest, positive only when pulled up).
+            let maxOffset = max(
+                -scrollView.adjustedContentInset.top,
+                scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
+            )
+            let overscroll = bottomReachable ? max(0, scrollView.contentOffset.y - maxOffset) : 0
             switch gesture.state {
             case .began:
                 // The pull only counts if the drag starts from rest at the very
                 // bottom — not when a fast scroll flings past it mid-drag.
-                panBeganAtBottom = scrollable && scrollView.contentOffset.y >= maxOffset - 2
+                panBeganAtBottom = bottomReachable && scrollView.contentOffset.y >= maxOffset - 2
                 resetBottomEase()
             case .changed:
                 // Rate-limit the reported pull so a short, hard flick can't slam
@@ -640,6 +653,8 @@ extension ArticleWebView {
             // first downward scroll).
             atTop = true
             atBottom = false
+            hasFinishedLoading = false
+            lastBottomGap = .greatestFiniteMagnitude
             resetBottomEase()
             #if canImport(AppKit)
             engaged = false
@@ -650,6 +665,11 @@ extension ArticleWebView {
         }
 
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // Now that the page has settled, a short page with no scroll counts
+            // as bottomed-out so it can be pulled to advance. (The scroll report
+            // only re-fires on scroll/resize, which a short page never triggers.)
+            hasFinishedLoading = true
+            if lastBottomGap <= 2 { atBottom = true }
             // Translate after the page (and reader script) has loaded, if the
             // user toggled translation on.
             runTranslationIfNeeded()
@@ -674,10 +694,12 @@ extension ArticleWebView {
                 let bottomGap = (body["bottomGap"] as? NSNumber)?.doubleValue ?? .greatestFiniteMagnitude
                 let scrollable = (body["scrollable"] as? NSNumber)?.boolValue ?? false
                 atTop = top <= 0.5
-                // Only a genuinely scrollable page can be "at the bottom"; a
-                // freshly-loaded long page momentarily measures short, and must
-                // not be treated as bottomed-out.
-                atBottom = scrollable && bottomGap <= 2
+                lastBottomGap = bottomGap
+                // A scrollable page is at the bottom when the gap closes; a short
+                // (non-scrollable) page counts as bottomed-out once loaded, so it
+                // too can be pulled. A still-loading long page that momentarily
+                // measures short is excluded until its load finishes.
+                atBottom = bottomGap <= 2 && (scrollable || hasFinishedLoading)
             } else if let top = (message.body as? NSNumber)?.doubleValue {
                 atTop = top <= 0.5
             }
