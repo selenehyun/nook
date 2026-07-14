@@ -130,17 +130,47 @@ public struct ReaderStorage: Sendable {
 
     public func save(_ library: ReaderLibrary) throws {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let data = try JSONEncoder.nook.encode(library)
 
         // Coordinate the write so iCloud picks it up promptly and two devices
-        // writing don't produce conflict copies.
+        // writing don't produce conflict copies. The write is a read-modify-write
+        // *union*: within the same coordination we fold this device's snapshot
+        // over whatever is currently on disk, so a feed/article another device
+        // added — already downloaded here but not yet merged into memory — is
+        // never dropped by a plain overwrite. The baseline is content-only and
+        // grow-only; removals are expressed as per-device tombstones (in the
+        // shards) and applied at materialize, never by absence from a save.
         var writeError: Error?
         var coordinatorError: NSError?
         NSFileCoordinator().coordinate(writingItemAt: libraryURL, options: [.forReplacing], error: &coordinatorError) { url in
-            do { try data.write(to: url, options: [.atomic]) } catch { writeError = error }
+            do {
+                let existing = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.nook.decode(ReaderLibrary.self, from: $0) }
+                let merged = Self.additivelyMerged(incoming: library, onDisk: existing)
+                let data = try JSONEncoder.nook.encode(merged)
+                try data.write(to: url, options: [.atomic])
+            } catch { writeError = error }
         }
         if let coordinatorError { throw coordinatorError }
         if let writeError { throw writeError }
+    }
+
+    /// Folds `incoming` (this device's in-memory snapshot) over the current
+    /// on-disk baseline, keeping every feed/article that exists on disk but not
+    /// in the snapshot. Duplicate ids resolve to the incoming (fresher) copy.
+    static func additivelyMerged(incoming: ReaderLibrary, onDisk: ReaderLibrary?) -> ReaderLibrary {
+        guard let onDisk else { return incoming }
+        var feedsByID = Dictionary(onDisk.feeds.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for feed in incoming.feeds { feedsByID[feed.id] = feed }
+        var articlesByID = Dictionary(onDisk.articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for article in incoming.articles { articlesByID[article.id] = article }
+        var folders = Set(onDisk.folders)
+        folders.formUnion(incoming.folders)
+        let latestRefresh = [onDisk.lastRefreshedAt, incoming.lastRefreshedAt].compactMap { $0 }.max()
+        return ReaderLibrary(
+            feeds: Array(feedsByID.values),
+            articles: Array(articlesByID.values),
+            lastRefreshedAt: latestRefresh,
+            folders: Array(folders)
+        )
     }
 
     /// Asks iCloud to download the latest library file if it isn't already

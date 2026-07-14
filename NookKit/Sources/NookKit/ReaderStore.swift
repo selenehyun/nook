@@ -887,8 +887,10 @@ public final class ReaderStore {
 
         articles[index].isRead = isRead
         recordRead(articleID, isRead)
+        // Read state is user state: it lives in this device's shard and is
+        // overlaid on the baseline at materialize, so there's no need to rewrite
+        // the (multi-MB) content baseline for a read toggle.
         scheduleShardSave()
-        saveAfterMutation()
     }
 
     public func markSelectedRead() {
@@ -921,8 +923,8 @@ public final class ReaderStore {
         }
 
         if didChange {
+            // Per-article read state is shard-backed; no baseline rewrite needed.
             scheduleShardSave()
-            saveAfterMutation()
         }
     }
 
@@ -942,8 +944,9 @@ public final class ReaderStore {
 
         articles[index].isStarred = isStarred
         recordStarred(articleID, isStarred)
+        // Starred state is user state (shard-backed, overlaid at materialize);
+        // no baseline rewrite needed.
         scheduleShardSave()
-        saveAfterMutation()
     }
 
     /// Clears the article selection if it is no longer in the visible list.
@@ -1132,6 +1135,12 @@ public final class ReaderStore {
             feeds[feedIndex] = updated
         } else {
             feeds.append(parsedFeed.feed)
+            // A feed appearing for the first time in memory clears any stale
+            // deletion tombstone for the same URL (feed ids are the URL), so
+            // re-adding a previously removed feed isn't suppressed at materialize
+            // by the old delete. The fresh HLC also beats a peer's older delete.
+            recordFeedRestored(parsedFeed.feed.id)
+            scheduleShardSave()
         }
 
         var existingArticlesByID = Dictionary(uniqueKeysWithValues: articles.map { ($0.id, $0) })
@@ -1385,6 +1394,12 @@ public final class ReaderStore {
 
     private func recordFeedDeleted(_ id: Feed.ID) {
         ownShard.setFeedTombstone(id, true, hlc: nextHLC())
+    }
+
+    /// Records that a feed is present again (tombstone cleared), so a re-add
+    /// beats any earlier deletion of the same URL under last-writer-wins.
+    private func recordFeedRestored(_ id: Feed.ID) {
+        ownShard.setFeedTombstone(id, false, hlc: nextHLC())
     }
 
     private func recordFolder(_ name: String, present: Bool) {
