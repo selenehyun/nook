@@ -54,9 +54,14 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            FeedSidebar(store: store, updateController: updateController) {
-                chooseSyncFolder()
-            }
+            FeedSidebar(
+                store: store,
+                updateController: updateController,
+                onChooseSyncFolder: { chooseSyncFolder() },
+                onAddFeed: { isAddingFeed = true },
+                onImportOPML: { isImportingOPML = true },
+                onExportOPML: { isExportingOPML = true }
+            )
             .navigationSplitViewColumnWidth(min: 220, ideal: 270, max: 340)
         } content: {
             ArticleListView(store: store)
@@ -67,14 +72,9 @@ struct ContentView: View {
         .frame(minWidth: 920, minHeight: 640)
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
-                Button {
-                    isAddingFeed = true
-                } label: {
-                    Label("Add Feed", systemImage: "plus")
-                }
-                .disabled(!store.isStorageConfigured || store.isRefreshing)
-                .help(store.isStorageConfigured ? "Add Feed" : "Choose a sync folder first")
-
+                // Add Feed, New Folder, and OPML import/export live in the
+                // sidebar's bottom bar (the native place for library-management
+                // actions); the toolbar keeps only the global Refresh.
                 Button {
                     store.refreshAll()
                 } label: {
@@ -82,25 +82,6 @@ struct ContentView: View {
                 }
                 .disabled(store.feeds.isEmpty || store.isRefreshing)
                 .help("Refresh All Feeds")
-
-                Menu {
-                    Button {
-                        isImportingOPML = true
-                    } label: {
-                        Label("Import OPML", systemImage: "square.and.arrow.down")
-                    }
-                    .disabled(!store.isStorageConfigured || store.isRefreshing)
-
-                    Button {
-                        isExportingOPML = true
-                    } label: {
-                        Label("Export OPML", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(store.feeds.isEmpty)
-                } label: {
-                    Label("Subscriptions", systemImage: "tray.full")
-                }
-                .help("Import or Export Subscriptions")
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -386,6 +367,9 @@ private struct FeedSidebar: View {
     @Bindable var store: ReaderStore
     var updateController: UpdateController
     var onChooseSyncFolder: () -> Void
+    var onAddFeed: () -> Void
+    var onImportOPML: () -> Void
+    var onExportOPML: () -> Void
 
     @AppStorage("collapsedFolders") private var collapsedFoldersData = Data()
     @State private var isCreatingFolder = false
@@ -437,16 +421,6 @@ private struct FeedSidebar: View {
                         Text("Feeds")
                     }
                     Spacer()
-                    Button {
-                        newFolderName = ""
-                        isCreatingFolder = true
-                    } label: {
-                        Image(systemName: "folder.badge.plus")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("New Folder")
-                    .disabled(!store.isStorageConfigured)
                 }
                 .padding(.vertical, 3)
                 .padding(.horizontal, 4)
@@ -474,6 +448,7 @@ private struct FeedSidebar: View {
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
+                sidebarActionBar
                 SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
                 UpdateBanner(updateController: updateController)
             }
@@ -528,6 +503,57 @@ private struct FeedSidebar: View {
         } message: { _ in
             Text("Enter a new name, or leave empty to use the feed's own name.")
         }
+    }
+
+    /// The library-management bar at the base of the sidebar — the native home
+    /// (à la Xcode's navigator / Mail's mailbox list) for creating feeds and
+    /// folders and importing/exporting subscriptions, kept out of the window
+    /// toolbar so those global actions don't crowd the article toolbar.
+    private var sidebarActionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 2) {
+                Button(action: onAddFeed) {
+                    Image(systemName: "plus")
+                }
+                .help(store.isStorageConfigured ? "Add Feed" : "Choose a sync folder first")
+                .disabled(!store.isStorageConfigured || store.isRefreshing)
+
+                Button {
+                    newFolderName = ""
+                    isCreatingFolder = true
+                } label: {
+                    Image(systemName: "folder.badge.plus")
+                }
+                .help("New Folder")
+                .disabled(!store.isStorageConfigured)
+
+                Spacer()
+
+                Menu {
+                    Button(action: onImportOPML) {
+                        Label("Import OPML…", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(!store.isStorageConfigured || store.isRefreshing)
+
+                    Button(action: onExportOPML) {
+                        Label("Export OPML…", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(store.feeds.isEmpty)
+                } label: {
+                    Image(systemName: "tray.and.arrow.down")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Import or Export Subscriptions")
+            }
+            .buttonStyle(.borderless)
+            .imageScale(.medium)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+        .background(.bar)
     }
 
     /// Per-folder collapsed state, persisted so it is restored on relaunch.
