@@ -108,7 +108,7 @@ public struct BottomPullAffordance: View {
         let slotDistance = CGFloat(item.rawValue - stage.rawValue)
         let isSelected = item == stage
         let approach = approachProgress(for: item)
-        let travel: CGFloat = reduceMotion ? 0.14 : 0.38
+        let travel: CGFloat = reduceMotion ? 0.10 : 0.27
         let distance = slotDistance == 0
             ? 0
             : slotDistance.sign == .minus
@@ -122,26 +122,30 @@ public struct BottomPullAffordance: View {
                 anchor: distance > 0 ? .top : .bottom,
                 perspective: 0.58
             )
-            .scaleEffect(isSelected ? 1 : 0.82 + 0.1 * approach)
+            .scaleEffect(isSelected ? 1 : 0.82 + 0.06 * approach)
             .offset(y: distance * 54)
             // The release target is invariantly solid. The incoming neighbour
             // may gain emphasis as it approaches, but never at its expense.
-            .opacity(isSelected ? 1 : (isNeighbour ? 0.32 + 0.26 * approach : 0))
+            .opacity(isSelected ? 1 : (isNeighbour ? 0.3 + 0.2 * approach : 0))
             .zIndex(isSelected ? 2 : 1)
     }
 
     /// Gesture-controlled pre-travel. It deliberately stops well short of the
     /// centre; crossing the boundary is always completed by the stage spring.
     private func approachProgress(for item: Stage) -> CGFloat {
+        let eased = { (value: CGFloat) -> CGFloat in
+            let clamped = clamp01(value)
+            return clamped * clamped * (3 - 2 * clamped)
+        }
         switch (stage, item) {
         case (.hint, .next):
-            return clamp01(pull / Self.nextThreshold)
+            return eased(pull / Self.nextThreshold)
         case (.next, .close) where pullDirection == .forward:
-            return clamp01((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
+            return eased((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
         case (.next, .hint) where pullDirection == .backward:
-            return 1 - clamp01((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
+            return 1 - eased((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
         case (.close, .next):
-            return 1 - clamp01((pull - Self.closeThreshold) / 50)
+            return 1 - eased((pull - Self.closeThreshold) / 62)
         default:
             return 0
         }
