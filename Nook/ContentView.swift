@@ -124,8 +124,8 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $isAddingFeed) {
-            AddFeedSheet(isLoading: store.isRefreshing) { feedURL in
-                store.addFeed(urlString: feedURL)
+            AddFeedSheet(folders: store.feedFolders) { feedURL, folder in
+                try await store.addFeed(urlString: feedURL, toFolder: folder)
             }
         }
         .fileImporter(
@@ -1746,11 +1746,47 @@ private struct ArticleInspector: View {
 }
 
 private struct AddFeedSheet: View {
-    var isLoading: Bool
-    var onAdd: (String) -> Void
+    var folders: [String]
+    var onAdd: (String, String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var feedURL = ""
+    @State private var folderChoice: FolderChoice = .topLevel
+    @State private var newFolderName = ""
+    @State private var isSubmitting = false
+    @State private var submissionError: String?
+    @FocusState private var isFocused: Bool
+
+    private enum FolderChoice: Hashable {
+        case topLevel
+        case existing(String)
+        case newFolder
+    }
+
+    private var trimmedFeedURL: String {
+        feedURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedNewFolderName: String {
+        newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var selectedFolder: String {
+        switch folderChoice {
+        case .topLevel:
+            return ""
+        case .existing(let folder):
+            return folder
+        case .newFolder:
+            return trimmedNewFolderName
+        }
+    }
+
+    private var canSubmit: Bool {
+        !trimmedFeedURL.isEmpty
+            && !isSubmitting
+            && (folderChoice != .newFolder || !trimmedNewFolderName.isEmpty)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -1758,12 +1794,58 @@ private struct AddFeedSheet: View {
                 Text("Add Feed")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Paste an RSS or Atom feed URL and Nook will fetch it right away.")
+                Text("Paste an RSS or Atom feed URL, or a website address. Nook will check it before closing.")
                     .foregroundStyle(.secondary)
             }
 
             TextField("https://example.com/feed.xml", text: $feedURL)
                 .textFieldStyle(.roundedBorder)
+                .focused($isFocused)
+                .disabled(isSubmitting)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Folder")
+                    .font(.callout.weight(.semibold))
+                Picker("Folder", selection: $folderChoice) {
+                    Text("Top Level").tag(FolderChoice.topLevel)
+                    ForEach(folders, id: \.self) { folder in
+                        Text(folder).tag(FolderChoice.existing(folder))
+                    }
+                    Text("New Folder…").tag(FolderChoice.newFolder)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+
+                if folderChoice == .newFolder {
+                    TextField("Folder Name", text: $newFolderName)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            Group {
+                if isSubmitting {
+                    Label {
+                        Text("Checking RSS/Atom feed…")
+                    } icon: {
+                        ProgressView()
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.secondary)
+                } else if let submissionError {
+                    Label {
+                        Text(submissionError)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.red)
+                } else {
+                    Text("Nook will only close after it finds a valid feed.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout)
+            .frame(minHeight: 22, alignment: .leading)
 
             HStack {
                 Spacer()
@@ -1773,16 +1855,57 @@ private struct AddFeedSheet: View {
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button("Add") {
-                    onAdd(feedURL)
-                    dismiss()
+                Button {
+                    addFeed()
+                } label: {
+                    if isSubmitting {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Checking…")
+                        }
+                    } else {
+                        Text("Add")
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                .disabled(!canSubmit)
             }
         }
         .padding(24)
         .frame(width: 440)
+        .task { isFocused = true }
+        .onChange(of: feedURL) { _, _ in
+            if submissionError != nil { submissionError = nil }
+        }
+        .onChange(of: folderChoice) { _, _ in
+            if submissionError != nil { submissionError = nil }
+        }
+        .onChange(of: newFolderName) { _, _ in
+            if submissionError != nil { submissionError = nil }
+        }
+    }
+
+    private func addFeed() {
+        guard canSubmit else { return }
+        let feedURL = trimmedFeedURL
+        let folder = selectedFolder
+        isSubmitting = true
+        submissionError = nil
+
+        Task {
+            do {
+                try await onAdd(feedURL, folder)
+                await MainActor.run {
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    submissionError = error.localizedDescription
+                    isSubmitting = false
+                }
+            }
+        }
     }
 }
 

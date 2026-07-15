@@ -769,15 +769,19 @@ public final class ReaderStore {
         }
     }
 
-    public func addFeed(urlString: String) {
+    public func addFeed(urlString: String, toFolder folder: String = "") async throws {
         guard isStorageConfigured else {
-            errorMessage = ReaderStorageError.noDirectorySelected.localizedDescription
-            return
+            throw ReaderStorageError.noDirectorySelected
         }
 
-        Task {
-            await addFeedFromURLString(urlString)
+        let url = try feedService.normalizedFeedURL(from: urlString)
+        let parsedFeed = try await fetch(url: url, existingFeedID: nil)
+        if !folder.isEmpty {
+            moveFeed(parsedFeed.feed.id, toFolder: folder)
         }
+        feedSelection = [parsedFeed.feed.id]
+        selectedArticleID = parsedFeed.articles.first?.id
+        errorMessage = nil
     }
 
     /// Result of a background refresh: how many genuinely new (previously
@@ -1168,18 +1172,6 @@ public final class ReaderStore {
 
         securityScopedDirectoryURL = directoryURL
         isAccessingSecurityScopedResource = directoryURL.startAccessingSecurityScopedResource()
-    }
-
-    private func addFeedFromURLString(_ urlString: String) async {
-        do {
-            let url = try feedService.normalizedFeedURL(from: urlString)
-            let parsedFeed = try await fetch(url: url, existingFeedID: nil)
-            feedSelection = [parsedFeed.feed.id]
-            selectedArticleID = parsedFeed.articles.first?.id
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 
     private func importSelectedFeeds(_ opmlFeeds: [OPMLFeed]) async {

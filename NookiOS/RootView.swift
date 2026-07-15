@@ -150,7 +150,9 @@ struct RootView: View {
             store.handleOPMLExport(result)
         }
         .sheet(isPresented: $isAddingFeed) {
-            AddFeedView { store.addFeed(urlString: $0) }
+            AddFeedView(folders: store.feedFolders) { feedURL, folder in
+                try await store.addFeed(urlString: feedURL, toFolder: folder)
+            }
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(store: store)
@@ -211,7 +213,15 @@ struct RootView: View {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let feed = components.queryItems?.first(where: { $0.name == "url" })?.value,
               !feed.isEmpty else { return }
-        store.addFeed(urlString: feed)
+        Task {
+            do {
+                try await store.addFeed(urlString: feed)
+            } catch {
+                await MainActor.run {
+                    store.errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 }
 
