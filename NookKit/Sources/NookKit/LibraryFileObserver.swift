@@ -6,8 +6,8 @@ import Foundation
 /// delivers change notifications as soon as iCloud updates the item on disk,
 /// instead of the app only finding out on next launch.
 ///
-/// Nook watches two items: the `NookLibrary.json` content baseline and the
-/// `.nook/state` directory of per-device shards. For the directory, the system
+/// Nook watches the legacy input plus the v2 content/body/state shard
+/// directories. For a directory, the system
 /// reports child changes via the `presentedSubitem…` callbacks; for a file, the
 /// `presentedItem…` callbacks fire. All of them funnel into `onChange`.
 ///

@@ -8,8 +8,7 @@ import Foundation
 /// on sync — read/starred flags, a feed's folder and view-mode overrides, folder
 /// existence, and feed deletions — each as an `LWWRegister` stamped with the HLC
 /// at which this device set it. Heavy, regenerable content (article bodies, feed
-/// titles/URLs) stays in the `NookLibrary.json` baseline and is never duplicated
-/// here.
+/// titles/URLs) lives in per-device content shards and is never duplicated here.
 ///
 /// Reading the library merges every shard field-by-field via `materialize`,
 /// picking the highest-HLC writer per field. That merge is order-independent and
@@ -81,6 +80,8 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
 
     public var schema: Int
     public var deviceID: String
+    /// Monotonic diagnostic/publish generation. Older decoders safely ignore it.
+    public var generation: UInt64
     /// The last HLC this device issued, persisted so the clock survives relaunch
     /// and keeps advancing monotonically.
     public var clock: HLC
@@ -102,6 +103,7 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     ) {
         self.schema = Self.currentSchema
         self.deviceID = deviceID
+        self.generation = 0
         self.clock = clock
         self.updatedAt = updatedAt
         self.articleState = articleState
@@ -110,13 +112,14 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case schema, deviceID, clock, updatedAt, articleState, feedState, folders
+        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schema = try container.decodeIfPresent(Int.self, forKey: .schema) ?? Self.currentSchema
         deviceID = try container.decode(String.self, forKey: .deviceID)
+        generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
         clock = try container.decodeIfPresent(HLC.self, forKey: .clock) ?? .zero
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date(timeIntervalSince1970: 0)
         articleState = try container.decodeIfPresent([Article.ID: ArticleState].self, forKey: .articleState) ?? [:]
@@ -128,6 +131,43 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
 // MARK: - Recording local mutations
 
 extension DeviceStateDocument {
+    /// One-time v1 → v2 bridge for user state that used to live only in the
+    /// content baseline. Existing registers are never replaced.
+    @discardableResult
+    public mutating func seedLegacyUserState(
+        from library: ReaderLibrary,
+        whereMissingFrom observedShards: [DeviceStateDocument] = [],
+        after initialClock: HLC,
+        node: String
+    ) -> HLC {
+        var nextClock = initialClock
+        let observed = Self.mergedState(from: observedShards + [self])
+        func tick() -> HLC {
+            nextClock = HLC.next(after: nextClock, node: node)
+            return nextClock
+        }
+        for feed in library.feeds {
+            let existing = observed.feeds[feed.id]
+            if existing?.category == nil { setFeedCategory(feed.id, feed.category, hlc: tick()) }
+            if existing?.preferredViewMode == nil, feed.preferredViewMode != nil {
+                setFeedViewMode(feed.id, feed.preferredViewMode, hlc: tick())
+            }
+            if existing?.customTitle == nil, feed.customTitle != nil {
+                setFeedTitle(feed.id, feed.customTitle, hlc: tick())
+            }
+            if existing?.seed == nil { setFeedSeed(feed.id, FeedSeed(from: feed), hlc: tick()) }
+        }
+        for article in library.articles {
+            let existing = observed.articles[article.id]
+            if existing?.isRead == nil { setArticleRead(article.id, article.isRead, hlc: tick()) }
+            if existing?.isStarred == nil { setArticleStarred(article.id, article.isStarred, hlc: tick()) }
+        }
+        let names = Set(library.folders + library.feeds.map(\.folderName).filter { !$0.isEmpty })
+        for name in names where observed.folders[name] == nil { setFolderPresent(name, true, hlc: tick()) }
+        clock = nextClock
+        return nextClock
+    }
+
     public mutating func setArticleRead(_ id: Article.ID, _ value: Bool, hlc: HLC) {
         var state = articleState[id] ?? ArticleState()
         state.isRead = LWWRegister(value: value, hlc: hlc)

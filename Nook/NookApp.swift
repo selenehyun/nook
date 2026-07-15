@@ -120,6 +120,7 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
                 body: Self.notificationBody(for: result),
                 badge: result.newArticleCount
             )
+            store.markNotificationsDelivered(result.articleIDs)
         }
     }
 

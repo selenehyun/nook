@@ -1,3 +1,4 @@
+import BackgroundTasks
 import NookKit
 import SwiftUI
 import UIKit
@@ -182,6 +183,9 @@ private struct FeedsSettingsScreen: View {
     /// (denied, or authorized for badge only) — the usual reason "notifications
     /// don't arrive."
     @State private var alertsBlocked = false
+    @State private var notificationStatus = "—"
+    @State private var backgroundStatus = "—"
+    @State private var pendingRefreshCount = 0
 
     private var sortedFeeds: [Feed] {
         store.feeds.sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
@@ -207,12 +211,34 @@ private struct FeedsSettingsScreen: View {
                             .foregroundStyle(.orange)
                     }
                 }
+                Button("Send Test Notification") {
+                    Task {
+                        await NewArticleNotifier.post(
+                            title: String(localized: "New in Nook"),
+                            body: String(localized: "Test notification"),
+                            badge: 0
+                        )
+                        UserDefaults.standard.set("test submitted", forKey: BackgroundRefresh.lastNotificationResultKey)
+                    }
+                }
+                .disabled(alertsBlocked)
             } footer: {
                 if newArticleNotifications && alertsBlocked {
                     Text("Notification banners are turned off for Nook, so new-article alerts won't appear. Enable them in Settings › Nook › Notifications.")
                 } else {
                     Text("Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.")
                 }
+            }
+
+            Section("Background Diagnostics") {
+                LabeledContent("Notification Authorization", value: notificationStatus)
+                LabeledContent("Background App Refresh", value: backgroundStatus)
+                LabeledContent("Pending Requests", value: "\(pendingRefreshCount)")
+                diagnosticRow("Last Schedule", key: BackgroundRefresh.lastScheduleKey)
+                diagnosticRow("Schedule Result", key: BackgroundRefresh.lastScheduleResultKey)
+                diagnosticRow("Last Run", key: BackgroundRefresh.lastRunKey)
+                diagnosticRow("Fetch Result", key: BackgroundRefresh.lastFetchResultKey)
+                diagnosticRow("Notification Result", key: BackgroundRefresh.lastNotificationResultKey)
             }
 
             Section {
@@ -258,6 +284,28 @@ private struct FeedsSettingsScreen: View {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         alertsBlocked = settings.authorizationStatus == .denied
             || (settings.authorizationStatus == .authorized && settings.alertSetting != .enabled)
+        notificationStatus = String(describing: settings.authorizationStatus)
+        backgroundStatus = switch UIApplication.shared.backgroundRefreshStatus {
+        case .available: "available"
+        case .denied: "denied"
+        case .restricted: "restricted"
+        @unknown default: "unknown"
+        }
+        pendingRefreshCount = await withCheckedContinuation { continuation in
+            BGTaskScheduler.shared.getPendingTaskRequests { requests in
+                continuation.resume(returning: requests.filter { $0.identifier == BackgroundRefresh.taskIdentifier }.count)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func diagnosticRow(_ title: LocalizedStringKey, key: String) -> some View {
+        let defaults = UserDefaults.standard
+        if let date = defaults.object(forKey: key) as? Date {
+            LabeledContent(title) { Text(date, style: .relative) }
+        } else {
+            LabeledContent(title, value: defaults.string(forKey: key) ?? "—")
+        }
     }
 
     private func viewModeBinding(for feed: Feed) -> Binding<ReaderViewMode?> {

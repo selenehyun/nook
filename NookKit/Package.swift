@@ -17,7 +17,8 @@ let package = Package(
             resources: [
                 .process("Localizable.xcstrings"),
                 .copy("Readability.js"),
-            ]
+            ],
+            linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .testTarget(
             name: "NookKitTests",

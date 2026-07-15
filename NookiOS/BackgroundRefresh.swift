@@ -10,6 +10,11 @@ enum BackgroundRefresh {
 
     static let enabledKey = NewArticleNotifier.enabledKey
     private static let intervalKey = "refreshIntervalMinutes"
+    static let lastScheduleKey = "backgroundRefresh.lastSchedule"
+    static let lastScheduleResultKey = "backgroundRefresh.lastScheduleResult"
+    static let lastRunKey = "backgroundRefresh.lastRun"
+    static let lastFetchResultKey = "backgroundRefresh.lastFetchResult"
+    static let lastNotificationResultKey = "backgroundRefresh.lastNotificationResult"
 
     static var isEnabled: Bool { NewArticleNotifier.isEnabled }
 
@@ -17,10 +22,19 @@ enum BackgroundRefresh {
     /// time; `earliestBeginDate` is only a lower bound.
     static func schedule() {
         guard isEnabled else { return }
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         let minutes = UserDefaults.standard.object(forKey: intervalKey) as? Int ?? 30
         request.earliestBeginDate = Date(timeIntervalSinceNow: TimeInterval(max(15, minutes) * 60))
-        try? BGTaskScheduler.shared.submit(request)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            UserDefaults.standard.set(Date(), forKey: lastScheduleKey)
+            UserDefaults.standard.set("scheduled", forKey: lastScheduleResultKey)
+        } catch {
+            let nsError = error as NSError
+            UserDefaults.standard.set(Date(), forKey: lastScheduleKey)
+            UserDefaults.standard.set("\(nsError.domain):\(nsError.code) — \(error.localizedDescription)", forKey: lastScheduleResultKey)
+        }
     }
 
     /// Cancels any pending background refresh (e.g. when the feature is turned
@@ -35,9 +49,21 @@ enum BackgroundRefresh {
     static func run() async {
         schedule()
         guard isEnabled else { return }
-        let result = await ReaderStore.shared.refreshForBackground()
-        guard result.newArticleCount > 0 else { return }
-        await postNotification(for: result)
+        UserDefaults.standard.set(Date(), forKey: lastRunKey)
+        await withTaskCancellationHandler {
+            let result = await ReaderStore.shared.refreshForBackground()
+            guard !Task.isCancelled else {
+                UserDefaults.standard.set("cancelled", forKey: lastFetchResultKey)
+                return
+            }
+            UserDefaults.standard.set("\(result.newArticleCount) reserved", forKey: lastFetchResultKey)
+            guard result.newArticleCount > 0 else { return }
+            await postNotification(for: result)
+            ReaderStore.shared.markNotificationsDelivered(result.articleIDs)
+            UserDefaults.standard.set("submitted \(result.newArticleCount)", forKey: lastNotificationResultKey)
+        } onCancel: {
+            UserDefaults.standard.set("cancelled", forKey: lastFetchResultKey)
+        }
     }
 
     @MainActor

@@ -70,12 +70,13 @@ public final class ReaderStore {
     private var storage: ReaderStorage?
     private var securityScopedDirectoryURL: URL?
 
-    // Live cross-device sync: watch the content baseline and the state-shard
-    // directory for external (iCloud) changes and re-merge, ignoring the app's
-    // own writes by comparing modification dates.
+    // File events are rescan hints for legacy input and v2 shard directories;
+    // correctness comes from the durable replica merge, not event delivery.
     private var fileObservers: [LibraryFileObserver] = []
     private var lastKnownLibraryModDate: Date?
     private var lastKnownStateModDate: Date?
+    private var lastKnownContentModDate: Date?
+    private var lastKnownBodiesModDate: Date?
     private var externalReloadTask: Task<Void, Never>?
 
     // Coalesced background persistence: the latest snapshot waiting to be
@@ -100,13 +101,14 @@ public final class ReaderStore {
 
     // Git-like per-device sync. This device authors its own shard of user state
     // (read/starred flags, folders, per-feed overrides, feed deletions), each
-    // change stamped with a monotonic HLC. Reads merge every device's shard over
-    // the content baseline, so concurrent edits converge without clobbering.
+    // change stamped with a monotonic HLC and materialized over content shards.
     private var deviceID = ""
     private var lastHLC: HLC = .zero
     private var ownShard = DeviceStateDocument(deviceID: "")
     private var pendingShard: DeviceStateDocument?
     private var isDrainingShardSaves = false
+    private var replicaStore: ReplicaStore?
+    private var appliedReplicaRevision: UInt64 = 0
 
     /// App-global instance. A singleton so the separate Settings scene can reach
     /// the same feeds/state as the main window (SwiftUI scenes can't share a
@@ -290,20 +292,20 @@ public final class ReaderStore {
             self.storage = storage
             syncFolderDisplayPath = directoryURL.path(percentEncoded: false)
 
-            storage.resolveLibraryConflictsIfAny()
             restoreOwnShard(storage: storage)
-            if let base = try storage.load() {
-                mergeShardsAndApply(base: base, storage: storage)
-            } else {
-                // Fresh folder: seed the content baseline. The device's shard was
-                // already seeded by `restoreOwnShard`.
-                try persistLibrary()
-            }
+            let replica = try ReplicaStore(syncDirectory: directoryURL, deviceID: deviceID)
+            replicaStore = replica
+            let snapshot = try replica.reconcile(storage: storage)
+            try migrateLegacyUserStateIfNeeded(replica: replica, storage: storage)
+            applyReplicaSnapshot(snapshot, storage: storage)
+            try replica.publishIfNeeded(to: storage)
 
             errorMessage = nil
             pruneSelectionIfHidden()
             lastKnownLibraryModDate = storage.libraryModificationDate
             lastKnownStateModDate = storage.stateDirectoryModificationDate
+            lastKnownContentModDate = storage.contentDirectoryModificationDate
+            lastKnownBodiesModDate = storage.bodiesDirectoryModificationDate
             startObservingLibrary()
             Task { await loadBodyCacheIfNeeded() }
         } catch {
@@ -325,9 +327,11 @@ public final class ReaderStore {
         let onChange: @Sendable () -> Void = { [weak self] in
             Task { @MainActor in self?.scheduleExternalReload() }
         }
-        // Watch both the content baseline and every peer's state shard.
+        // Watch legacy input and all three v2 shard directories.
         fileObservers = [
             LibraryFileObserver(fileURL: storage.libraryURL, onChange: onChange),
+            LibraryFileObserver(fileURL: storage.contentDirectoryURL, onChange: onChange),
+            LibraryFileObserver(fileURL: storage.bodiesDirectoryURL, onChange: onChange),
             LibraryFileObserver(fileURL: storage.stateDirectoryURL, onChange: onChange),
         ]
     }
@@ -337,9 +341,21 @@ public final class ReaderStore {
         fileObservers.removeAll()
     }
 
+    /// iOS removes file presenters while backgrounded; foreground activation
+    /// re-registers them and requests an idempotent rescan. Correctness never
+    /// depends on receiving every presenter callback.
+    public func setSyncObservationActive(_ active: Bool) {
+        if active {
+            startObservingLibrary()
+            scheduleExternalReload()
+        } else {
+            stopObservingLibrary()
+        }
+    }
+
     /// Coalesces a burst of file-change notifications into a single re-merge,
     /// skipping this device's own writes by comparing modification dates. Fires
-    /// for both baseline and shard changes, so a read on another device shows up
+    /// for legacy and shard changes, so a read on another device shows up
     /// live without a relaunch.
     private func scheduleExternalReload() {
         externalReloadTask?.cancel()
@@ -349,8 +365,12 @@ public final class ReaderStore {
 
             let baselineDate = storage.libraryModificationDate
             let stateDate = storage.stateDirectoryModificationDate
+            let contentDate = storage.contentDirectoryModificationDate
+            let bodiesDate = storage.bodiesDirectoryModificationDate
             guard Self.isNewer(baselineDate, than: self.lastKnownLibraryModDate)
-                || Self.isNewer(stateDate, than: self.lastKnownStateModDate) else {
+                || Self.isNewer(stateDate, than: self.lastKnownStateModDate)
+                || Self.isNewer(contentDate, than: self.lastKnownContentModDate)
+                || Self.isNewer(bodiesDate, than: self.lastKnownBodiesModDate) else {
                 return
             }
 
@@ -382,6 +402,28 @@ public final class ReaderStore {
         }
     }
 
+    /// v1 stored untouched read/starred flags and folder membership only in the
+    /// shared baseline. v2 content intentionally has no user state, so seed any
+    /// still-missing registers before the first v2 materialization. Existing
+    /// registers always win and the completion marker is written only after the
+    /// device shard is durable.
+    private func migrateLegacyUserStateIfNeeded(replica: ReplicaStore, storage: ReaderStorage) throws {
+        guard let legacy = try replica.pendingLegacyStateSeed(from: storage) else { return }
+        let peerShards = ((try? storage.loadShards()) ?? []).filter { $0.deviceID != deviceID }
+        witness(peerShards + [ownShard])
+        lastHLC = ownShard.seedLegacyUserState(
+            from: legacy,
+            whereMissingFrom: peerShards,
+            after: lastHLC,
+            node: deviceID
+        )
+        ownShard.updatedAt = Date()
+        ownShard.generation &+= 1
+        try storage.saveShard(ownShard)
+        try replica.markLegacyStateSeedComplete()
+        lastKnownStateModDate = storage.stateDirectoryModificationDate
+    }
+
     /// Merges the content baseline with every device's shard and applies the
     /// result, advancing this device's clock past everything it has observed so
     /// its next write beats any peer's latest edit.
@@ -408,7 +450,7 @@ public final class ReaderStore {
         ownShard.clock = lastHLC
     }
 
-    /// Re-reads the baseline + all shards, merges, and applies the result only
+    /// Re-scans legacy input + all shards, merges, and applies the result only
     /// when it differs from what's in memory — so peer edits show up without
     /// churning the UI on our own writes. Preserves UI state (selection, search).
     ///
@@ -418,12 +460,13 @@ public final class ReaderStore {
     private func reloadMerged() async {
         guard let storage else { return }
 
-        let loaded = await Task.detached(priority: .userInitiated) { () -> (ReaderLibrary, [DeviceStateDocument])? in
-            guard let base = try? storage.load() else { return nil }
-            let peers = (try? storage.loadShards()) ?? []
-            return (base, peers)
+        guard let replicaStore else { return }
+        let loaded = await Task.detached(priority: .userInitiated) { () -> (ReplicaSnapshot, [DeviceStateDocument])? in
+            guard let snapshot = try? replicaStore.reconcile(storage: storage) else { return nil }
+            try? replicaStore.publishIfNeeded(to: storage)
+            return (snapshot, (try? storage.loadShards()) ?? [])
         }.value
-        guard let (base, peerShards) = loaded else { return }
+        guard let (snapshot, peerShards) = loaded, snapshot.revision >= appliedReplicaRevision else { return }
         // A refresh may have started during the off-main decode; its in-memory
         // articles would be newer than this disk snapshot, so don't clobber them.
         guard !isRefreshing else { return }
@@ -435,7 +478,8 @@ public final class ReaderStore {
         witness(shards)
         // Fill bodies from the cache so the (list-light) baseline's stripped
         // bodies don't read as a change and the applied result keeps content.
-        let merged = hydratedFromCache(DeviceStateDocument.materialize(base: base, shards: shards))
+        if !snapshot.bodies.isEmpty { bodyCache.merge(snapshot.bodies) { _, new in new } }
+        let merged = hydratedFromCache(DeviceStateDocument.materialize(base: snapshot.library, shards: shards))
 
         // Compare against the same folder normalization `apply` produces.
         let impliedFolders = merged.feeds.map(\.folderName).filter { !$0.isEmpty }
@@ -446,6 +490,16 @@ public final class ReaderStore {
         }
         lastKnownLibraryModDate = storage.libraryModificationDate
         lastKnownStateModDate = storage.stateDirectoryModificationDate
+        lastKnownContentModDate = storage.contentDirectoryModificationDate
+        lastKnownBodiesModDate = storage.bodiesDirectoryModificationDate
+        appliedReplicaRevision = max(appliedReplicaRevision, snapshot.revision)
+    }
+
+    private func applyReplicaSnapshot(_ snapshot: ReplicaSnapshot, storage: ReaderStorage) {
+        guard snapshot.revision >= appliedReplicaRevision else { return }
+        if !snapshot.bodies.isEmpty { bodyCache.merge(snapshot.bodies) { _, new in new } }
+        mergeShardsAndApply(base: snapshot.library, storage: storage)
+        appliedReplicaRevision = snapshot.revision
     }
 
     /// Loads the content sidecar once (off-main) into the in-memory body cache,
@@ -457,7 +511,10 @@ public final class ReaderStore {
         let bodies = await Task.detached(priority: .userInitiated) { storage.loadContent() }.value
         isLoadingBodyCache = false
         didLoadBodyCache = true
-        if !bodies.isEmpty { bodyCache.merge(bodies) { _, new in new } }
+        if !bodies.isEmpty {
+            bodyCache.merge(bodies) { current, _ in current }
+            scheduleSave()
+        }
         applyBodyCache()
     }
 
@@ -503,7 +560,7 @@ public final class ReaderStore {
         return Set(recent.map(\.id))
     }
 
-    /// Pulls the latest baseline and every peer's shard from iCloud and re-merges.
+    /// Pulls the latest legacy input and every peer shard, then re-merges.
     /// Call this when the app returns to the foreground so device switches sync
     /// promptly — it bypasses the baseline mtime gate so shard-only edits (a read
     /// on another device) are pulled even when the baseline is unchanged.
@@ -729,6 +786,13 @@ public final class ReaderStore {
     public struct BackgroundRefreshResult: Sendable {
         public let newArticleCount: Int
         public let sampleTitles: [String]
+        public let articleIDs: [Article.ID]
+
+        public init(newArticleCount: Int, sampleTitles: [String], articleIDs: [Article.ID] = []) {
+            self.newArticleCount = newArticleCount
+            self.sampleTitles = sampleTitles
+            self.articleIDs = articleIDs
+        }
     }
 
     /// Refreshes all feeds from a background launch and reports newly-arrived
@@ -740,7 +804,7 @@ public final class ReaderStore {
         let result = await refreshAllReportingNew()
         // Write synchronously so the result is saved before the OS suspends the
         // app again (the iOS background-task caller depends on this).
-        try? persistLibrary()
+        try? persistReplica()
         return result
     }
 
@@ -752,27 +816,25 @@ public final class ReaderStore {
             return BackgroundRefreshResult(newArticleCount: 0, sampleTitles: [])
         }
 
-        // Sync the shared baseline and every device's shard first, so an article
+        // Sync every content/state shard first, so an article
         // another device already fetched (and possibly read) is already known
         // here and isn't re-announced as new.
         await reloadMerged()
-        let knownIDs = Set(articles.map(\.id))
-        // Article ids read on ANY device (from its shard) — covers the case where
-        // a peer read an article that hasn't reached this device's baseline yet,
-        // so a freshly-fetched copy still isn't announced as new.
-        let readElsewhere = await readArticleIDsAcrossShards()
-
         // Already synced above; skip the redundant reload inside refreshAllFeeds.
         await refreshAllFeeds(syncFirst: false)
-
-        let fresh = articles.filter {
-            !knownIDs.contains($0.id) && !$0.isRead && !readElsewhere.contains($0.id)
-        }
+        try? persistReplica()
+        let candidates = articles.filter { !$0.isRead }
+        let fresh = (try? replicaStore?.reserveNotifications(for: candidates)) ?? []
         let sorted = fresh.sorted { $0.publishedAt > $1.publishedAt }
         return BackgroundRefreshResult(
             newArticleCount: fresh.count,
-            sampleTitles: sorted.prefix(3).map(\.title)
+            sampleTitles: sorted.prefix(3).map(\.title),
+            articleIDs: fresh.map(\.id)
         )
+    }
+
+    public func markNotificationsDelivered(_ articleIDs: [Article.ID]) {
+        try? replicaStore?.markNotificationsDelivered(articleIDs)
     }
 
     /// Article ids marked read in any device's on-disk shard. The read registers
@@ -956,7 +1018,7 @@ public final class ReaderStore {
         recordRead(articleID, isRead)
         // Read state is user state: it lives in this device's shard and is
         // overlaid on the baseline at materialize, so there's no need to rewrite
-        // the (multi-MB) content baseline for a read toggle.
+        // content shards for a read toggle.
         scheduleShardSave()
     }
 
@@ -1076,14 +1138,19 @@ public final class ReaderStore {
             syncFolderDisplayPath = directoryURL.path(percentEncoded: false)
 
             restoreOwnShard(storage: storage)
-            // Resolve iCloud conflict copies and merge the (possibly multi-MB)
-            // library off the main actor, so the first frame paints immediately
-            // instead of freezing on a synchronous decode (a black screen on iOS,
-            // where nothing has been drawn yet).
-            await Task.detached(priority: .userInitiated) { storage.resolveLibraryConflictsIfAny() }.value
-            await reloadMerged()
+            let replica = try ReplicaStore(syncDirectory: directoryURL, deviceID: deviceID)
+            replicaStore = replica
+            let snapshot = try await Task.detached(priority: .userInitiated) {
+                let snapshot = try replica.reconcile(storage: storage)
+                try replica.publishIfNeeded(to: storage)
+                return snapshot
+            }.value
+            try migrateLegacyUserStateIfNeeded(replica: replica, storage: storage)
+            applyReplicaSnapshot(snapshot, storage: storage)
             lastKnownLibraryModDate = storage.libraryModificationDate
             lastKnownStateModDate = storage.stateDirectoryModificationDate
+            lastKnownContentModDate = storage.contentDirectoryModificationDate
+            lastKnownBodiesModDate = storage.bodiesDirectoryModificationDate
             startObservingLibrary()
             // The list is up from the light baseline; pull the (heavier) article
             // bodies in from the sidecar in the background so it never blocks.
@@ -1145,7 +1212,7 @@ public final class ReaderStore {
     }
 
     private func refreshAllFeeds(syncFirst: Bool = true) async {
-        // Pull the latest baseline + peer shards before fetching, so the save at
+        // Pull the latest content + state shards before fetching, so the save at
         // the end can't clobber a feed another device just added but that hasn't
         // reached this device's in-memory list yet. (Callers that already synced
         // — e.g. the background reporter — pass false to avoid a redundant read.)
@@ -1454,22 +1521,17 @@ public final class ReaderStore {
         // `pendingSave` and is flushed once when the batch finishes.
         while !isBatchRefreshing, let library = pendingSave {
             pendingSave = nil
-            let modificationDate = await Task.detached(priority: .utility) { () -> Date? in
-                try? storage.save(library)
-                // Persist article bodies to the sidecar too (union + capped to
-                // the most-recent ids). Only articles that actually carry a body
-                // are written, so a not-yet-hydrated snapshot can't blank a body
-                // another device stored.
-                let bodies = Dictionary(
-                    library.articles.filter(\.hasBody).map { ($0.id, $0.body) },
-                    uniquingKeysWith: { current, _ in current }
+            guard let replicaStore else { continue }
+            let outcome = await Task.detached(priority: .utility) { () -> (ReplicaSnapshot?, Date?) in
+                let snapshot = try? replicaStore.recordLocal(
+                    library,
+                    retainBodies: ReaderStore.recentArticleIDs(from: library.articles)
                 )
-                try? storage.saveContent(bodies, retain: ReaderStore.recentArticleIDs(from: library.articles))
-                return storage.libraryModificationDate
+                try? replicaStore.publishIfNeeded(to: storage)
+                return (snapshot, storage.contentDirectoryModificationDate)
             }.value
-            // Record our own write so the file observer doesn't treat it as an
-            // external (another-device) change and reload it back.
-            lastKnownLibraryModDate = modificationDate
+            if let revision = outcome.0?.revision { appliedReplicaRevision = max(appliedReplicaRevision, revision) }
+            lastKnownContentModDate = outcome.1
             errorMessage = nil
         }
         isDrainingSaves = false
@@ -1478,12 +1540,17 @@ public final class ReaderStore {
     /// Writes the library immediately on the calling actor. Used only for the
     /// initial file creation when configuring a folder, where later code
     /// depends on the file already existing.
-    private func persistLibrary() throws {
-        guard let storage else {
+    private func persistReplica() throws {
+        guard let storage, let replicaStore else {
             throw ReaderStorageError.noDirectorySelected
         }
-        try storage.save(snapshotLibrary())
-        lastKnownLibraryModDate = storage.libraryModificationDate
+        let snapshot = try replicaStore.recordLocal(
+            snapshotLibrary(),
+            retainBodies: Self.recentArticleIDs(from: articles)
+        )
+        try replicaStore.publishIfNeeded(to: storage)
+        appliedReplicaRevision = max(appliedReplicaRevision, snapshot.revision)
+        lastKnownContentModDate = storage.contentDirectoryModificationDate
     }
 
     // MARK: - Recording user-state changes into this device's shard
@@ -1547,6 +1614,7 @@ public final class ReaderStore {
     private func scheduleShardSave() {
         guard let storage else { return }
         ownShard.updatedAt = Date()
+        ownShard.generation &+= 1
         pendingShard = ownShard
         guard !isDrainingShardSaves else { return }
         isDrainingShardSaves = true

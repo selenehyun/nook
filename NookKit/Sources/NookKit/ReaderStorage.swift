@@ -27,6 +27,8 @@ public struct ReaderStorage: Sendable {
     // Per-device user-state shards live in a hidden folder so they don't clutter
     // the user's vault, next to the `NookLibrary.json` content baseline.
     private static let stateDirectoryName = ".nook/state"
+    private static let contentDirectoryName = ".nook/content"
+    private static let bodiesDirectoryName = ".nook/bodies"
     private static let shardFileExtension = "json"
     private static let faviconTTL: TimeInterval = 24 * 60 * 60
 
@@ -50,8 +52,24 @@ public struct ReaderStorage: Sendable {
         directoryURL.appending(path: Self.stateDirectoryName, directoryHint: .isDirectory)
     }
 
+    public var contentDirectoryURL: URL {
+        directoryURL.appending(path: Self.contentDirectoryName, directoryHint: .isDirectory)
+    }
+
+    public var bodiesDirectoryURL: URL {
+        directoryURL.appending(path: Self.bodiesDirectoryName, directoryHint: .isDirectory)
+    }
+
     private func shardURL(deviceID: String) -> URL {
         stateDirectoryURL.appending(path: "\(deviceID).\(Self.shardFileExtension)", directoryHint: .notDirectory)
+    }
+
+    private func contentShardURL(deviceID: String) -> URL {
+        contentDirectoryURL.appending(path: "\(deviceID).\(Self.shardFileExtension)", directoryHint: .notDirectory)
+    }
+
+    private func bodyShardURL(deviceID: String) -> URL {
+        bodiesDirectoryURL.appending(path: "\(deviceID).\(Self.shardFileExtension)", directoryHint: .notDirectory)
     }
 
     private var iconsDirectoryURL: URL {
@@ -116,6 +134,34 @@ public struct ReaderStorage: Sendable {
     /// Used to cheaply suppress reacting to this device's own shard writes.
     public var stateDirectoryModificationDate: Date? {
         modificationDate(of: stateDirectoryURL)
+    }
+
+    public var contentDirectoryModificationDate: Date? { modificationDate(of: contentDirectoryURL) }
+    public var bodiesDirectoryModificationDate: Date? { modificationDate(of: bodiesDirectoryURL) }
+
+    public struct LegacyCandidate: Sendable {
+        public var identity: String
+        public var modificationDate: Date
+        public var data: Data
+        public var library: ReaderLibrary
+    }
+
+    /// Reads the current v1 baseline and every unresolved conflict version. v2
+    /// treats these as add-only input and never resolves, removes, or rewrites
+    /// them because an older Nook may still be using the files.
+    public func loadLegacyCandidates() -> [LegacyCandidate] {
+        var urls: [(String, URL, Date)] = []
+        if FileManager.default.fileExists(atPath: libraryURL.path(percentEncoded: false)) {
+            urls.append(("current", libraryURL, modificationDate(of: libraryURL) ?? .distantPast))
+        }
+        for version in NSFileVersion.unresolvedConflictVersionsOfItem(at: libraryURL) ?? [] {
+            urls.append((String(describing: version.persistentIdentifier), version.url, version.modificationDate ?? .distantPast))
+        }
+        return urls.compactMap { identity, url, date in
+            guard let data = try? coordinatedRead(url),
+                  let library = try? JSONDecoder.nook.decode(ReaderLibrary.self, from: data) else { return nil }
+            return LegacyCandidate(identity: identity, modificationDate: date, data: data, library: library)
+        }
     }
 
     public func load() throws -> ReaderLibrary? {
@@ -294,6 +340,54 @@ public struct ReaderStorage: Sendable {
         if let writeError { throw writeError }
     }
 
+    public func loadContentShards() -> [ContentShardDocument] {
+        loadDocuments(in: contentDirectoryURL, as: ContentShardDocument.self)
+    }
+
+    public func loadOwnContentShard(deviceID: String) -> ContentShardDocument? {
+        loadDocument(at: contentShardURL(deviceID: deviceID), as: ContentShardDocument.self)
+    }
+
+    public func saveContentShard(_ shard: ContentShardDocument) throws {
+        try saveDocument(shard, at: contentShardURL(deviceID: shard.deviceID), directory: contentDirectoryURL)
+    }
+
+    public func loadBodyShards() -> [BodyShardDocument] {
+        loadDocuments(in: bodiesDirectoryURL, as: BodyShardDocument.self)
+    }
+
+    public func saveBodyShard(_ shard: BodyShardDocument) throws {
+        try saveDocument(shard, at: bodyShardURL(deviceID: shard.deviceID), directory: bodiesDirectoryURL)
+    }
+
+    private func loadDocuments<T: Decodable>(in directory: URL, as type: T.Type) -> [T] {
+        guard let entries = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return entries.compactMap { url in
+            guard url.pathExtension == Self.shardFileExtension else { return nil }
+            return loadDocument(at: url, as: type)
+        }
+    }
+
+    private func loadDocument<T: Decodable>(at url: URL, as type: T.Type) -> T? {
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)),
+              let data = try? coordinatedRead(url) else { return nil }
+        return try? JSONDecoder.nook.decode(type, from: data)
+    }
+
+    private func saveDocument<T: Encodable>(_ document: T, at url: URL, directory: URL) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder.nook.encode(document)
+        var writeError: Error?
+        var coordinatorError: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: [.forReplacing], error: &coordinatorError) { url in
+            do { try data.write(to: url, options: [.atomic]) } catch { writeError = error }
+        }
+        if let coordinatorError { throw coordinatorError }
+        if let writeError { throw writeError }
+    }
+
     /// Asks iCloud to download every peer's shard so a freshly launched or
     /// foregrounded app merges the latest state instead of waiting for a push.
     public func startDownloadingStateIfNeeded() {
@@ -305,47 +399,14 @@ public struct ReaderStorage: Sendable {
         for url in entries {
             try? FileManager.default.startDownloadingUbiquitousItem(at: url)
         }
+        startDownloadingDocuments(in: contentDirectoryURL)
+        startDownloadingDocuments(in: bodiesDirectoryURL)
     }
 
-    /// Union-merges any iCloud conflict versions of the content baseline back
-    /// into `NookLibrary.json` and clears them, so a concurrent baseline write
-    /// never orphans feeds/articles into a `... 2.json` sibling. User state is
-    /// unaffected — it lives in single-writer shards that never conflict — so a
-    /// simple content union (current wins on duplicate ids) is safe here.
-    public func resolveLibraryConflictsIfAny() {
-        guard let conflicts = NSFileVersion.unresolvedConflictVersionsOfItem(at: libraryURL),
-              !conflicts.isEmpty,
-              let current = try? load() else {
-            return
-        }
-
-        var feedsByID = Dictionary(current.feeds.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var articlesByID = Dictionary(current.articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var folders = Set(current.folders)
-        var latestRefresh = current.lastRefreshedAt
-
-        for version in conflicts {
-            guard let data = try? Data(contentsOf: version.url),
-                  let library = try? JSONDecoder.nook.decode(ReaderLibrary.self, from: data) else {
-                continue
-            }
-            for feed in library.feeds where feedsByID[feed.id] == nil { feedsByID[feed.id] = feed }
-            for article in library.articles where articlesByID[article.id] == nil { articlesByID[article.id] = article }
-            folders.formUnion(library.folders)
-            if let refresh = library.lastRefreshedAt {
-                latestRefresh = latestRefresh.map { max($0, refresh) } ?? refresh
-            }
-        }
-
-        let merged = ReaderLibrary(
-            feeds: Array(feedsByID.values),
-            articles: Array(articlesByID.values),
-            lastRefreshedAt: latestRefresh,
-            folders: Array(folders)
-        )
-        try? save(merged)
-        for version in conflicts { version.isResolved = true }
-        try? NSFileVersion.removeOtherVersionsOfItem(at: libraryURL)
+    private func startDownloadingDocuments(in directory: URL) {
+        try? FileManager.default.startDownloadingUbiquitousItem(at: directory)
+        guard let entries = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
+        for url in entries { try? FileManager.default.startDownloadingUbiquitousItem(at: url) }
     }
 
     // Security-scoped bookmarks: macOS requires the `.withSecurityScope`

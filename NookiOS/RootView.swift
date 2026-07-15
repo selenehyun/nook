@@ -92,10 +92,12 @@ struct RootView: View {
             case .active:
                 // Returning to the foreground: pull another device's changes
                 // from the sync folder, then refresh feeds over the network.
+                store.setSyncObservationActive(true)
                 store.syncFromDisk()
                 if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
             case .background:
                 // Queue the next background refresh as we leave.
+                store.setSyncObservationActive(false)
                 BackgroundRefresh.schedule()
             default:
                 break
