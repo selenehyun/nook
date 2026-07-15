@@ -1,18 +1,16 @@
 import SwiftUI
 
 /// A floating indicator revealed at the bottom of the in-app browser when the
-/// user keeps pulling up past the end of the page. It rises in as a glass pill
-/// (never pushing the page content) and escalates through two thresholds.
-///
-/// In the next-article stage, over-pulling doesn't smoothly morph into close —
-/// instead the pill *resists*, nudging against the scroll with diminishing give
-/// while a faint little "✕" hint waits above. Only when the pull crosses the
-/// close threshold does it snap — with a haptic — to the close indicator, the ✕
-/// dropping in from above and shouldering the next-article pill out.
+/// user keeps pulling up past the end of the page. Its three actions occupy a
+/// vertical wheel: crossing a threshold rotates the next action into the fixed
+/// selection slot with a spring, like a compact slot-machine reel. The selected
+/// action is always fully opaque so release behaviour is never ambiguous.
 ///
 /// The thresholds are shared so the browser's release handler decides the same
 /// way the indicator reads.
 public struct BottomPullAffordance: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// The primary action: pull a little past this to open the next article.
     public static let nextThreshold: CGFloat = 80
     /// Pull further, past this, to close the browser instead. Kept well clear of
@@ -27,7 +25,11 @@ public struct BottomPullAffordance: View {
         self.nextTitle = nextTitle
     }
 
-    private enum Stage: Equatable { case hint, next, close }
+    private enum Stage: Int, CaseIterable, Equatable {
+        case hint
+        case next
+        case close
+    }
 
     private var stage: Stage {
         if pull >= Self.closeThreshold { return .close }
@@ -35,23 +37,7 @@ public struct BottomPullAffordance: View {
         return .hint
     }
 
-    /// The pill rises in over the first stretch of the pull, then holds.
-    private var reveal: CGFloat { min(1, pull / 64) }
-
-    /// How far the next-article card has faded in (0 below the next threshold, 1
-    /// at it), used to cross-fade the hint out.
-    private var nextIn: CGFloat {
-        clamp01((pull - (Self.nextThreshold - 22)) / 22)
-    }
-
-    /// How far into the next→close over-pull the scroll is (0 at the next
-    /// threshold, 1 at the close threshold). Drives the *resistance* nudge only —
-    /// not a morph — so the ✕ never tracks the scroll into place.
-    private var overPull: CGFloat {
-        let span = Self.closeThreshold - Self.nextThreshold
-        guard span > 0 else { return 0 }
-        return clamp01((pull - Self.nextThreshold) / span)
-    }
+    private var isPresented: Bool { pull > 6 }
 
     /// A stepped value that climbs as the pull grows through the "hint" zone, so
     /// a very light haptic can tick in response to the scroll before either
@@ -63,41 +49,26 @@ public struct BottomPullAffordance: View {
 
     public var body: some View {
         ZStack {
-            // "Keep pulling" hint, cross-fading out as the next card takes over.
-            hintCard
-                .opacity(1 - nextIn)
-
-            // Both pills are always present (so the ZStack never reflows and
-            // shifts things sideways); stage only drives their vertical offset
-            // and opacity.
-
-            // Next-article pill: resists the over-pull with a small downward
-            // nudge — quadratic and capped low, so it barely gives until it's
-            // right at the threshold — then slides straight down and out.
-            nextCard
-                .scaleEffect(1 - 0.03 * overPull, anchor: .center)
-                .offset(y: stage == .close ? 46 : 8 * overPull * overPull)
-                .opacity(stage == .close ? 0 : nextIn)
-
-            // The one close indicator: it hints above during the next stage —
-            // darkening, growing, and creeping down as the over-pull nears the
-            // threshold — then descends into the anchor and reveals its label.
-            closeIndicator
-                .scaleEffect(stage == .close ? 1 : 0.72 + 0.12 * overPull, anchor: .center)
-                .offset(y: stage == .close ? 0 : -52 + 8 * overPull)
-                .opacity(closeOpacity)
+            reelItem(.hint) { hintCard }
+            reelItem(.next) { nextCard }
+            reelItem(.close) { closeCard }
         }
-        // Overall rise-in from the bottom edge.
-        .scaleEffect(0.86 + 0.14 * reveal, anchor: .bottom)
-        .offset(y: (1 - reveal) * 44)
-        .opacity(pull > 6 ? 1 : 0)
+        .frame(height: 82)
+        .clipped()
+        // Presentation is itself spring-driven. Pull distance only chooses a
+        // discrete slot; it no longer directly scrubs visual opacity/position.
+        .scaleEffect(isPresented ? 1 : 0.86, anchor: .bottom)
+        .offset(y: isPresented ? 0 : 38)
+        .opacity(isPresented ? 1 : 0)
         .padding(.bottom, 22)
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, alignment: .center)
-        // The resistance nudge tracks the scroll with a light elastic spring…
-        .animation(.spring(response: 0.24, dampingFraction: 0.72), value: pull)
-        // …while crossing a threshold snaps with a bouncier one.
-        .animation(.spring(response: 0.34, dampingFraction: 0.62), value: stage)
+        .animation(reduceMotion ? .easeOut(duration: 0.12) : .interpolatingSpring(
+            mass: 0.82, stiffness: 245, damping: 19, initialVelocity: 0
+        ), value: stage)
+        .animation(reduceMotion ? .easeOut(duration: 0.12) : .interpolatingSpring(
+            mass: 0.7, stiffness: 260, damping: 22, initialVelocity: 0
+        ), value: isPresented)
         // iOS haptics. macOS ones are performed in the web view coordinator
         // (ArticleWebView), off the scroll, because SwiftUI's `.sensoryFeedback`
         // doesn't reliably re-fire the trackpad patterns on a repeated pull.
@@ -113,7 +84,30 @@ public struct BottomPullAffordance: View {
             newTick > oldTick ? .selection : nil
         }
         #endif
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
         .allowsHitTesting(false)
+    }
+
+    /// Positions every card on the same cylindrical reel. Only `stage` changes
+    /// the target position, so SwiftUI's spring carries velocity and overshoot
+    /// across a threshold instead of the scroll offset scrubbing every frame.
+    private func reelItem<Content: View>(_ item: Stage, @ViewBuilder content: () -> Content) -> some View {
+        let distance = CGFloat(item.rawValue - stage.rawValue)
+        let isSelected = item == stage
+        return content()
+            .rotation3DEffect(
+                .degrees(reduceMotion ? 0 : Double(distance * -52)),
+                axis: (x: 1, y: 0, z: 0),
+                anchor: distance > 0 ? .top : .bottom,
+                perspective: 0.58
+            )
+            .scaleEffect(isSelected ? 1 : 0.84)
+            .offset(y: distance * 54)
+            // The release target is invariantly solid. Only neighbouring reel
+            // cells are de-emphasised, and that value is discrete—not scrubbed.
+            .opacity(isSelected ? 1 : (abs(distance) == 1 ? 0.38 : 0))
+            .zIndex(isSelected ? 2 : 1)
     }
 
     private var hintCard: some View {
@@ -138,27 +132,21 @@ public struct BottomPullAffordance: View {
         .foregroundStyle(.tint)
     }
 
-    /// The single close indicator — a bare ✕ while it hints above, gaining its
-    /// "Release to close" label as it descends into the anchor.
-    private var closeIndicator: some View {
+    private var closeCard: some View {
         pill {
             Image(systemName: "xmark").font(.headline)
-            if stage == .close {
-                Text("Release to close", bundle: .module)
-                    .font(.subheadline.weight(.semibold))
-                    .transition(.opacity)
-            }
+            Text("Release to close", bundle: .module)
+                .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(.primary)
     }
 
-    /// How opaque the close indicator is: it stays a visible hint while in the
-    /// next stage, darkening interactively with the over-pull, then goes solid
-    /// once it's the active action.
-    private var closeOpacity: Double {
-        if stage == .close { return 1 }
-        if stage == .next { return Double(0.4 + 0.5 * overPull) }
-        return 0
+    private var accessibilityLabel: Text {
+        switch stage {
+        case .hint: Text("Keep pulling", bundle: .module)
+        case .next: Text(nextTitle ?? String(localized: "You're all caught up", bundle: .module))
+        case .close: Text("Release to close", bundle: .module)
+        }
     }
 
     private func pill<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -167,8 +155,6 @@ public struct BottomPullAffordance: View {
             .padding(.vertical, 12)
             .modifier(GlassPill())
     }
-
-    private func clamp01(_ value: CGFloat) -> CGFloat { max(0, min(1, value)) }
 }
 
 /// A capsule background using the system Liquid Glass material where available,
