@@ -121,21 +121,71 @@ public struct ArticleWebView {
     func readerScript(style: ReaderStyle) -> String {
         """
         (function () {
-          try {
-            if (typeof Readability === 'undefined') { return; }
-            function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+          var attempts = 0;
+          var originalURL = document.baseURI;
+          function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-            var article = new Readability(document.cloneNode(true)).parse();
-            if (!article || !article.content) { return; }
+          function normalizeMedia(root) {
+            root.querySelectorAll('img').forEach(function (img) {
+              if (!img.getAttribute('src')) {
+                var lazy = img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+                if (lazy) img.setAttribute('src', lazy);
+              }
+              img.setAttribute('loading', 'lazy');
+            });
+            root.querySelectorAll('iframe, video, source').forEach(function (media) {
+              var src = media.getAttribute('src') || media.getAttribute('data-src');
+              if (src) {
+                try { media.setAttribute('src', new URL(src, originalURL).href); } catch (_) {}
+              }
+            });
+          }
 
-            var titleHTML = article.title ? '<h1>' + esc(article.title) + '</h1>' : '';
-            var bylineHTML = article.byline ? '<p class="nook-byline">' + esc(article.byline) + '</p>' : '';
+          function extractedArticle() {
+            if (typeof Readability !== 'undefined') {
+              var clone = document.cloneNode(true);
+              normalizeMedia(clone);
+              // Readability intentionally removes most iframes. Interactive
+              // CodePen examples are article content for developer sites, so
+              // retain them alongside its standard video-provider allowlist.
+              var allowedEmbeds = /\\/\\/(www\\.)?((dailymotion|youtube|youtube-nocookie|player\\.vimeo|v\\.qq|codepen)\\.(com|io)|(archive|upload\\.wikimedia)\\.org|player\\.twitch\\.tv)/i;
+              var parsed = new Readability(clone, { allowedVideoRegex: allowedEmbeds }).parse();
+              if (parsed && parsed.content && parsed.textContent && parsed.textContent.trim().length > 80) {
+                return parsed;
+              }
+            }
 
-            document.head.innerHTML = '<meta name="viewport" content="width=device-width, initial-scale=1">';
-            document.body.innerHTML = '<div id="nook-reader">' + titleHTML + bylineHTML + article.content + '</div>';
+            // Some script-heavy or unusually marked-up sites defeat the
+            // scoring heuristic even though they expose a clear semantic body.
+            var fallback = document.querySelector('article .article-content, article [itemprop="articleBody"], article, main');
+            if (!fallback || (fallback.innerText || '').trim().length < 80) return null;
+            var content = fallback.cloneNode(true);
+            normalizeMedia(content);
+            return {
+              title: document.querySelector('h1') ? document.querySelector('h1').textContent.trim() : document.title,
+              byline: '',
+              content: content.innerHTML
+            };
+          }
 
-            var style = document.createElement('style');
-            style.textContent = [
+          function renderReader() {
+            try {
+              var article = extractedArticle();
+              if (!article) {
+                attempts += 1;
+                if (attempts < 3) setTimeout(renderReader, attempts * 250);
+                return;
+              }
+
+              var titleHTML = article.title ? '<h1>' + esc(article.title) + '</h1>' : '';
+              var bylineHTML = article.byline ? '<p class="nook-byline">' + esc(article.byline) + '</p>' : '';
+
+              document.head.innerHTML = '<meta name="viewport" content="width=device-width, initial-scale=1"><base href="' + esc(originalURL) + '">';
+              document.body.innerHTML = '<div id="nook-reader">' + titleHTML + bylineHTML + article.content + '</div>';
+              normalizeMedia(document.body);
+
+              var style = document.createElement('style');
+              style.textContent = [
               ':root { color-scheme: light dark; }',
               'html, body { margin: 0; padding: 0; background: \(style.backgroundCSS); color: \(style.textCSS); }',
               '#nook-reader { max-width: 720px; margin: 0 auto; padding: 44px 28px 96px; font-family: \(style.font.cssFamily); font-size: \(style.fontSize)px; line-height: \(style.lineHeight); letter-spacing: \(style.letterSpacing)em; }',
@@ -144,16 +194,29 @@ public struct ArticleWebView {
               '#nook-reader h2, #nook-reader h3 { line-height: 1.3; margin: 1.6em 0 0.6em; }',
               '#nook-reader p { margin: 0 0 1.1em; }',
               '#nook-reader img, #nook-reader video, #nook-reader figure { max-width: 100%; height: auto; border-radius: 6px; }',
+              '#nook-reader video { width: 100%; }',
+              '#nook-reader iframe { display: block; width: 100%; max-width: 100%; min-height: 281px; border: 0; border-radius: 6px; }',
+              '#nook-reader .cp_embed_wrapper iframe, #nook-reader iframe.cp_embed_iframe { min-height: 450px; }',
+              '#nook-reader .wp-has-aspect-ratio iframe { aspect-ratio: 16 / 9; height: auto; }',
               '#nook-reader figure { margin: 1.4em 0; }',
               '#nook-reader figcaption { font-size: 0.8em; color: \(style.secondaryTextCSS); }',
               '#nook-reader a { color: LinkText; }',
               '#nook-reader pre { overflow-x: auto; background: color-mix(in srgb, \(style.textCSS) 8%, transparent); padding: 12px; border-radius: 6px; }',
               '#nook-reader code { font-family: ui-monospace, monospace; }',
               '#nook-reader blockquote { margin: 0 0 1.1em; padding-left: 16px; border-left: 3px solid color-mix(in srgb, \(style.textCSS) 25%, transparent); color: \(style.secondaryTextCSS); }'
-            ].join('\\n');
-            document.head.appendChild(style);
-          } catch (error) {
-            /* Leave the original page in place if extraction fails. */
+              ].join('\\n');
+              document.head.appendChild(style);
+              window.dispatchEvent(new Event('resize'));
+            } catch (error) {
+              // Keep the untouched original page available if every extraction
+              // path fails; the mode toggle still lets the user switch back.
+            }
+          }
+
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', renderReader, { once: true });
+          } else {
+            setTimeout(renderReader, 0);
           }
         })();
         """

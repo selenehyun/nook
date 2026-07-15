@@ -1598,7 +1598,7 @@ private struct ReaderDetailView: View {
                 Divider()
 
                 if let html = article.contentHTML {
-                    HTMLContentText(html: html)
+                    HTMLContentView(html: html, baseURL: article.url)
                 } else {
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(article.bodyParagraphs, id: \.self) { paragraph in

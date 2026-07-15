@@ -110,7 +110,7 @@ struct ReaderDetailView: View {
                     } else if let html = article.contentHTML {
                         // Text selection is disabled so the double-tap /
                         // long-press gestures below own the body.
-                        HTMLContentText(html: html, selectable: false)
+                        HTMLContentView(html: html, baseURL: article.url, selectable: false)
                     } else {
                         VStack(alignment: .leading, spacing: 14) {
                             ForEach(article.bodyParagraphs, id: \.self) { paragraph in
