@@ -24,7 +24,11 @@ public enum RSSFeedError: LocalizedError {
 }
 
 public struct RSSFeedService: Sendable {
-    public init() {}
+    private let session: URLSession
+
+    public init(session: URLSession = .shared) {
+        self.session = session
+    }
 
     public func normalizedFeedURL(from value: String) throws -> URL {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -44,8 +48,7 @@ public struct RSSFeedService: Sendable {
         do {
             return try await fetchFeed(url: url)
         } catch RSSFeedError.emptyFeed, RSSFeedError.parserFailure {
-            let discoveredURL = try await discoverFeedURL(from: url)
-            return try await fetchFeed(url: discoveredURL)
+            return try await discoverFeed(from: url)
         }
     }
 
@@ -112,7 +115,7 @@ public struct RSSFeedService: Sendable {
         request.setValue("Nook RSS Reader", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,
            !(200...299).contains(httpResponse.statusCode) {
             throw RSSFeedError.badStatus(httpResponse.statusCode)
@@ -121,21 +124,37 @@ public struct RSSFeedService: Sendable {
         return data
     }
 
-    private func discoverFeedURL(from pageURL: URL) async throws -> URL {
+    private func discoverFeed(from pageURL: URL) async throws -> ParsedFeed {
         let data = try await fetchData(url: pageURL)
         let html = String(data: data, encoding: .utf8)
             ?? String(data: data, encoding: .isoLatin1)
             ?? ""
-        let links = FeedLinkDiscovery.feedLinks(in: html, baseURL: pageURL)
-        guard let firstLink = links.first else {
-            throw RSSFeedError.noDiscoveredFeeds(pageURL)
+        let candidates = FeedLinkDiscovery.feedDiscoveryCandidates(in: html, baseURL: pageURL)
+        for candidate in candidates {
+            do {
+                return try await fetchFeed(url: candidate)
+            } catch RSSFeedError.emptyFeed,
+                    RSSFeedError.badStatus,
+                    RSSFeedError.noDiscoveredFeeds,
+                    RSSFeedError.parserFailure,
+                    RSSFeedError.invalidURL {
+                continue
+            } catch {
+                continue
+            }
         }
 
-        return firstLink
+        throw RSSFeedError.noDiscoveredFeeds(pageURL)
     }
 }
 
 private enum FeedLinkDiscovery {
+    static func feedDiscoveryCandidates(in html: String, baseURL: URL) -> [URL] {
+        let discovered = feedLinks(in: html, baseURL: baseURL)
+        let probes = fallbackFeedURLs(for: baseURL)
+        return orderedUniqueURLs(discovered + probes)
+    }
+
     static func feedLinks(in html: String, baseURL: URL) -> [URL] {
         linkTags(in: html).compactMap { tag -> URL? in
             let attributes = attributes(in: tag)
@@ -151,6 +170,88 @@ private enum FeedLinkDiscovery {
 
             return URL(string: href, relativeTo: baseURL)?.absoluteURL
         }
+    }
+
+    static func fallbackFeedURLs(for pageURL: URL) -> [URL] {
+        let bases = fallbackBases(for: pageURL)
+        var urls: [URL] = []
+        for base in bases {
+            urls.append(contentsOf: feedURLVariants(for: base))
+        }
+        return orderedUniqueURLs(urls)
+    }
+
+    private static func fallbackBases(for pageURL: URL) -> [URL] {
+        var bases: [URL] = [pageURL]
+        if let parent = pageURL.deletingLastPathComponentIfUseful() {
+            bases.append(parent)
+        }
+        if let root = pageURL.rootWebURL() {
+            bases.append(root)
+        }
+        return orderedUniqueURLs(bases)
+    }
+
+    private static func feedURLVariants(for baseURL: URL) -> [URL] {
+        var variants: [URL] = []
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return variants
+        }
+
+        let path = components.percentEncodedPath.isEmpty ? "/" : components.percentEncodedPath
+        let lastPathComponent = path.split(separator: "/").last.map(String.init) ?? ""
+        let feedishNames = ["feed", "rss", "atom", "feed.xml", "rss.xml", "atom.xml", "index.xml"]
+
+        func appendVariant(path: String, query: String? = nil) {
+            components.percentEncodedPath = path
+            components.percentEncodedQuery = query
+            if let url = components.url, RSSFeedService.isFetchableWebURL(url) {
+                variants.append(url)
+            }
+        }
+
+        let currentBase = path.hasSuffix("/") ? String(path.dropLast()) : path
+        let parentBase = (path as NSString).deletingLastPathComponent
+        let bases = orderedUniqueStrings([
+            currentBase,
+            parentBase == currentBase ? nil : parentBase,
+            "/"
+        ].compactMap { $0 })
+
+        func joined(_ base: String, _ tail: String) -> String {
+            if base.isEmpty || base == "/" { return "/\(tail)" }
+            return base.hasSuffix("/") ? base + tail : base + "/" + tail
+        }
+
+        for basePath in bases {
+            let normalizedBase = basePath == "/" ? "" : basePath
+
+            if !normalizedBase.isEmpty, !feedishNames.contains(lastPathComponent.lowercased()) {
+                appendVariant(path: normalizedBase + ".rss")
+                appendVariant(path: normalizedBase + ".xml")
+                appendVariant(path: normalizedBase + ".atom")
+            }
+
+            appendVariant(path: joined(normalizedBase, "feed"))
+            appendVariant(path: joined(normalizedBase, "rss"))
+            appendVariant(path: joined(normalizedBase, "atom"))
+            appendVariant(path: joined(normalizedBase, "feed.xml"))
+            appendVariant(path: joined(normalizedBase, "rss.xml"))
+            appendVariant(path: joined(normalizedBase, "atom.xml"))
+            appendVariant(path: joined(normalizedBase, "index.xml"))
+        }
+
+        return variants
+    }
+
+    private static func orderedUniqueURLs(_ urls: [URL]) -> [URL] {
+        var seen = Set<String>()
+        return urls.filter { seen.insert($0.absoluteString).inserted }
+    }
+
+    private static func orderedUniqueStrings(_ strings: [String]) -> [String] {
+        var seen = Set<String>()
+        return strings.filter { seen.insert($0).inserted }
     }
 
     private static func linkTags(in html: String) -> [String] {
@@ -183,6 +284,24 @@ private enum FeedLinkDiscovery {
 
             result[String(tag[keyRange]).lowercased()] = String(tag[valueRange])
         }
+    }
+}
+
+private extension URL {
+    func deletingLastPathComponentIfUseful() -> URL? {
+        let parent = deletingLastPathComponent()
+        guard parent.absoluteString != absoluteString else { return nil }
+        return parent
+    }
+
+    func rootWebURL() -> URL? {
+        guard let scheme, let host else { return nil }
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = host
+        components.port = port
+        components.percentEncodedPath = "/"
+        return components.url
     }
 }
 
