@@ -483,6 +483,12 @@
         }
       }
     },
+    "Checking RSS/Atom feed…" : {
+
+    },
+    "Checking…" : {
+
+    },
     "Choose a sync folder so Nook keeps your feeds in sync across your devices." : {
       "localizations" : {
         "en" : {
@@ -960,6 +966,9 @@
       }
     },
     "Fetch Result" : {
+
+    },
+    "Folder" : {
 
     },
     "Folder Name" : {
@@ -1669,6 +1678,9 @@
         }
       }
     },
+    "New Folder…" : {
+
+    },
     "New in Nook" : {
       "localizations" : {
         "en" : {
@@ -2252,6 +2264,7 @@
       }
     },
     "Paste an RSS or Atom feed URL, or a website address — Nook will find the feed." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2278,6 +2291,9 @@
           }
         }
       }
+    },
+    "Paste an RSS or Atom feed URL, or a website address. Nook will check it before closing." : {
+
     },
     "Pending Requests" : {
 
@@ -3186,6 +3202,9 @@
           }
         }
       }
+    },
+    "Top Level" : {
+
     },
     "Translate" : {
 

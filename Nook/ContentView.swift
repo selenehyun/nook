@@ -664,8 +664,9 @@ private struct FeedSidebar: View {
         SourceRow(
             title: feed.displayTitle,
             subtitle: feed.siteDescription,
-            systemImage: store.isRefreshing(feedID: feed.id) ? "arrow.clockwise" : feed.systemImage,
-            iconImage: store.isRefreshing(feedID: feed.id) ? nil : store.faviconImage(for: feed),
+            systemImage: feed.systemImage,
+            iconImage: store.faviconImage(for: feed),
+            isRefreshing: store.isRefreshing(feedID: feed.id),
             isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
             count: store.unreadCount(feedID: feed.id)
         )
@@ -968,14 +969,24 @@ private struct SourceRow: View {
     var subtitle: String?
     var systemImage: String
     var iconImage: Image?
+    var isRefreshing: Bool
     var isUnhealthy: Bool
     var count: Int
 
-    init(title: String, subtitle: String? = nil, systemImage: String, iconImage: Image? = nil, isUnhealthy: Bool = false, count: Int) {
+    init(
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String,
+        iconImage: Image? = nil,
+        isRefreshing: Bool = false,
+        isUnhealthy: Bool = false,
+        count: Int
+    ) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
         self.iconImage = iconImage
+        self.isRefreshing = isRefreshing
         self.isUnhealthy = isUnhealthy
         self.count = count
     }
@@ -1011,15 +1022,26 @@ private struct SourceRow: View {
                 }
             }
         } icon: {
-            if let iconImage {
-                iconImage
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            } else {
-                Image(systemName: systemImage)
+            ZStack {
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                } else if let iconImage {
+                    iconImage
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                } else {
+                    Image(systemName: systemImage)
+                        .frame(width: 16, height: 16)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
             }
+            .frame(width: 16, height: 16)
+            .animation(.easeInOut(duration: 0.18), value: isRefreshing)
         }
     }
 }

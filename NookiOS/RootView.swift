@@ -435,13 +435,29 @@ private struct Sidebar: View {
         }
     }
 
+    @ViewBuilder
     private func feedRow(_ feed: Feed) -> some View {
+        let isRefreshing = store.isRefreshing(feedID: feed.id)
         HStack {
-            if let icon = store.faviconImage(for: feed) {
-                icon.resizable().frame(width: 18, height: 18).clipShape(RoundedRectangle(cornerRadius: 4))
-            } else {
-                Image(systemName: feed.systemImage)
+            ZStack {
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                } else if let icon = store.faviconImage(for: feed) {
+                    icon.resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                } else {
+                    Image(systemName: feed.systemImage)
+                        .frame(width: 18, height: 18)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
             }
+            .frame(width: 18, height: 18)
+            .animation(.easeInOut(duration: 0.18), value: isRefreshing)
             Text(feed.displayTitle).lineLimit(1)
             Spacer()
             let count = store.unreadCount(feedID: feed.id)
