@@ -55,6 +55,85 @@ struct HTMLContentParserTests {
         #expect(video.posterURL?.absoluteString == "https://example.com/poster.jpg")
     }
 
+    @Test("Splits structural block tags into native blocks")
+    func parsesStructuralBlocks() {
+        let html = """
+        <h2>Section <em>Title</em></h2>
+        <p>Intro paragraph.</p>
+        <blockquote><p>Quoted line.</p></blockquote>
+        <pre><code class="language-swift">let x = 1\nlet y = 2</code></pre>
+        <hr>
+        <table>
+        <thead><tr><th>Name</th><th>Value</th></tr></thead>
+        <tbody><tr><td>Alpha</td><td>1</td></tr></tbody>
+        </table>
+        <audio src="/clip.mp3" title="Clip"></audio>
+        """
+
+        let blocks = HTMLContentParser.parse(html, baseURL: URL(string: "https://example.com/post")!)
+
+        guard case .heading(let level, let headingHTML) = blocks[0] else {
+            Issue.record("Expected a heading first: \(blocks)")
+            return
+        }
+        #expect(level == 2)
+        #expect(headingHTML.contains("Title"))
+
+        guard case .text(let intro) = blocks[1] else {
+            Issue.record("Expected intro text")
+            return
+        }
+        #expect(intro.contains("Intro paragraph"))
+
+        guard case .blockquote(let quoted) = blocks[2], case .text(let quotedText) = quoted[0] else {
+            Issue.record("Expected a blockquote with nested text")
+            return
+        }
+        #expect(quotedText.contains("Quoted line"))
+
+        guard case .codeBlock(let code, let language) = blocks[3] else {
+            Issue.record("Expected a code block")
+            return
+        }
+        #expect(language == "swift")
+        #expect(code == "let x = 1\nlet y = 2")
+
+        guard case .thematicBreak = blocks[4] else {
+            Issue.record("Expected a thematic break")
+            return
+        }
+
+        guard case .table(let table) = blocks[5] else {
+            Issue.record("Expected a table")
+            return
+        }
+        #expect(table.rows.count == 2)
+        #expect(table.rows[0].isHeader)
+        #expect(table.rows[0].cells == ["Name", "Value"])
+        #expect(!table.rows[1].isHeader)
+        #expect(table.rows[1].cells.contains("Alpha"))
+
+        guard case .audio(let audio) = blocks[6] else {
+            Issue.record("Expected an audio block")
+            return
+        }
+        #expect(audio.url.absoluteString == "https://example.com/clip.mp3")
+        #expect(audio.title == "Clip")
+    }
+
+    @Test("Decodes entities in code blocks without collapsing whitespace")
+    func preservesCodeFormatting() {
+        let html = "<pre><code>if (a &lt; b) {\n    return &amp;value;\n}</code></pre>"
+
+        let blocks = HTMLContentParser.parse(html, baseURL: nil)
+
+        guard case .codeBlock(let code, _) = blocks[0] else {
+            Issue.record("Expected a code block: \(blocks)")
+            return
+        }
+        #expect(code == "if (a < b) {\n    return &value;\n}")
+    }
+
     @Test("Reader script retains interactive embeds and has a semantic fallback")
     func readerScriptRichContentFallbacks() {
         let script = ArticleWebView(

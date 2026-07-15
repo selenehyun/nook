@@ -7,9 +7,10 @@ import AppKit
 import UIKit
 #endif
 
-/// Renders feed HTML as native SwiftUI blocks. Text still uses the platform
-/// attributed-string importer, while media that importer cannot represent is
-/// kept in document order and rendered as native images, video, or link cards.
+/// Renders feed HTML as native SwiftUI blocks. Inline text still uses the
+/// platform attributed-string importer, while block-level structure (headings,
+/// code, quotes, tables, rules) and media (images, video, audio, embeds) are
+/// kept in document order and rendered as dedicated native views.
 public struct HTMLContentView: View {
     private let blocks: [HTMLContentBlock]
     private let selectable: Bool
@@ -20,28 +21,62 @@ public struct HTMLContentView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                switch block {
-                case .text(let html):
-                    HTMLContentText(html: html, selectable: selectable)
-                case .image(let media):
-                    NativeArticleImage(media: media)
-                case .video(let media):
-                    NativeArticleVideo(media: media)
-                case .embed(let media):
-                    NativeArticleEmbed(media: media)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        HTMLBlockList(blocks: blocks, selectable: selectable)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-enum HTMLContentBlock: Equatable {
+/// Renders an ordered list of parsed blocks. Reused for nested content such as
+/// blockquotes so quoted images, code, and text all render natively.
+struct HTMLBlockList: View {
+    let blocks: [HTMLContentBlock]
+    let selectable: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                blockView(block)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func blockView(_ block: HTMLContentBlock) -> some View {
+        switch block {
+        case .text(let html):
+            HTMLContentText(html: html, selectable: selectable)
+        case .heading(let level, let html):
+            NativeArticleHeading(level: level, html: html, selectable: selectable)
+        case .blockquote(let inner):
+            NativeArticleQuote(blocks: inner, selectable: selectable)
+        case .codeBlock(let code, let language):
+            NativeArticleCode(code: code, language: language, selectable: selectable)
+        case .table(let table):
+            NativeArticleTable(table: table, selectable: selectable)
+        case .thematicBreak:
+            Divider()
+        case .image(let media):
+            NativeArticleImage(media: media)
+        case .video(let media):
+            NativeArticleVideo(media: media)
+        case .audio(let media):
+            NativeArticleAudio(media: media)
+        case .embed(let media):
+            NativeArticleEmbed(media: media)
+        }
+    }
+}
+
+indirect enum HTMLContentBlock: Equatable {
     case text(String)
+    case heading(level: Int, html: String)
+    case blockquote([HTMLContentBlock])
+    case codeBlock(code: String, language: String?)
+    case table(HTMLTable)
+    case thematicBreak
     case image(HTMLMedia)
     case video(HTMLMedia)
+    case audio(HTMLMedia)
     case embed(HTMLMedia)
 }
 
@@ -53,11 +88,35 @@ struct HTMLMedia: Equatable {
     let aspectRatio: CGFloat?
 }
 
+struct HTMLTable: Equatable {
+    struct Row: Equatable {
+        let cells: [String]
+        let isHeader: Bool
+    }
+    let rows: [Row]
+}
+
 enum HTMLContentParser {
-    private static let mediaPattern = #"(?is)<figure\b[^>]*>.*?</figure\s*>|<iframe\b[^>]*>.*?</iframe\s*>|<video\b[^>]*>.*?</video\s*>|<img\b[^>]*>"#
+    /// Top-level block constructs, matched in document order. Each fragment is
+    /// then classified by its tag name and turned into the matching block.
+    private static let blockPattern = [
+        #"<figure\b[^>]*>.*?</figure\s*>"#,
+        #"<pre\b[^>]*>.*?</pre\s*>"#,
+        #"<blockquote\b[^>]*>.*?</blockquote\s*>"#,
+        #"<table\b[^>]*>.*?</table\s*>"#,
+        #"<h([1-6])\b[^>]*>.*?</h\1\s*>"#,
+        #"<iframe\b[^>]*>.*?</iframe\s*>"#,
+        #"<video\b[^>]*>.*?</video\s*>"#,
+        #"<audio\b[^>]*>.*?</audio\s*>"#,
+        #"<hr\b[^>]*/?>"#,
+        #"<img\b[^>]*>"#,
+    ].joined(separator: "|")
 
     static func parse(_ html: String, baseURL: URL?) -> [HTMLContentBlock] {
-        guard let regex = try? NSRegularExpression(pattern: mediaPattern) else {
+        guard let regex = try? NSRegularExpression(
+            pattern: blockPattern,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else {
             return [.text(html)]
         }
 
@@ -68,10 +127,13 @@ enum HTMLContentParser {
 
         for match in matches {
             guard let range = Range(match.range, in: html) else { continue }
+            // Skip matches that overlap content already consumed (e.g. an <img>
+            // that lives inside a <figure> we already emitted).
+            guard range.lowerBound >= cursor else { continue }
             appendText(String(html[cursor..<range.lowerBound]), to: &blocks)
             let fragment = String(html[range])
-            if let media = mediaBlock(from: fragment, baseURL: baseURL) {
-                blocks.append(media)
+            if let block = classify(fragment, baseURL: baseURL) {
+                blocks.append(block)
             } else {
                 appendText(fragment, to: &blocks)
             }
@@ -82,11 +144,36 @@ enum HTMLContentParser {
         return blocks.isEmpty ? [.text(html)] : blocks
     }
 
+    private static func classify(_ fragment: String, baseURL: URL?) -> HTMLContentBlock? {
+        switch tagName(of: fragment) {
+        case "figure", "img", "video", "iframe", "audio":
+            return mediaBlock(from: fragment, baseURL: baseURL)
+        case "pre":
+            let (code, language) = codeBlock(from: fragment)
+            return code.isEmpty ? nil : .codeBlock(code: code, language: language)
+        case "blockquote":
+            let inner = firstTagContent(named: "blockquote", in: fragment) ?? ""
+            let nested = parse(inner, baseURL: baseURL)
+            return nested.isEmpty ? nil : .blockquote(nested)
+        case "table":
+            let table = tableBlock(from: fragment, baseURL: baseURL)
+            return table.rows.isEmpty ? nil : .table(table)
+        case "h1", "h2", "h3", "h4", "h5", "h6":
+            return headingBlock(from: fragment)
+        case "hr":
+            return .thematicBreak
+        default:
+            return nil
+        }
+    }
+
+    // MARK: Media
+
     private static func mediaBlock(from fragment: String, baseURL: URL?) -> HTMLContentBlock? {
         let caption = firstTagContent(named: "figcaption", in: fragment).flatMap(plainText)
 
         if let tag = firstTag(named: "img", in: fragment),
-           let url = mediaURL(in: tag, names: ["src", "data-src", "data-lazy-src"], baseURL: baseURL) {
+           let url = mediaURL(in: tag, names: ["src", "data-src", "data-lazy-src", "data-original"], baseURL: baseURL) {
             let title = attribute("alt", in: tag).flatMap(decodedText)
             return .image(HTMLMedia(
                 url: url,
@@ -109,6 +196,18 @@ enum HTMLContentParser {
             ))
         }
 
+        if let tag = firstTag(named: "audio", in: fragment),
+           let url = mediaURL(in: tag, names: ["src"], baseURL: baseURL)
+                ?? firstTag(named: "source", in: fragment).flatMap({ mediaURL(in: $0, names: ["src"], baseURL: baseURL) }) {
+            return .audio(HTMLMedia(
+                url: url,
+                title: attribute("title", in: tag).flatMap(decodedText),
+                caption: caption,
+                posterURL: nil,
+                aspectRatio: nil
+            ))
+        }
+
         if let tag = firstTag(named: "iframe", in: fragment),
            let url = mediaURL(in: tag, names: ["src", "data-src"], baseURL: baseURL) {
             return .embed(HTMLMedia(
@@ -123,10 +222,105 @@ enum HTMLContentParser {
         return nil
     }
 
+    // MARK: Heading
+
+    private static func headingBlock(from fragment: String) -> HTMLContentBlock? {
+        let name = tagName(of: fragment)
+        guard name.count == 2, let level = Int(String(name.dropFirst())) else { return nil }
+        let inner = firstTagContent(named: name, in: fragment) ?? fragment
+        guard !plainText(inner).isEmpty else { return nil }
+        return .heading(level: level, html: inner)
+    }
+
+    // MARK: Code
+
+    private static func codeBlock(from fragment: String) -> (String, String?) {
+        var language = firstTag(named: "pre", in: fragment).flatMap(codeLanguage)
+        var inner = firstTagContent(named: "pre", in: fragment) ?? fragment
+
+        if let codeTag = firstTag(named: "code", in: inner) {
+            language = language ?? codeLanguage(in: codeTag)
+        }
+        if let codeInner = firstTagContent(named: "code", in: inner) {
+            inner = codeInner
+        }
+
+        inner = inner.replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "\n", options: .regularExpression)
+        inner = inner.replacingOccurrences(of: #"(?is)</(p|div|li|tr)\s*>"#, with: "\n", options: .regularExpression)
+        inner = inner.replacingOccurrences(of: #"(?is)<[^>]+>"#, with: "", options: .regularExpression)
+        inner = decodeEntities(inner)
+        // Trim only surrounding blank lines; keep internal indentation intact.
+        inner = inner.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (inner, language)
+    }
+
+    private static func codeLanguage(in tag: String) -> String? {
+        guard let cssClass = attribute("class", in: tag) else { return nil }
+        guard let match = firstMatch(pattern: #"(?:language|lang)-([\w+#.-]+)"#, in: cssClass, group: 1) else {
+            return nil
+        }
+        return match
+    }
+
+    // MARK: Table
+
+    private static func tableBlock(from fragment: String, baseURL: URL?) -> HTMLTable {
+        guard let rowRegex = try? NSRegularExpression(
+            pattern: #"<tr\b[^>]*>(.*?)</tr\s*>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else {
+            return HTMLTable(rows: [])
+        }
+
+        let range = NSRange(fragment.startIndex..<fragment.endIndex, in: fragment)
+        var rows: [HTMLTable.Row] = []
+
+        for match in rowRegex.matches(in: fragment, range: range) {
+            guard match.numberOfRanges > 1, let r = Range(match.range(at: 1), in: fragment) else { continue }
+            let rowHTML = String(fragment[r])
+            let (cells, isHeader) = tableCells(from: rowHTML)
+            if !cells.isEmpty {
+                rows.append(HTMLTable.Row(cells: cells, isHeader: isHeader))
+            }
+        }
+        return HTMLTable(rows: rows)
+    }
+
+    private static func tableCells(from rowHTML: String) -> (cells: [String], isHeader: Bool) {
+        guard let cellRegex = try? NSRegularExpression(
+            pattern: #"<(t[dh])\b[^>]*>(.*?)</\1\s*>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else {
+            return ([], false)
+        }
+
+        let range = NSRange(rowHTML.startIndex..<rowHTML.endIndex, in: rowHTML)
+        var cells: [String] = []
+        var headerCount = 0
+
+        for match in cellRegex.matches(in: rowHTML, range: range) {
+            guard match.numberOfRanges > 2,
+                  let tagRange = Range(match.range(at: 1), in: rowHTML),
+                  let contentRange = Range(match.range(at: 2), in: rowHTML) else { continue }
+            if rowHTML[tagRange].lowercased() == "th" { headerCount += 1 }
+            cells.append(String(rowHTML[contentRange]))
+        }
+        // A row is a header row when every cell is a <th>.
+        return (cells, !cells.isEmpty && headerCount == cells.count)
+    }
+
+    // MARK: Text collection
+
     private static func appendText(_ html: String, to blocks: inout [HTMLContentBlock]) {
         guard !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !plainText(html).isEmpty else { return }
         blocks.append(.text(html))
+    }
+
+    // MARK: Tag helpers
+
+    private static func tagName(of fragment: String) -> String {
+        firstMatch(pattern: #"^\s*<\s*([a-zA-Z][a-zA-Z0-9]*)"#, in: fragment, group: 1)?.lowercased() ?? ""
     }
 
     private static func firstTag(named name: String, in html: String) -> String? {
@@ -134,7 +328,7 @@ enum HTMLContentParser {
     }
 
     private static func firstTagContent(named name: String, in html: String) -> String? {
-        guard let match = firstMatch(pattern: "(?is)<\\s*\(name)\\b[^>]*>(.*?)</\\s*\(name)\\s*>", in: html, group: 1) else {
+        guard let match = firstMatch(pattern: "(?is)<\\s*\(name)\\b[^>]*>(.*)</\\s*\(name)\\s*>", in: html, group: 1) else {
             return nil
         }
         return match
@@ -197,17 +391,59 @@ enum HTMLContentParser {
         let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    /// Decodes HTML entities while preserving whitespace and line breaks, so
+    /// code blocks keep their original formatting.
+    private static func decodeEntities(_ value: String) -> String {
+        var result = value
+
+        if let regex = try? NSRegularExpression(pattern: #"&#(x?[0-9a-fA-F]+);"#) {
+            let matches = regex.matches(in: result, range: NSRange(result.startIndex..<result.endIndex, in: result))
+            for match in matches.reversed() {
+                guard let full = Range(match.range, in: result),
+                      let body = Range(match.range(at: 1), in: result) else { continue }
+                let token = String(result[body])
+                let scalarValue: UInt32?
+                if token.first == "x" || token.first == "X" {
+                    scalarValue = UInt32(token.dropFirst(), radix: 16)
+                } else {
+                    scalarValue = UInt32(token, radix: 10)
+                }
+                if let scalarValue, let scalar = Unicode.Scalar(scalarValue) {
+                    result.replaceSubrange(full, with: String(scalar))
+                }
+            }
+        }
+
+        let named = ["&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&apos;": "'", "&nbsp;": " "]
+        for (entity, replacement) in named {
+            result = result.replacingOccurrences(of: entity, with: replacement)
+        }
+        // Decode &amp; last so sequences like &amp;lt; resolve correctly.
+        return result.replacingOccurrences(of: "&amp;", with: "&")
+    }
 }
+
+// MARK: - Media views
 
 private struct NativeArticleImage: View {
     let media: HTMLMedia
+    @State private var isViewerPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             AsyncImage(url: media.url) { phase in
                 switch phase {
                 case .success(let image):
-                    image.resizable().scaledToFit()
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .contentShape(Rectangle())
+                        .onTapGesture { isViewerPresented = true }
+                        .help(String(localized: "Click to zoom", bundle: .module))
+                        #if canImport(AppKit)
+                        .pointerStyle(.zoomIn)
+                        #endif
                 case .failure:
                     NativeMediaLink(media: media, systemImage: "photo", label: String(localized: "Open Image", bundle: .module))
                 default:
@@ -222,6 +458,15 @@ private struct NativeArticleImage: View {
                 Text(caption).font(.caption).foregroundStyle(.secondary)
             }
         }
+        #if canImport(AppKit)
+        .sheet(isPresented: $isViewerPresented) {
+            ImageViewer(media: media, isPresented: $isViewerPresented)
+        }
+        #else
+        .fullScreenCover(isPresented: $isViewerPresented) {
+            ImageViewer(media: media, isPresented: $isViewerPresented)
+        }
+        #endif
     }
 }
 
@@ -244,6 +489,59 @@ private struct NativeArticleVideo: View {
             }
         }
         .onDisappear { player.pause() }
+    }
+}
+
+/// A compact, native audio player: play/pause plus a source label. Avoids the
+/// empty video surface that `VideoPlayer` would show for audio-only media.
+private struct NativeArticleAudio: View {
+    let media: HTMLMedia
+    @State private var player: AVPlayer
+    @State private var isPlaying = false
+
+    init(media: HTMLMedia) {
+        self.media = media
+        _player = State(initialValue: AVPlayer(url: media.url))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Button(action: toggle) {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 30))
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(media.title ?? String(localized: "Audio", bundle: .module))
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    if let host = media.url.host() {
+                        Text(host).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "waveform").foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            if let caption = media.caption {
+                Text(caption).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onDisappear {
+            player.pause()
+            isPlaying = false
+        }
+    }
+
+    private func toggle() {
+        if isPlaying { player.pause() } else { player.play() }
+        isPlaying.toggle()
     }
 }
 
@@ -290,15 +588,244 @@ private struct NativeMediaLink: View {
     }
 }
 
+// MARK: - Image viewer (lightbox)
+
+/// A full-surface photo viewer with pinch/double-tap zoom and drag-to-pan,
+/// mirroring the standard photo-viewing gestures users expect.
+private struct ImageViewer: View {
+    let media: HTMLMedia
+    @Binding var isPresented: Bool
+
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    private let minScale: CGFloat = 1
+    private let maxScale: CGFloat = 6
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.94).ignoresSafeArea()
+
+            AsyncImage(url: media.url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .gesture(magnification)
+                        .simultaneousGesture(scale > 1 ? drag : nil)
+                        .onTapGesture(count: 2) { toggleZoom() }
+                case .failure:
+                    Label(String(localized: "Couldn’t load image", bundle: .module), systemImage: "photo")
+                        .foregroundStyle(.white.opacity(0.8))
+                default:
+                    ProgressView().controlSize(.large).tint(.white)
+                }
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 26))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.white)
+                            .padding(12)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .help(String(localized: "Close", bundle: .module))
+                }
+                Spacer()
+            }
+        }
+        .frame(minWidth: 480, minHeight: 360)
+        #if canImport(AppKit)
+        .frame(idealWidth: 900, idealHeight: 680)
+        #endif
+        .contentShape(Rectangle())
+    }
+
+    private var magnification: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                scale = min(max(lastScale * value, minScale), maxScale)
+            }
+            .onEnded { _ in
+                lastScale = scale
+                if scale <= minScale { resetPan() }
+            }
+    }
+
+    private var drag: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                offset = CGSize(
+                    width: lastOffset.width + value.translation.width,
+                    height: lastOffset.height + value.translation.height
+                )
+            }
+            .onEnded { _ in lastOffset = offset }
+    }
+
+    private func toggleZoom() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if scale > minScale {
+                scale = minScale
+                resetPan()
+            } else {
+                scale = 2.5
+            }
+            lastScale = scale
+        }
+    }
+
+    private func resetPan() {
+        offset = .zero
+        lastOffset = .zero
+    }
+}
+
+// MARK: - Block-level text views
+
+/// A heading rendered natively at a scaled, bold size while keeping inline
+/// formatting (links, emphasis, code) from the source markup.
+private struct NativeArticleHeading: View {
+    let level: Int
+    let html: String
+    let selectable: Bool
+
+    var body: some View {
+        HTMLContentText(html: html, selectable: selectable, baseSize: size, bold: true)
+            .padding(.top, level <= 2 ? 6 : 2)
+    }
+
+    private var size: CGFloat {
+        let base = HTMLContentText.platformBodySize
+        let scale: CGFloat
+        switch level {
+        case 1: scale = 1.7
+        case 2: scale = 1.45
+        case 3: scale = 1.25
+        case 4: scale = 1.1
+        case 5: scale = 1.0
+        default: scale = 0.9
+        }
+        return base * scale
+    }
+}
+
+/// A blockquote: nested native content indented behind an accent bar.
+private struct NativeArticleQuote: View {
+    let blocks: [HTMLContentBlock]
+    let selectable: Bool
+
+    var body: some View {
+        HTMLBlockList(blocks: blocks, selectable: selectable)
+            .padding(.leading, 16)
+            .padding(.vertical, 2)
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.55))
+                    .frame(width: 4)
+            }
+            .foregroundStyle(.secondary)
+    }
+}
+
+/// A preformatted code block: monospaced, boxed, and horizontally scrollable so
+/// long lines don't wrap.
+private struct NativeArticleCode: View {
+    let code: String
+    let language: String?
+    let selectable: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let language, !language.isEmpty {
+                Text(language.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+            }
+            ScrollView(.horizontal, showsIndicators: true) {
+                text
+                    .font(.system(.callout, design: .monospaced))
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.quaternary, lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var text: some View {
+        if selectable {
+            Text(code).textSelection(.enabled)
+        } else {
+            Text(code)
+        }
+    }
+}
+
+/// A table rendered as a native grid with header emphasis and cell borders.
+private struct NativeArticleTable: View {
+    let table: HTMLTable
+    let selectable: Bool
+
+    var body: some View {
+        Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
+            ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
+                GridRow {
+                    ForEach(Array(row.cells.enumerated()), id: \.offset) { _, cell in
+                        cellView(cell, isHeader: row.isHeader)
+                    }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.quaternary, lineWidth: 1)
+        )
+    }
+
+    private func cellView(_ html: String, isHeader: Bool) -> some View {
+        HTMLContentText(html: html, selectable: selectable, bold: isHeader)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isHeader ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(Color.clear))
+            .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
+    }
+}
+
 /// Renders a text-only HTML fragment as native, selectable text.
 public struct HTMLContentText: View {
     let html: String
     let selectable: Bool
+    let baseSize: CGFloat?
+    let bold: Bool
     @State private var attributed: AttributedString?
 
-    public init(html: String, selectable: Bool = true) {
+    public init(html: String, selectable: Bool = true, baseSize: CGFloat? = nil, bold: Bool = false) {
         self.html = html
         self.selectable = selectable
+        self.baseSize = baseSize
+        self.bold = bold
     }
 
     public var body: some View {
@@ -315,10 +842,21 @@ public struct HTMLContentText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: html) { attributed = Self.render(html) }
+        .task(id: renderKey) { attributed = Self.render(html, baseSize: resolvedSize, bold: bold) }
     }
 
-    private static func render(_ html: String) -> AttributedString? {
+    private var resolvedSize: CGFloat { baseSize ?? Self.platformBodySize }
+    private var renderKey: String { "\(resolvedSize)-\(bold)-\(html)" }
+
+    static var platformBodySize: CGFloat {
+        #if canImport(AppKit)
+        NSFont.preferredFont(forTextStyle: .body).pointSize
+        #else
+        UIFont.preferredFont(forTextStyle: .body).pointSize
+        #endif
+    }
+
+    private static func render(_ html: String, baseSize: CGFloat, bold: Bool) -> AttributedString? {
         guard let data = html.data(using: .utf8) else { return nil }
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
             .documentType: NSAttributedString.DocumentType.html,
@@ -328,33 +866,73 @@ public struct HTMLContentText: View {
         let fullRange = NSRange(location: 0, length: mutable.length)
 
         #if canImport(AppKit)
-        let baseSize = NSFont.preferredFont(forTextStyle: .body).pointSize
         mutable.enumerateAttribute(.font, in: fullRange) { value, range, _ in
-            let existingTraits = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+            let existing = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+            let isMono = existing.contains(.monoSpace)
             var traits: NSFontDescriptor.SymbolicTraits = []
-            if existingTraits.contains(.bold) { traits.insert(.bold) }
-            if existingTraits.contains(.italic) { traits.insert(.italic) }
-            let descriptor = NSFont.systemFont(ofSize: baseSize).fontDescriptor.withSymbolicTraits(traits)
-            mutable.addAttribute(.font, value: NSFont(descriptor: descriptor, size: baseSize) ?? NSFont.systemFont(ofSize: baseSize), range: range)
+            if existing.contains(.bold) || bold { traits.insert(.bold) }
+            if existing.contains(.italic) { traits.insert(.italic) }
+
+            let font: NSFont
+            if isMono {
+                let weight: NSFont.Weight = traits.contains(.bold) ? .semibold : .regular
+                font = NSFont.monospacedSystemFont(ofSize: baseSize, weight: weight)
+            } else {
+                let descriptor = NSFont.systemFont(ofSize: baseSize).fontDescriptor.withSymbolicTraits(traits)
+                font = NSFont(descriptor: descriptor, size: baseSize) ?? NSFont.systemFont(ofSize: baseSize)
+            }
+            mutable.addAttribute(.font, value: font, range: range)
         }
-        mutable.enumerateAttribute(.link, in: fullRange) { link, range, _ in
-            if link == nil { mutable.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range) }
-        }
+        styleLinks(mutable, fullRange: fullRange, linkColor: NSColor.controlAccentColor, plainColor: NSColor.labelColor)
         return try? AttributedString(mutable, including: \.appKit)
         #else
-        let baseSize = UIFont.preferredFont(forTextStyle: .body).pointSize
         mutable.enumerateAttribute(.font, in: fullRange) { value, range, _ in
-            let existingTraits = (value as? UIFont)?.fontDescriptor.symbolicTraits ?? []
+            let existing = (value as? UIFont)?.fontDescriptor.symbolicTraits ?? []
+            let isMono = existing.contains(.traitMonoSpace)
             var traits: UIFontDescriptor.SymbolicTraits = []
-            if existingTraits.contains(.traitBold) { traits.insert(.traitBold) }
-            if existingTraits.contains(.traitItalic) { traits.insert(.traitItalic) }
-            let base = UIFont.systemFont(ofSize: baseSize)
-            mutable.addAttribute(.font, value: UIFont(descriptor: base.fontDescriptor.withSymbolicTraits(traits) ?? base.fontDescriptor, size: baseSize), range: range)
+            if existing.contains(.traitBold) || bold { traits.insert(.traitBold) }
+            if existing.contains(.traitItalic) { traits.insert(.traitItalic) }
+
+            let font: UIFont
+            if isMono {
+                let weight: UIFont.Weight = traits.contains(.traitBold) ? .semibold : .regular
+                font = UIFont.monospacedSystemFont(ofSize: baseSize, weight: weight)
+            } else {
+                let base = UIFont.systemFont(ofSize: baseSize)
+                font = UIFont(descriptor: base.fontDescriptor.withSymbolicTraits(traits) ?? base.fontDescriptor, size: baseSize)
+            }
+            mutable.addAttribute(.font, value: font, range: range)
         }
-        mutable.enumerateAttribute(.link, in: fullRange) { link, range, _ in
-            if link == nil { mutable.addAttribute(.foregroundColor, value: UIColor.label, range: range) }
-        }
+        styleLinks(mutable, fullRange: fullRange, linkColor: UIColor.tintColor, plainColor: UIColor.label)
         return try? AttributedString(mutable, including: \.uiKit)
         #endif
     }
+
+    #if canImport(AppKit)
+    private static func styleLinks(_ mutable: NSMutableAttributedString, fullRange: NSRange, linkColor: NSColor, plainColor: NSColor) {
+        mutable.enumerateAttribute(.link, in: fullRange) { link, range, _ in
+            if link == nil {
+                mutable.addAttribute(.foregroundColor, value: plainColor, range: range)
+            } else {
+                // Theme-aware accent plus a soft underline so links read clearly
+                // in both light and dark appearances without being harsh.
+                mutable.addAttribute(.foregroundColor, value: linkColor, range: range)
+                mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+                mutable.addAttribute(.underlineColor, value: linkColor.withAlphaComponent(0.4), range: range)
+            }
+        }
+    }
+    #else
+    private static func styleLinks(_ mutable: NSMutableAttributedString, fullRange: NSRange, linkColor: UIColor, plainColor: UIColor) {
+        mutable.enumerateAttribute(.link, in: fullRange) { link, range, _ in
+            if link == nil {
+                mutable.addAttribute(.foregroundColor, value: plainColor, range: range)
+            } else {
+                mutable.addAttribute(.foregroundColor, value: linkColor, range: range)
+                mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+                mutable.addAttribute(.underlineColor, value: linkColor.withAlphaComponent(0.4), range: range)
+            }
+        }
+    }
+    #endif
 }
