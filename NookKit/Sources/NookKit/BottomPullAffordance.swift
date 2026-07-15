@@ -10,6 +10,7 @@ import SwiftUI
 /// way the indicator reads.
 public struct BottomPullAffordance: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pullDirection: PullDirection = .forward
 
     /// The primary action: pull a little past this to open the next article.
     public static let nextThreshold: CGFloat = 80
@@ -30,6 +31,8 @@ public struct BottomPullAffordance: View {
         case next
         case close
     }
+
+    private enum PullDirection: Equatable { case forward, backward }
 
     private var stage: Stage {
         if pull >= Self.closeThreshold { return .close }
@@ -55,8 +58,8 @@ public struct BottomPullAffordance: View {
         }
         .frame(height: 82)
         .clipped()
-        // Presentation is itself spring-driven. Pull distance only chooses a
-        // discrete slot; it no longer directly scrubs visual opacity/position.
+        // Presentation is spring-driven. Within a stage, pull distance only
+        // draws the incoming neighbour closer; the selected cell stays fixed.
         .scaleEffect(isPresented ? 1 : 0.86, anchor: .bottom)
         .offset(y: isPresented ? 0 : 38)
         .opacity(isPresented ? 1 : 0)
@@ -64,8 +67,11 @@ public struct BottomPullAffordance: View {
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, alignment: .center)
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .interpolatingSpring(
-            mass: 0.82, stiffness: 245, damping: 19, initialVelocity: 0
+            mass: 0.9, stiffness: 230, damping: 15.5, initialVelocity: 0
         ), value: stage)
+        .animation(reduceMotion ? nil : .interpolatingSpring(
+            mass: 0.55, stiffness: 260, damping: 23, initialVelocity: 0
+        ), value: pullDirection)
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .interpolatingSpring(
             mass: 0.7, stiffness: 260, damping: 22, initialVelocity: 0
         ), value: isPresented)
@@ -84,17 +90,31 @@ public struct BottomPullAffordance: View {
             newTick > oldTick ? .selection : nil
         }
         #endif
+        .onChange(of: pull) { oldValue, newValue in
+            guard abs(newValue - oldValue) > 0.2 else { return }
+            pullDirection = newValue >= oldValue ? .forward : .backward
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
         .allowsHitTesting(false)
     }
 
-    /// Positions every card on the same cylindrical reel. Only `stage` changes
-    /// the target position, so SwiftUI's spring carries velocity and overshoot
-    /// across a threshold instead of the scroll offset scrubbing every frame.
+    /// Positions every card on the same cylindrical reel. The neighbour in the
+    /// scroll direction approaches partway with the gesture, but the active card
+    /// does not budge. At a threshold `stage` changes and the low-damping spring
+    /// takes over from the gesture, letting the incoming card push through the
+    /// centre with carried velocity and settle elastically.
     private func reelItem<Content: View>(_ item: Stage, @ViewBuilder content: () -> Content) -> some View {
-        let distance = CGFloat(item.rawValue - stage.rawValue)
+        let slotDistance = CGFloat(item.rawValue - stage.rawValue)
         let isSelected = item == stage
+        let approach = approachProgress(for: item)
+        let travel: CGFloat = reduceMotion ? 0.14 : 0.38
+        let distance = slotDistance == 0
+            ? 0
+            : slotDistance.sign == .minus
+                ? slotDistance + travel * approach
+                : slotDistance - travel * approach
+        let isNeighbour = abs(slotDistance) == 1
         return content()
             .rotation3DEffect(
                 .degrees(reduceMotion ? 0 : Double(distance * -52)),
@@ -102,12 +122,29 @@ public struct BottomPullAffordance: View {
                 anchor: distance > 0 ? .top : .bottom,
                 perspective: 0.58
             )
-            .scaleEffect(isSelected ? 1 : 0.84)
+            .scaleEffect(isSelected ? 1 : 0.82 + 0.1 * approach)
             .offset(y: distance * 54)
-            // The release target is invariantly solid. Only neighbouring reel
-            // cells are de-emphasised, and that value is discrete—not scrubbed.
-            .opacity(isSelected ? 1 : (abs(distance) == 1 ? 0.38 : 0))
+            // The release target is invariantly solid. The incoming neighbour
+            // may gain emphasis as it approaches, but never at its expense.
+            .opacity(isSelected ? 1 : (isNeighbour ? 0.32 + 0.26 * approach : 0))
             .zIndex(isSelected ? 2 : 1)
+    }
+
+    /// Gesture-controlled pre-travel. It deliberately stops well short of the
+    /// centre; crossing the boundary is always completed by the stage spring.
+    private func approachProgress(for item: Stage) -> CGFloat {
+        switch (stage, item) {
+        case (.hint, .next):
+            return clamp01(pull / Self.nextThreshold)
+        case (.next, .close) where pullDirection == .forward:
+            return clamp01((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
+        case (.next, .hint) where pullDirection == .backward:
+            return 1 - clamp01((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
+        case (.close, .next):
+            return 1 - clamp01((pull - Self.closeThreshold) / 50)
+        default:
+            return 0
+        }
     }
 
     private var hintCard: some View {
@@ -155,6 +192,8 @@ public struct BottomPullAffordance: View {
             .padding(.vertical, 12)
             .modifier(GlassPill())
     }
+
+    private func clamp01(_ value: CGFloat) -> CGFloat { max(0, min(1, value)) }
 }
 
 /// A capsule background using the system Liquid Glass material where available,
