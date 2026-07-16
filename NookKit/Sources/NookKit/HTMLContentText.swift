@@ -473,23 +473,58 @@ private struct NativeArticleImage: View {
 
 private struct NativeArticleVideo: View {
     let media: HTMLMedia
-    @State private var player: AVPlayer
-
-    init(media: HTMLMedia) {
-        self.media = media
-        _player = State(initialValue: AVPlayer(url: media.url))
-    }
+    // Built lazily on tap, never in the view initializer: creating an `AVPlayer`
+    // and realizing `VideoPlayer` synchronously during view construction (this
+    // list isn't lazy, so every block builds the instant an article opens) is the
+    // same heavyweight-work-on-the-build-path pitfall already fixed for the text
+    // importer. Deferring it also honors the source's `preload="none"`.
+    @State private var player: AVPlayer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            VideoPlayer(player: player)
-                .aspectRatio(media.aspectRatio ?? (16 / 9), contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Group {
+                if let player {
+                    VideoPlayer(player: player)
+                } else {
+                    poster
+                }
+            }
+            .aspectRatio(media.aspectRatio ?? (16 / 9), contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             if let caption = media.caption {
                 Text(caption).font(.caption).foregroundStyle(.secondary)
             }
         }
-        .onDisappear { player.pause() }
+        .onDisappear { player?.pause() }
+    }
+
+    /// Poster (or a neutral fill) with a play button; tapping loads the player.
+    private var poster: some View {
+        ZStack {
+            if let posterURL = media.posterURL {
+                AsyncImage(url: posterURL) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    Rectangle().fill(.quaternary)
+                }
+            } else {
+                Rectangle().fill(.quaternary)
+            }
+            Image(systemName: "play.circle.fill")
+                .font(.system(size: 48))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.white)
+                .shadow(radius: 6)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            let created = AVPlayer(url: media.url)
+            player = created
+            created.play()
+        }
+        #if canImport(AppKit)
+        .pointerStyle(.link)
+        #endif
     }
 }
 
