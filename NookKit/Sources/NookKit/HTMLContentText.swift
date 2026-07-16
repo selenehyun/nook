@@ -381,20 +381,19 @@ enum HTMLContentParser {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    /// Decodes entities in a short, tag-free value (an attribute or an already
+    /// tag-stripped fragment). Deliberately avoids the `NSAttributedString` HTML
+    /// importer: on iOS that importer spins a nested run loop and aborts when
+    /// called during SwiftUI view construction, which is where parsing runs.
     private static func decodedText(_ value: String) -> String? {
-        guard !value.isEmpty, let data = value.data(using: .utf8),
-              let decoded = try? NSAttributedString(
-                data: data,
-                options: [.documentType: NSAttributedString.DocumentType.html, .characterEncoding: String.Encoding.utf8.rawValue],
-                documentAttributes: nil
-              ).string else { return value.isEmpty ? nil : value }
-        let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        let trimmed = decodeEntities(value).trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Decodes HTML entities while preserving whitespace and line breaks, so
     /// code blocks keep their original formatting.
-    private static func decodeEntities(_ value: String) -> String {
+    static func decodeEntities(_ value: String) -> String {
         var result = value
 
         if let regex = try? NSRegularExpression(pattern: #"&#(x?[0-9a-fA-F]+);"#) {
@@ -1225,7 +1224,20 @@ public struct HTMLContentText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: renderKey) { attributed = Self.render(html, baseSize: resolvedSize, bold: bold) }
+        .task(id: renderKey) {
+            // Falls back to plain text if the HTML importer yields nothing, so a
+            // failed import shows content instead of an endless spinner.
+            attributed = Self.render(html, baseSize: resolvedSize, bold: bold)
+                ?? AttributedString(Self.plainText(html))
+        }
+    }
+
+    /// Tag-stripped, entity-decoded plain text — the importer-free fallback.
+    private static func plainText(_ html: String) -> String {
+        let stripped = html.replacingOccurrences(of: #"(?is)<[^>]+>"#, with: " ", options: .regularExpression)
+        return HTMLContentParser.decodeEntities(stripped)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var resolvedSize: CGFloat { baseSize ?? Self.platformBodySize }
