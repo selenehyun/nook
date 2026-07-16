@@ -50,6 +50,46 @@ struct RSSFeedServiceTests {
         #expect(parsed.articles.map(\.title) == ["Hello"])
     }
 
+    @Test("Items without a date keep feed order via distinct fallback timestamps")
+    func datelessItemsPreserveOrder() async throws {
+        let feedURL = URL(string: "https://example.com/feed")!
+        final class MockURLProtocol: URLProtocol {
+            nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+            override class func canInit(with request: URLRequest) -> Bool { true }
+            override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+            override func startLoading() {
+                guard let handler = Self.handler else {
+                    client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+                    return
+                }
+                do {
+                    let (response, data) = try handler(request)
+                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                    client?.urlProtocol(self, didLoad: data)
+                    client?.urlProtocolDidFinishLoading(self)
+                } catch {
+                    client?.urlProtocol(self, didFailWithError: error)
+                }
+            }
+            override func stopLoading() {}
+        }
+
+        MockURLProtocol.handler = { _ in
+            response(url: feedURL, status: 200, body: datelessRSSXML(feedURL: feedURL))
+        }
+
+        let service = makeService(using: MockURLProtocol.self)
+        let parsed = try await service.fetch(url: feedURL)
+
+        // Feed order is preserved (top item first)…
+        #expect(parsed.articles.map(\.title) == ["First", "Second", "Third"])
+        // …and each gets a distinct, strictly-decreasing timestamp so the list
+        // sorts newest-first instead of collapsing to one instant or reshuffling.
+        let dates = parsed.articles.map(\.publishedAt)
+        #expect(dates[0] > dates[1])
+        #expect(dates[1] > dates[2])
+    }
+
     @Test("Common RSS path variants are probed when the page itself is not a feed")
     func discoversCommonFeedVariants() async throws {
         let scenarios: [(page: URL, feed: URL)] = [
@@ -149,6 +189,23 @@ private extension RSSFeedServiceTests {
               <description>Hi</description>
               <pubDate>Tue, 11 Jul 2023 10:00:00 GMT</pubDate>
             </item>
+          </channel>
+        </rss>
+        """
+    }
+
+    func datelessRSSXML(feedURL: URL) -> String {
+        // Mirrors feeds like developers.googleblog.com: items carry no pubDate.
+        """
+        <?xml version="1.0" encoding="utf-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Dateless</title>
+            <link>\(feedURL.absoluteString)</link>
+            <description>No item dates</description>
+            <item><title>First</title><link>https://example.com/1</link><guid>g1</guid><description>a</description></item>
+            <item><title>Second</title><link>https://example.com/2</link><guid>g2</guid><description>b</description></item>
+            <item><title>Third</title><link>https://example.com/3</link><guid>g3</guid><description>c</description></item>
           </channel>
         </rss>
         """

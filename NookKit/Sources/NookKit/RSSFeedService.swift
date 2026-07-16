@@ -364,10 +364,17 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
             lastFetchedAt: Date.now
         )
 
-        let articles = articleDrafts.compactMap { draft -> Article? in
+        // Base time for items that ship no parseable date. Offsetting by feed
+        // position keeps the feed's own newest-first order on first fetch (item 0
+        // newest); the store then pins each such article's timestamp on first
+        // sight so later refreshes don't restamp and reshuffle it.
+        let fallbackBase = Date.now
+        let articles = articleDrafts.enumerated().compactMap { index, draft -> Article? in
             let title = draft.title.cleanedFeedText(fallback: "Untitled")
             let linkURL = resolvedURL(from: draft.link, fallback: siteURL)
-            let publishedAt = FeedDateParser.date(from: draft.published) ?? FeedDateParser.date(from: draft.updated) ?? Date.now
+            let publishedAt = FeedDateParser.date(from: draft.published)
+                ?? FeedDateParser.date(from: draft.updated)
+                ?? fallbackBase.addingTimeInterval(-Double(index))
             let summary = draft.summary.cleanedFeedText()
             let contentText = draft.content.cleanedFeedText(fallback: summary.isEmpty ? title : summary)
             let paragraphs = contentText.paragraphsForReader()
