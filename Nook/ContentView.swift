@@ -1,4 +1,5 @@
 import AppKit
+import NaturalLanguage
 import NookKit
 import Observation
 import SwiftUI
@@ -1571,6 +1572,101 @@ private struct ReaderDetailView: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+
+    // Translation (Apple Intelligence). Rich (contentHTML) articles stream an
+    // in-place translation preserving markup; plain-body articles fall back to a
+    // whole-body translation.
+    @State private var nativeTranslator = NativeArticleTranslator()
+    @State private var detectedLanguage: String?
+    @State private var translatedTitle: String?
+    @State private var translatedBody: [String]?
+    @State private var isTranslated = false
+    @State private var isTranslating = false
+
+    private var targetLanguage: Locale.Language {
+        (appLanguage == .system ? Locale.current : appLanguage.locale).language
+    }
+
+    private var targetLanguageName: String {
+        let code = targetLanguage.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+    }
+
+    /// Only offer translation when the article's language differs from the target
+    /// and Apple Intelligence can run.
+    private func canTranslate(_ article: Article) -> Bool {
+        guard NaturalTranslator.isAvailable,
+              let detected = detectedLanguage,
+              let target = targetLanguage.languageCode?.identifier else { return false }
+        return detected != target
+    }
+
+    private static func detectLanguage(for article: Article) -> String? {
+        let sample = (article.bodyParagraphs.prefix(4).joined(separator: " ") + " " + article.title)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sample.isEmpty else { return nil }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(sample)
+        return recognizer.dominantLanguage?.rawValue
+    }
+
+    private func translationActive(_ article: Article) -> Bool {
+        article.contentHTML != nil ? nativeTranslator.isActive : isTranslated
+    }
+
+    private var translationBusy: Bool {
+        nativeTranslator.isTranslating || isTranslating
+    }
+
+    private func displayTitle(_ article: Article) -> String {
+        if article.contentHTML != nil {
+            return nativeTranslator.isActive ? (nativeTranslator.translatedTitle ?? article.title) : article.title
+        }
+        return isTranslated ? (translatedTitle ?? article.title) : article.title
+    }
+
+    /// Toggles translation: rich articles stream in place; plain-body articles
+    /// translate the whole body once. A length guard keeps an "answered"
+    /// imperative title from replacing the real one.
+    private func toggleTranslation(_ article: Article) {
+        if let html = article.contentHTML {
+            if nativeTranslator.isActive {
+                nativeTranslator.stop()
+            } else if NaturalTranslator.isAvailable {
+                nativeTranslator.start(html: html, baseURL: article.url, title: article.title, into: targetLanguageName)
+            }
+            return
+        }
+
+        if isTranslated {
+            isTranslated = false
+            return
+        }
+        if translatedBody != nil {
+            isTranslated = true
+            return
+        }
+        guard NaturalTranslator.isAvailable else { return }
+        isTranslating = true
+        let body = article.bodyParagraphs
+        let title = article.title
+        let language = targetLanguageName
+        Task {
+            defer { isTranslating = false }
+            guard
+                let titleText = try? await NaturalTranslator.translate(title, into: language),
+                let bodyText = try? await NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language)
+            else { return }
+            let cleanedTitle = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+            translatedTitle = cleanedTitle.count <= max(120, title.count * 4) ? cleanedTitle : title
+            translatedBody = bodyText
+                .components(separatedBy: "\n\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            isTranslated = true
+        }
+    }
 
     var body: some View {
         baseContent
@@ -1603,7 +1699,16 @@ private struct ReaderDetailView: View {
                 Divider()
 
                 if let html = article.contentHTML {
-                    HTMLContentView(html: html, baseURL: article.url)
+                    HTMLContentView(html: html, baseURL: article.url, translator: nativeTranslator)
+                } else if isTranslated, let translatedBody {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
+                            Text(paragraph)
+                                .font(.body)
+                                .lineSpacing(4)
+                                .textSelection(.enabled)
+                        }
+                    }
                 } else {
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(article.bodyParagraphs, id: \.self) { paragraph in
@@ -1635,7 +1740,20 @@ private struct ReaderDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
+        .overlay(alignment: .top) {
+            if translationBusy {
+                TranslationBanner()
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .task(id: article.id) {
+            // Reset any prior translation and re-detect the language so the
+            // Translate action is offered only when it differs from the target.
+            nativeTranslator.stop()
+            isTranslated = false
+            translatedTitle = nil
+            translatedBody = nil
+            detectedLanguage = Self.detectLanguage(for: article)
             await markReadAfterDwell(article)
         }
     }
@@ -1707,7 +1825,7 @@ private struct ReaderDetailView: View {
                     }
                 }
             } label: {
-                Text(article.title)
+                Text(displayTitle(article))
                     .font(.system(.largeTitle, design: .serif))
                     .fontWeight(.semibold)
                     .lineLimit(nil)
@@ -1716,6 +1834,12 @@ private struct ReaderDetailView: View {
             }
             .buttonStyle(ReaderTitleButtonStyle())
             .help("Open in Reader — ⌘-click to open in browser")
+
+            if translationActive(article) {
+                Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if shouldShowSummary(article) {
                 Text(article.summary)
@@ -1730,9 +1854,37 @@ private struct ReaderDetailView: View {
                 } label: {
                     Label(article.isStarred ? "Starred" : "Star", systemImage: article.isStarred ? "star.fill" : "star")
                 }
+
+                if canTranslate(article) {
+                    Button {
+                        toggleTranslation(article)
+                    } label: {
+                        Label(
+                            translationActive(article) ? "Show Original" : "Translate",
+                            systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
+                        )
+                    }
+                    .disabled(translationBusy)
+                }
             }
             .buttonStyle(.bordered)
         }
+    }
+}
+
+/// A small banner shown while an article translation streams in.
+private struct TranslationBanner: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Translating…")
+                .font(.callout)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        .padding(.top, 12)
     }
 }
 
