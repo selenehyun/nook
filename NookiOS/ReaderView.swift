@@ -44,6 +44,10 @@ struct ReaderDetailView: View {
     @State private var translatedBody: [String]?
     @State private var isTranslated = false
     @State private var isTranslating = false
+    /// Streaming in-place translator for the rich (contentHTML) reader: it swaps
+    /// each block's text as it arrives while preserving markup. The legacy
+    /// `translatedBody` path above still handles plain-paragraph-only articles.
+    @State private var nativeTranslator = NativeArticleTranslator()
 
     /// The language to translate into: the app's chosen language, or the system
     /// language when set to "System".
@@ -58,6 +62,27 @@ struct ReaderDetailView: View {
         guard let detected = detectedLanguage,
               let target = targetLanguage.languageCode?.identifier else { return false }
         return detected != target
+    }
+
+    /// Whether the currently-selected article is showing a translation. Rich
+    /// (contentHTML) articles use the streaming native translator; others use the
+    /// legacy plain-body path.
+    private func translationActive(_ article: Article) -> Bool {
+        article.contentHTML != nil ? nativeTranslator.isActive : isTranslated
+    }
+
+    /// Whether a translation is in progress (either path).
+    private var translationBusy: Bool {
+        nativeTranslator.isTranslating || isTranslating
+    }
+
+    /// The title to show: the streamed translation for rich articles, the legacy
+    /// translated title otherwise, else the original.
+    private func displayTitle(_ article: Article) -> String {
+        if article.contentHTML != nil {
+            return nativeTranslator.isActive ? (nativeTranslator.translatedTitle ?? article.title) : article.title
+        }
+        return isTranslated ? (translatedTitle ?? article.title) : article.title
     }
 
     private var readerStyle: ReaderStyle {
@@ -99,7 +124,12 @@ struct ReaderDetailView: View {
                     header(article)
                     Divider()
 
-                    if isTranslated, let translatedBody {
+                    if let html = article.contentHTML {
+                        // Text selection is disabled so the double-tap /
+                        // long-press gestures below own the body. The translator
+                        // streams translated blocks in place when active.
+                        HTMLContentView(html: html, baseURL: article.url, selectable: false, translator: nativeTranslator)
+                    } else if isTranslated, let translatedBody {
                         VStack(alignment: .leading, spacing: 14) {
                             ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
                                 Text(paragraph)
@@ -108,10 +138,6 @@ struct ReaderDetailView: View {
                                     .textSelection(.enabled)
                             }
                         }
-                    } else if let html = article.contentHTML {
-                        // Text selection is disabled so the double-tap /
-                        // long-press gestures below own the body.
-                        HTMLContentView(html: html, baseURL: article.url, selectable: false)
                     } else {
                         VStack(alignment: .leading, spacing: 14) {
                             ForEach(article.bodyParagraphs, id: \.self) { paragraph in
@@ -167,11 +193,11 @@ struct ReaderDetailView: View {
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .top) {
-            if isTranslating {
+            if translationBusy {
                 TranslationProgressBanner()
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isTranslating)
+        .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
@@ -198,16 +224,16 @@ struct ReaderDetailView: View {
                         Button {
                             toggleTranslation(article)
                         } label: {
-                            if isTranslating {
+                            if translationBusy {
                                 Label("Translating…", systemImage: "character.bubble")
                             } else {
                                 Label(
-                                    isTranslated ? "Show Original" : "Translate",
-                                    systemImage: isTranslated ? "character.bubble.fill" : "character.bubble"
+                                    translationActive(article) ? "Show Original" : "Translate",
+                                    systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
                                 )
                             }
                         }
-                        .disabled(isTranslating)
+                        .disabled(translationBusy)
                     }
                     ShareLink(item: article.url) {
                         Label("Share", systemImage: "square.and.arrow.up")
@@ -227,6 +253,7 @@ struct ReaderDetailView: View {
             isTranslated = false
             translatedTitle = nil
             translatedBody = nil
+            nativeTranslator.stop()
             detectedLanguage = Self.detectLanguage(for: article)
         }
         .translationPresentation(
@@ -265,11 +292,11 @@ struct ReaderDetailView: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
-            Text(isTranslated ? (translatedTitle ?? article.title) : article.title)
+            Text(displayTitle(article))
                 .font(.title.bold())
                 .textSelection(.enabled)
 
-            if isTranslated {
+            if translationActive(article) {
                 Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -331,6 +358,21 @@ struct ReaderDetailView: View {
     /// translation when available; otherwise presents the system Translation
     /// overlay as a fallback.
     private func toggleTranslation(_ article: Article) {
+        // Rich articles translate in place, block by block, preserving markup.
+        if let html = article.contentHTML {
+            if nativeTranslator.isActive {
+                nativeTranslator.stop()
+            } else if NaturalTranslator.isAvailable {
+                nativeTranslator.start(
+                    html: html, baseURL: article.url, title: article.title, into: targetLanguageName
+                )
+            } else {
+                isShowingTranslation = true
+            }
+            return
+        }
+
+        // Plain-paragraph articles: legacy whole-body translation.
         if isTranslated {
             isTranslated = false
             return

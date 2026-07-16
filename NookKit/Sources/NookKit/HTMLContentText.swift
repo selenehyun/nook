@@ -14,14 +14,21 @@ import UIKit
 public struct HTMLContentView: View {
     private let blocks: [HTMLContentBlock]
     private let selectable: Bool
+    private var translator: NativeArticleTranslator?
 
-    public init(html: String, baseURL: URL? = nil, selectable: Bool = true) {
+    public init(
+        html: String,
+        baseURL: URL? = nil,
+        selectable: Bool = true,
+        translator: NativeArticleTranslator? = nil
+    ) {
         blocks = HTMLContentParser.parse(html, baseURL: baseURL)
         self.selectable = selectable
+        self.translator = translator
     }
 
     public var body: some View {
-        HTMLBlockList(blocks: blocks, selectable: selectable)
+        HTMLBlockList(blocks: blocks, selectable: selectable, translator: translator)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -31,11 +38,15 @@ public struct HTMLContentView: View {
 struct HTMLBlockList: View {
     let blocks: [HTMLContentBlock]
     let selectable: Bool
+    /// When set (top-level list only), each block is replaced by its streamed
+    /// translation as it arrives; nested lists don't take a translator because a
+    /// translated blockquote already carries its translated children.
+    var translator: NativeArticleTranslator?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                blockView(block)
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+                blockView(translator?.translatedBlock(at: index) ?? block)
             }
         }
     }
