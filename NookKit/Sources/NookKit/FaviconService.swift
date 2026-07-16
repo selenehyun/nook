@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 #if canImport(AppKit)
 import AppKit
 #elseif canImport(UIKit)
@@ -51,13 +52,30 @@ public struct FaviconService: Sendable {
             }
         }
 
-        // Fall back to icons declared in the page <head>.
-        for candidate in await discoverIconURLs(from: siteURL) {
-            if case .success(let data) = await downloadIcon(from: candidate) {
-                return data
+        // Fall back to icons declared in a page's <head>. Check the site homepage
+        // first — that's where icons are usually declared, and a feed's own
+        // site URL is often a non-HTML endpoint (e.g. `/rss/`) with no <head>.
+        for page in discoveryPages(for: siteURL) {
+            for candidate in await discoverIconURLs(from: page) {
+                if case .success(let data) = await downloadIcon(from: candidate) {
+                    return data
+                }
             }
         }
         return nil
+    }
+
+    /// Pages to scan for `<link rel="icon">`, homepage first, deduplicated.
+    private func discoveryPages(for siteURL: URL) -> [URL] {
+        var pages: [URL] = []
+        if let scheme = siteURL.scheme, let host = siteURL.host(percentEncoded: false),
+           let root = URL(string: "\(scheme)://\(host)/") {
+            pages.append(root)
+        }
+        if !pages.contains(where: { $0 == siteURL }) {
+            pages.append(siteURL)
+        }
+        return pages
     }
 
     private func wellKnownIconURLs(for siteURL: URL) -> [URL] {
@@ -102,11 +120,8 @@ public struct FaviconService: Sendable {
                 return .notFound
             }
 
-            guard let image = PlatformImage(data: data), image.size.width > 0, image.size.height > 0 else {
-                return .notFound
-            }
-
-            return .success(data)
+            guard let usable = Self.decodableIconData(data) else { return .notFound }
+            return .success(usable)
         } catch let error as URLError {
             switch error.code {
             case .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
@@ -118,6 +133,30 @@ public struct FaviconService: Sendable {
         } catch {
             return .notFound
         }
+    }
+
+    /// Returns icon bytes the app can actually render. If the platform image
+    /// type already decodes them (e.g. PNG/JPEG anywhere, ICO on macOS), the
+    /// original bytes are kept. Otherwise ImageIO decodes them (it handles ICO on
+    /// iOS, which `UIImage` does not) and they're re-encoded as PNG so both the
+    /// validation here and later display succeed. `nil` when nothing can decode
+    /// it (e.g. SVG).
+    static func decodableIconData(_ data: Data) -> Data? {
+        if let image = PlatformImage(data: data), image.size.width > 0, image.size.height > 0 {
+            return data
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) > 0,
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            return nil
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.png" as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(destination, cgImage, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
     }
 
     /// Extracts `href` values from `<link rel="…icon…">` tags, ordered so that
