@@ -920,11 +920,23 @@ public final class ReaderStore {
         public let newArticleCount: Int
         public let sampleTitles: [String]
         public let articleIDs: [Article.ID]
+        /// The value the app-icon badge should show — total unread (or 0 when the
+        /// unread-badge preference is off). The delivered notification carries
+        /// this so the badge reflects *all* unread articles, not just how many
+        /// arrived this run, and stays correct even on a cold background launch
+        /// where the store's badge callback isn't wired up.
+        public let badgeCount: Int
 
-        public init(newArticleCount: Int, sampleTitles: [String], articleIDs: [Article.ID] = []) {
+        public init(
+            newArticleCount: Int,
+            sampleTitles: [String],
+            articleIDs: [Article.ID] = [],
+            badgeCount: Int = 0
+        ) {
             self.newArticleCount = newArticleCount
             self.sampleTitles = sampleTitles
             self.articleIDs = articleIDs
+            self.badgeCount = badgeCount
         }
     }
 
@@ -967,7 +979,8 @@ public final class ReaderStore {
         return BackgroundRefreshResult(
             newArticleCount: fresh.count,
             sampleTitles: sorted.prefix(3).map(\.title),
-            articleIDs: fresh.map(\.id)
+            articleIDs: fresh.map(\.id),
+            badgeCount: showsUnreadBadge ? totalUnreadCount : 0
         )
     }
 

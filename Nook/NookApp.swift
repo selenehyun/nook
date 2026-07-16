@@ -129,7 +129,7 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
             await NewArticleNotifier.post(
                 title: String(localized: "New in Nook"),
                 body: Self.notificationBody(for: result),
-                badge: result.newArticleCount
+                badge: result.badgeCount
             )
             store.markNotificationsDelivered(result.articleIDs)
         }

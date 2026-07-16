@@ -84,7 +84,7 @@ enum BackgroundRefresh {
         await NewArticleNotifier.post(
             title: String(localized: "New in Nook"),
             body: body(for: result),
-            badge: result.newArticleCount
+            badge: result.badgeCount
         )
     }
 
