@@ -164,6 +164,12 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
     /// The item's content as HTML when the feed declares (or ships) HTML, so
     /// the reader can render it richly. `nil` for plain-text content.
     public var contentHTML: String?
+    /// Whether the feed actually supplied a parseable publish/updated date for
+    /// this item. `false` means `publishedAt` is a synthetic first-seen stamp.
+    /// Transient (set by the parser, not persisted): on refresh it tells `merge`
+    /// to keep the fresh authoritative date for dated feeds — self-correcting a
+    /// previously wrong value — while preserving the stamp for dateless ones.
+    public var hasExplicitPublishDate: Bool = true
 
     public init(
         id: String,
@@ -176,7 +182,8 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
         estimatedReadMinutes: Int,
         isRead: Bool,
         isStarred: Bool,
-        contentHTML: String? = nil
+        contentHTML: String? = nil,
+        hasExplicitPublishDate: Bool = true
     ) {
         self.id = id
         self.feedID = feedID
@@ -189,6 +196,7 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
         self.isRead = isRead
         self.isStarred = isStarred
         self.contentHTML = contentHTML
+        self.hasExplicitPublishDate = hasExplicitPublishDate
     }
 
     enum CodingKeys: String, CodingKey {

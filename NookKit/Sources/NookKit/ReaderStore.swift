@@ -1521,11 +1521,15 @@ public final class ReaderStore {
             if let existing = existingArticlesByID[article.id] {
                 article.isRead = existing.isRead
                 article.isStarred = existing.isStarred
-                // Keep the original publish time. Feeds that omit per-item dates
-                // (we stamp first-seen) or reuse a build date would otherwise get
-                // re-stamped on every refresh, jumping the article to "now" and
-                // reshuffling the list. A publish date is effectively immutable.
-                article.publishedAt = existing.publishedAt
+                // Only pin the timestamp when the feed gave no real date (we
+                // stamped a synthetic first-seen time): re-stamping it each
+                // refresh would jump the article to "now" and reshuffle the list.
+                // When the feed DOES supply a date, keep the freshly parsed one —
+                // it's authoritative and stable, and self-corrects a value that a
+                // past parse got wrong.
+                if !article.hasExplicitPublishDate {
+                    article.publishedAt = existing.publishedAt
+                }
             } else {
                 hasNewArticles = true
             }

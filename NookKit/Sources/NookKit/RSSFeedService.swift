@@ -372,9 +372,9 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
         let articles = articleDrafts.enumerated().compactMap { index, draft -> Article? in
             let title = draft.title.cleanedFeedText(fallback: "Untitled")
             let linkURL = resolvedURL(from: draft.link, fallback: siteURL)
-            let publishedAt = FeedDateParser.date(from: draft.published)
+            let explicitDate = FeedDateParser.date(from: draft.published)
                 ?? FeedDateParser.date(from: draft.updated)
-                ?? fallbackBase.addingTimeInterval(-Double(index))
+            let publishedAt = explicitDate ?? fallbackBase.addingTimeInterval(-Double(index))
             let summary = draft.summary.cleanedFeedText()
             let contentText = draft.content.cleanedFeedText(fallback: summary.isEmpty ? title : summary)
             let paragraphs = contentText.paragraphsForReader()
@@ -395,7 +395,8 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
                 estimatedReadMinutes: Article.readingMinutes(for: paragraphs),
                 isRead: false,
                 isStarred: false,
-                contentHTML: contentHTML
+                contentHTML: contentHTML,
+                hasExplicitPublishDate: explicitDate != nil
             )
         }
 
@@ -585,40 +586,62 @@ private final class FeedXMLParser: NSObject, XMLParserDelegate {
     }
 }
 
-private enum FeedDateParser {
+/// Parses the many date shapes RSS/Atom feeds use in the wild: RFC 3339 /
+/// ISO 8601 (with or without fractional seconds, seconds, or a timezone), plain
+/// dates, and RFC 822 (RSS `pubDate`, with numeric or named zones). Dates that
+/// omit a timezone are read as UTC.
+enum FeedDateParser {
     static func date(from value: String) -> Date? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        let isoFormatter = ISO8601DateFormatter()
-        if let date = isoFormatter.date(from: trimmed) {
-            return date
+        for options in isoOptionSets {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = options
+            if let date = formatter.date(from: trimmed) { return date }
         }
 
-        let fractionalFormatter = ISO8601DateFormatter()
-        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractionalFormatter.date(from: trimmed) {
-            return date
-        }
-
-        let rssFormats = [
-            "EEE, d MMM yyyy HH:mm:ss Z",
-            "EEE, dd MMM yyyy HH:mm:ss Z",
-            "EEE, d MMM yyyy HH:mm:ss zzz",
-            "EEE, dd MMM yyyy HH:mm:ss zzz",
-            "d MMM yyyy HH:mm:ss Z",
-            "dd MMM yyyy HH:mm:ss Z"
-        ]
-
-        return rssFormats.lazy
-            .map(makeFormatter)
+        return patternFormatters.lazy
             .compactMap { $0.date(from: trimmed) }
             .first
     }
 
+    /// ISO 8601 option sets: full internet date-time, then the same with
+    /// fractional seconds. (Date-only is handled by the strict `yyyy-MM-dd`
+    /// pattern below; `ISO8601DateFormatter`'s `.withFullDate` is too lenient —
+    /// it also matches date-time strings and drops their time.)
+    private static let isoOptionSets: [ISO8601DateFormatter.Options] = [
+        [.withInternetDateTime],
+        [.withInternetDateTime, .withFractionalSeconds],
+    ]
+
+    /// `DateFormatter` fallbacks for shapes `ISO8601DateFormatter` rejects: RFC
+    /// 822 variants, and ISO-like stamps missing seconds or a timezone.
+    private static let patternFormatters: [DateFormatter] = [
+        // RFC 822 (RSS pubDate)
+        "EEE, d MMM yyyy HH:mm:ss Z",
+        "EEE, dd MMM yyyy HH:mm:ss Z",
+        "EEE, d MMM yyyy HH:mm:ss zzz",
+        "EEE, dd MMM yyyy HH:mm:ss zzz",
+        "EEE, d MMM yyyy HH:mm Z",
+        "EEE, dd MMM yyyy HH:mm zzz",
+        "d MMM yyyy HH:mm:ss Z",
+        "dd MMM yyyy HH:mm:ss Z",
+        // ISO-like without a timezone (read as UTC) or without seconds
+        "yyyy-MM-dd'T'HH:mm:ssZZZZZ",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mmZZZZZ",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd",
+    ].map(makeFormatter)
+
     private static func makeFormatter(_ format: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        // Default zone for patterns that carry none; patterns with Z/ZZZZZ
+        // override this from the parsed string.
+        formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = format
         return formatter
     }

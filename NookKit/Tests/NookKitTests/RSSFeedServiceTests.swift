@@ -90,6 +90,52 @@ struct RSSFeedServiceTests {
         #expect(dates[1] > dates[2])
     }
 
+    @Test("Atom published/updated dates are parsed (RFC 3339 with offset)")
+    func atomDatesParsed() async throws {
+        let feedURL = URL(string: "https://example.com/atom")!
+        final class MockURLProtocol: URLProtocol {
+            nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+            override class func canInit(with request: URLRequest) -> Bool { true }
+            override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+            override func startLoading() {
+                guard let handler = Self.handler else {
+                    client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse)); return
+                }
+                do {
+                    let (response, data) = try handler(request)
+                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                    client?.urlProtocol(self, didLoad: data)
+                    client?.urlProtocolDidFinishLoading(self)
+                } catch { client?.urlProtocol(self, didFailWithError: error) }
+            }
+            override func stopLoading() {}
+        }
+        // Mirrors simonwillison.net/atom/everything: default Atom namespace, a
+        // feed-level <updated> before entries, RFC 3339 dates with +00:00 offset.
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <feed xml:lang="en-us" xmlns="http://www.w3.org/2005/Atom">
+          <title>Example</title>
+          <updated>2026-07-16T00:33:18+00:00</updated>
+          <entry>
+            <title>Post</title>
+            <link href="https://example.com/p" rel="alternate"/>
+            <published>2026-07-15T14:21:54+00:00</published>
+            <updated>2026-07-16T00:33:18+00:00</updated>
+            <id>https://example.com/p</id>
+            <summary type="html">hi</summary>
+          </entry>
+        </feed>
+        """
+        MockURLProtocol.handler = { _ in response(url: feedURL, status: 200, body: xml) }
+
+        let service = makeService(using: MockURLProtocol.self)
+        let parsed = try await service.fetch(url: feedURL)
+        let published = try #require(parsed.articles.first?.publishedAt)
+        let expected = try #require(ISO8601DateFormatter().date(from: "2026-07-15T14:21:54+00:00"))
+        #expect(published == expected)
+    }
+
     @Test("Common RSS path variants are probed when the page itself is not a feed")
     func discoversCommonFeedVariants() async throws {
         let scenarios: [(page: URL, feed: URL)] = [
