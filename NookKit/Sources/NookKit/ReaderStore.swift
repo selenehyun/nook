@@ -856,6 +856,13 @@ public final class ReaderStore {
             throw ReaderStorageError.noDirectorySelected
         }
 
+        // Adding a feed takes priority over a full refresh: cancel any in-flight
+        // one so the add isn't queued behind dozens of feed fetches (and its save
+        // isn't held by the batch). Re-run the refresh afterward so the rest of
+        // the feeds still update.
+        let interruptedRefresh = isBatchRefreshing
+        allFeedsRefreshTask?.cancel()
+
         let url = try feedService.normalizedFeedURL(from: urlString)
         let parsedFeed = try await fetch(url: url, existingFeedID: nil)
         if !folder.isEmpty {
@@ -864,6 +871,10 @@ public final class ReaderStore {
         feedSelection = [parsedFeed.feed.id]
         selectedArticleID = parsedFeed.articles.first?.id
         errorMessage = nil
+
+        if interruptedRefresh {
+            startAllFeedsRefresh()
+        }
     }
 
     /// Result of a background refresh: how many genuinely new (previously
@@ -989,15 +1000,25 @@ public final class ReaderStore {
 
     public func refreshAll() {
         guard !feeds.isEmpty else { return }
+        startAllFeedsRefresh()
+    }
 
-        Task {
-            await refreshAllFeeds()
+    /// The in-flight full refresh, held so a higher-priority action (adding a
+    /// feed) can cancel it and re-run it afterward.
+    private var allFeedsRefreshTask: Task<Void, Never>?
+
+    /// Starts (or restarts) a full refresh, replacing any in-flight one.
+    private func startAllFeedsRefresh() {
+        allFeedsRefreshTask?.cancel()
+        allFeedsRefreshTask = Task { [weak self] in
+            await self?.refreshAllFeeds()
         }
     }
 
     /// Shortest gap between activation-triggered syncs. Prevents rapidly
-    /// switching focus back to Nook from hammering feed servers.
-    private static let activationRefreshThrottle: TimeInterval = 60
+    /// switching focus back to Nook from refetching every feed on each focus
+    /// change; the periodic auto-refresh still keeps content current.
+    private static let activationRefreshThrottle: TimeInterval = 300
 
     private var activationRefreshInFlight = false
 
@@ -1018,9 +1039,10 @@ public final class ReaderStore {
         }
 
         activationRefreshInFlight = true
-        Task {
-            await refreshAllFeeds()
-            activationRefreshInFlight = false
+        allFeedsRefreshTask?.cancel()
+        allFeedsRefreshTask = Task { [weak self] in
+            await self?.refreshAllFeeds()
+            self?.activationRefreshInFlight = false
         }
     }
 
@@ -1338,6 +1360,13 @@ public final class ReaderStore {
             }
             while let (feedID, parsed, failure) = await group.next() {
                 refreshingFeedIDs.remove(feedID)
+                // Cancelled (e.g. the user tapped "Add Feed"): stop launching more
+                // fetches and drain the in-flight ones without touching state, so
+                // a cancel yields promptly and doesn't mark feeds unhealthy on the
+                // way out. The interrupted refresh re-runs on the next turn.
+                if Task.isCancelled {
+                    continue
+                }
                 if let parsed {
                     merge(parsed)
                     ensureFavicon(for: parsed.feed)

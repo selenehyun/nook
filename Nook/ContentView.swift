@@ -526,7 +526,9 @@ private struct FeedSidebar: View {
                 } label: {
                     Label("Add Feed", systemImage: "plus")
                 }
-                .disabled(!store.isStorageConfigured || store.isRefreshing)
+                // Allowed during a refresh: adding cancels the in-flight refresh
+                // and re-runs it afterward (see ReaderStore.addFeed).
+                .disabled(!store.isStorageConfigured)
                 .help(store.isStorageConfigured ? "Add a feed" : "Choose a sync folder first")
 
                 Spacer(minLength: 0)
