@@ -243,7 +243,7 @@ public final class ReaderStore {
 
         return articles
             .filter { (matchesSource($0) || (retained.contains($0.id) && matchesSourceIgnoringReadState($0))) && matchesQuery($0) }
-            .sorted { $0.publishedAt > $1.publishedAt }
+            .sorted(by: Article.isOrderedBefore)
     }
 
     public var syncFolderName: String? {
@@ -556,7 +556,7 @@ public final class ReaderStore {
     /// the content sidecar stays bounded.
     nonisolated static func recentArticleIDs(from articles: [Article]) -> Set<Article.ID> {
         guard articles.count > bodyRetentionLimit else { return Set(articles.map(\.id)) }
-        let recent = articles.sorted { $0.publishedAt > $1.publishedAt }.prefix(bodyRetentionLimit)
+        let recent = articles.sorted(by: Article.isOrderedBefore).prefix(bodyRetentionLimit)
         return Set(recent.map(\.id))
     }
 
@@ -829,7 +829,7 @@ public final class ReaderStore {
         try? persistReplica()
         let candidates = articles.filter { !$0.isRead }
         let fresh = (try? replicaStore?.reserveNotifications(for: candidates)) ?? []
-        let sorted = fresh.sorted { $0.publishedAt > $1.publishedAt }
+        let sorted = fresh.sorted(by: Article.isOrderedBefore)
         return BackgroundRefreshResult(
             newArticleCount: fresh.count,
             sampleTitles: sorted.prefix(3).map(\.title),

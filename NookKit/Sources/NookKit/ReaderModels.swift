@@ -245,6 +245,14 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
 }
 
 extension Article {
+    /// Deterministic newest-first ordering. When two articles share the exact
+    /// same publish time, their `id` breaks the tie so the order never shuffles
+    /// between syncs (feeds often stamp identical timestamps on a batch).
+    public static func isOrderedBefore(_ lhs: Article, _ rhs: Article) -> Bool {
+        if lhs.publishedAt != rhs.publishedAt { return lhs.publishedAt > rhs.publishedAt }
+        return lhs.id > rhs.id
+    }
+
     public func matches(_ source: SourceSelection) -> Bool {
         switch source {
         case .smart(.all): true

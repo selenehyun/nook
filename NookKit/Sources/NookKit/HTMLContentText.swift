@@ -792,15 +792,15 @@ private struct ZoomableImageView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+    func makeNSView(context: Context) -> FittingScrollView {
+        let scrollView = FittingScrollView()
         scrollView.contentView = CenteringClipView()
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.allowsMagnification = true
-        scrollView.minMagnification = 1
+        scrollView.minMagnification = 0.01
         scrollView.maxMagnification = 6
 
         let imageView = NSImageView()
@@ -818,13 +818,13 @@ private struct ZoomableImageView: NSViewRepresentable {
         return scrollView
     }
 
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
+    func updateNSView(_ nsView: FittingScrollView, context: Context) {
         if context.coordinator.url != url { context.coordinator.load(url: url) }
     }
 
     @MainActor
     final class Coordinator: NSObject {
-        weak var scrollView: NSScrollView?
+        weak var scrollView: FittingScrollView?
         weak var imageView: NSImageView?
         private(set) var url: URL?
         private var task: URLSessionDataTask?
@@ -843,11 +843,10 @@ private struct ZoomableImageView: NSViewRepresentable {
             guard let scrollView, let imageView else { return }
             imageView.image = image
             imageView.frame = NSRect(origin: .zero, size: image.size)
-            // Fit the whole image on first load; that becomes the minimum zoom.
-            scrollView.magnify(toFit: imageView.bounds)
-            scrollView.minMagnification = scrollView.magnification
-            scrollView.contentView.scroll(to: .zero)
-            scrollView.reflectScrolledClipView(scrollView.contentView)
+            // Defer the fit to layout, when the scroll view actually has its
+            // final size; fitting here (bounds may still be zero) is what made
+            // the image open zoomed-in and impossible to zoom back out.
+            scrollView.fitContent(imageView.bounds)
         }
 
         @objc func handleDoubleClick(_ gesture: NSClickGestureRecognizer) {
@@ -861,6 +860,41 @@ private struct ZoomableImageView: NSViewRepresentable {
                 scrollView.animator().setMagnification(target, centeredAt: point)
             }
         }
+    }
+}
+
+/// An `NSScrollView` that fits its document once it has a real size, and keeps
+/// it fitted across viewport resizes while the user is fully zoomed out. The
+/// fitted magnification becomes the minimum, so the whole image is always
+/// reachable.
+private final class FittingScrollView: NSScrollView {
+    private var fitRect: NSRect?
+    private var hasFitted = false
+    private var lastViewportSize: NSSize = .zero
+
+    func fitContent(_ rect: NSRect) {
+        fitRect = rect
+        hasFitted = false
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        guard let rect = fitRect, bounds.width > 1, bounds.height > 1 else { return }
+        if !hasFitted {
+            applyFit(rect)
+            hasFitted = true
+            lastViewportSize = bounds.size
+        } else if bounds.size != lastViewportSize {
+            lastViewportSize = bounds.size
+            // Only re-fit when the user hasn't zoomed in past the fit level.
+            if magnification <= minMagnification + 0.0001 { applyFit(rect) }
+        }
+    }
+
+    private func applyFit(_ rect: NSRect) {
+        magnify(toFit: rect)
+        minMagnification = magnification
     }
 }
 
@@ -1235,13 +1269,12 @@ public struct HTMLContentText: View {
             }
             mutable.addAttribute(.font, value: font, range: range)
         }
-        padInlineCode(
-            mutable,
-            ranges: monoRanges,
-            spaceAttributes: [.font: NSFont.monospacedSystemFont(ofSize: codeSize * 0.5, weight: .regular)],
-            chip: NSColor.systemGray.withAlphaComponent(0.18)
-        )
-        styleLinks(mutable, fullRange: NSRange(location: 0, length: mutable.length), linkColor: NSColor.controlAccentColor, plainColor: NSColor.labelColor)
+        styleLinks(mutable, fullRange: fullRange, linkColor: NSColor.controlAccentColor, plainColor: NSColor.labelColor)
+        // Inline code: no box, just a distinct code tint (applied after link
+        // styling so it wins over the plain-text colour).
+        for range in monoRanges {
+            mutable.addAttribute(.foregroundColor, value: NSColor.systemPink, range: range)
+        }
         return try? AttributedString(mutable, including: \.appKit)
         #else
         var monoRanges: [NSRange] = []
@@ -1263,34 +1296,12 @@ public struct HTMLContentText: View {
             }
             mutable.addAttribute(.font, value: font, range: range)
         }
-        padInlineCode(
-            mutable,
-            ranges: monoRanges,
-            spaceAttributes: [.font: UIFont.monospacedSystemFont(ofSize: codeSize * 0.5, weight: .regular)],
-            chip: UIColor.systemGray.withAlphaComponent(0.18)
-        )
-        styleLinks(mutable, fullRange: NSRange(location: 0, length: mutable.length), linkColor: UIColor.tintColor, plainColor: UIColor.label)
+        styleLinks(mutable, fullRange: fullRange, linkColor: UIColor.tintColor, plainColor: UIColor.label)
+        for range in monoRanges {
+            mutable.addAttribute(.foregroundColor, value: UIColor.systemPink, range: range)
+        }
         return try? AttributedString(mutable, including: \.uiKit)
         #endif
-    }
-
-    /// Wraps each inline-code run in thin spaces and paints a chip background
-    /// over the padded range, so the highlight has breathing room instead of
-    /// hugging the glyphs. Ranges are padded back-to-front to keep indices valid.
-    private static func padInlineCode(
-        _ mutable: NSMutableAttributedString,
-        ranges: [NSRange],
-        spaceAttributes: [NSAttributedString.Key: Any],
-        chip: Any
-    ) {
-        let pad = " " // a single space, shrunk via a small font at the call site
-        let padLength = (pad as NSString).length
-        for range in ranges.sorted(by: { $0.location > $1.location }) {
-            mutable.insert(NSAttributedString(string: pad, attributes: spaceAttributes), at: range.location + range.length)
-            mutable.insert(NSAttributedString(string: pad, attributes: spaceAttributes), at: range.location)
-            let chipRange = NSRange(location: range.location, length: range.length + padLength * 2)
-            mutable.addAttribute(.backgroundColor, value: chip, range: chipRange)
-        }
     }
 
     #if canImport(AppKit)
