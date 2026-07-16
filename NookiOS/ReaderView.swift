@@ -22,6 +22,7 @@ struct ReaderDetailView: View {
     @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
 
     @State private var isShowingInfo = false
+    @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
 
@@ -89,6 +90,7 @@ struct ReaderDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color("ListBackground").ignoresSafeArea())
+        .articleImageOverlay(imagePresenter)
     }
 
     private func reader(_ article: Article) -> some View {

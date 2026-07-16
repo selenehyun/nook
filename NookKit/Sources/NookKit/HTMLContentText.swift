@@ -428,7 +428,7 @@ enum HTMLContentParser {
 
 private struct NativeArticleImage: View {
     let media: HTMLMedia
-    @State private var isViewerPresented = false
+    @Environment(\.articleImagePresenter) private var presenter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -439,7 +439,7 @@ private struct NativeArticleImage: View {
                         .resizable()
                         .scaledToFit()
                         .contentShape(Rectangle())
-                        .onTapGesture { isViewerPresented = true }
+                        .onTapGesture { presenter?.present(url: media.url, caption: media.caption) }
                         .help(String(localized: "Click to zoom", bundle: .module))
                         #if canImport(AppKit)
                         .pointerStyle(.zoomIn)
@@ -458,15 +458,6 @@ private struct NativeArticleImage: View {
                 Text(caption).font(.caption).foregroundStyle(.secondary)
             }
         }
-        #if canImport(AppKit)
-        .sheet(isPresented: $isViewerPresented) {
-            ImageViewer(media: media, isPresented: $isViewerPresented)
-        }
-        #else
-        .fullScreenCover(isPresented: $isViewerPresented) {
-            ImageViewer(media: media, isPresented: $isViewerPresented)
-        }
-        #endif
     }
 }
 
@@ -545,15 +536,119 @@ private struct NativeArticleAudio: View {
     }
 }
 
+/// An `<iframe>` embed. Arbitrary web embeds cannot render in a native view
+/// without a `WKWebView`, which the reader deliberately avoids on its default
+/// surface. For well-known video hosts we show a rich thumbnail card that opens
+/// the source; everything else falls back to a labelled link card.
 private struct NativeArticleEmbed: View {
     let media: HTMLMedia
 
     var body: some View {
-        NativeMediaLink(
-            media: media,
-            systemImage: media.url.host()?.contains("youtube") == true ? "play.rectangle" : "rectangle.on.rectangle",
-            label: media.title ?? String(localized: "Open Embedded Content", bundle: .module)
-        )
+        if let embed = VideoEmbed(url: media.url) {
+            EmbedThumbnailCard(embed: embed, media: media)
+        } else {
+            NativeMediaLink(
+                media: media,
+                systemImage: "rectangle.on.rectangle",
+                label: media.title ?? String(localized: "Open Embedded Content", bundle: .module)
+            )
+        }
+    }
+}
+
+/// A recognised video embed with a thumbnail and a canonical watch URL.
+private struct VideoEmbed {
+    let thumbnailURL: URL?
+    let watchURL: URL
+    let hostLabel: String
+
+    init?(url: URL) {
+        let host = url.host()?.lowercased() ?? ""
+        if host.contains("youtube") || host.contains("youtu.be") {
+            guard let id = VideoEmbed.youTubeID(from: url) else { return nil }
+            thumbnailURL = URL(string: "https://img.youtube.com/vi/\(id)/hqdefault.jpg")
+            watchURL = URL(string: "https://www.youtube.com/watch?v=\(id)") ?? url
+            hostLabel = "YouTube"
+        } else if host.contains("vimeo") {
+            // Vimeo needs an API call for thumbnails; still offer a rich card.
+            thumbnailURL = nil
+            watchURL = url
+            hostLabel = "Vimeo"
+        } else {
+            return nil
+        }
+    }
+
+    private static func youTubeID(from url: URL) -> String? {
+        if url.host()?.contains("youtu.be") == true {
+            let id = url.lastPathComponent
+            return id.isEmpty ? nil : id
+        }
+        // .../embed/<id> or .../v/<id>
+        let parts = url.pathComponents
+        if let anchor = parts.firstIndex(where: { $0 == "embed" || $0 == "v" }),
+           anchor + 1 < parts.count {
+            return parts[anchor + 1]
+        }
+        // watch?v=<id>
+        if let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+           let v = items.first(where: { $0.name == "v" })?.value {
+            return v
+        }
+        return nil
+    }
+}
+
+private struct EmbedThumbnailCard: View {
+    let embed: VideoEmbed
+    let media: HTMLMedia
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Link(destination: embed.watchURL) {
+                ZStack {
+                    if let thumb = embed.thumbnailURL {
+                        AsyncImage(url: thumb) { phase in
+                            switch phase {
+                            case .success(let image): image.resizable().scaledToFill()
+                            default: Color.black.opacity(0.85)
+                            }
+                        }
+                    } else {
+                        Color.black.opacity(0.85)
+                    }
+
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 52))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 8)
+
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text(embed.hostLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.black.opacity(0.55), in: Capsule())
+                            Spacer()
+                        }
+                        .padding(10)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(media.aspectRatio ?? (16 / 9), contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if let caption = media.caption ?? media.title {
+                Text(caption).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -588,13 +683,64 @@ private struct NativeMediaLink: View {
     }
 }
 
-// MARK: - Image viewer (lightbox)
+// MARK: - Image viewer (in-window overlay)
+
+/// The image currently being viewed in the lightbox overlay.
+public struct ArticleImageItem: Equatable, Identifiable {
+    public let url: URL
+    public let caption: String?
+    public var id: URL { url }
+}
+
+/// Drives the in-window photo overlay. Inject it with `.articleImageOverlay(_:)`
+/// on a top-level container; article images then present into that overlay
+/// instead of opening a separate window.
+@MainActor
+@Observable
+public final class ArticleImagePresenter {
+    public var item: ArticleImageItem?
+    public init() {}
+
+    public func present(url: URL, caption: String?) {
+        item = ArticleImageItem(url: url, caption: caption)
+    }
+
+    public func dismiss() { item = nil }
+}
+
+extension EnvironmentValues {
+    @Entry var articleImagePresenter: ArticleImagePresenter?
+}
+
+public extension View {
+    /// Hosts the article image lightbox as an in-window overlay and makes the
+    /// presenter available to any `HTMLContentView` below in the hierarchy.
+    func articleImageOverlay(_ presenter: ArticleImagePresenter) -> some View {
+        environment(\.articleImagePresenter, presenter)
+            .overlay { ArticleImageOverlay(presenter: presenter) }
+    }
+}
+
+private struct ArticleImageOverlay: View {
+    let presenter: ArticleImagePresenter
+
+    var body: some View {
+        ZStack {
+            if let item = presenter.item {
+                ImageViewer(item: item) { presenter.dismiss() }
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.22), value: presenter.item)
+    }
+}
 
 /// A full-surface photo viewer with pinch/double-tap zoom and drag-to-pan,
-/// mirroring the standard photo-viewing gestures users expect.
+/// mirroring the standard photo-viewing gestures users expect. Rendered inline
+/// as an overlay so the image scales up into the center of the window.
 private struct ImageViewer: View {
-    let media: HTMLMedia
-    @Binding var isPresented: Bool
+    let item: ArticleImageItem
+    let onClose: () -> Void
 
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
@@ -606,9 +752,14 @@ private struct ImageViewer: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.94).ignoresSafeArea()
+            // Dim scrim; a click anywhere outside the image dismisses.
+            Rectangle()
+                .fill(.black.opacity(0.9))
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { onClose() }
 
-            AsyncImage(url: media.url) { phase in
+            AsyncImage(url: item.url) { phase in
                 switch phase {
                 case .success(let image):
                     image
@@ -626,13 +777,12 @@ private struct ImageViewer: View {
                     ProgressView().controlSize(.large).tint(.white)
                 }
             }
+            .padding(24)
 
             VStack {
                 HStack {
                     Spacer()
-                    Button {
-                        isPresented = false
-                    } label: {
+                    Button(action: onClose) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 26))
                             .symbolRenderingMode(.hierarchical)
@@ -644,13 +794,17 @@ private struct ImageViewer: View {
                     .help(String(localized: "Close", bundle: .module))
                 }
                 Spacer()
+                if let caption = item.caption {
+                    Text(caption)
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.black.opacity(0.4), in: Capsule())
+                        .padding(.bottom, 20)
+                }
             }
         }
-        .frame(minWidth: 480, minHeight: 360)
-        #if canImport(AppKit)
-        .frame(idealWidth: 900, idealHeight: 680)
-        #endif
-        .contentShape(Rectangle())
     }
 
     private var magnification: some Gesture {
@@ -740,12 +894,13 @@ private struct NativeArticleQuote: View {
     }
 }
 
-/// A preformatted code block: monospaced, boxed, and horizontally scrollable so
-/// long lines don't wrap.
+/// A preformatted code block: syntax-highlighted, monospaced, boxed, and
+/// horizontally scrollable so long lines don't wrap.
 private struct NativeArticleCode: View {
     let code: String
     let language: String?
     let selectable: Bool
+    @State private var highlighted: AttributedString?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -758,25 +913,27 @@ private struct NativeArticleCode: View {
             }
             ScrollView(.horizontal, showsIndicators: true) {
                 text
-                    .font(.system(.callout, design: .monospaced))
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(SyntaxHighlighter.blockBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(.quaternary, lineWidth: 1)
         )
+        .task(id: code) { highlighted = SyntaxHighlighter.attributed(code, language: language) }
     }
 
     @ViewBuilder
     private var text: some View {
+        let rendered = Text(highlighted ?? AttributedString(code))
+            .font(.system(.callout, design: .monospaced))
         if selectable {
-            Text(code).textSelection(.enabled)
+            rendered.textSelection(.enabled)
         } else {
-            Text(code)
+            rendered
         }
     }
 }
@@ -810,6 +967,77 @@ private struct NativeArticleTable: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isHeader ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(Color.clear))
             .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
+    }
+}
+
+// MARK: - Syntax highlighting
+
+/// A lightweight, language-agnostic highlighter for code blocks. It colours
+/// comments, strings, numbers, keywords, and capitalised type names using
+/// system semantic colours so it adapts to light and dark automatically. Only
+/// foreground colours are applied; the monospaced font comes from the view.
+enum SyntaxHighlighter {
+    #if canImport(AppKit)
+    private typealias PlatformColor = NSColor
+    private static var keywordColor: NSColor { .systemPink }
+    private static var typeColor: NSColor { .systemTeal }
+    private static var numberColor: NSColor { .systemOrange }
+    private static var stringColor: NSColor { .systemGreen }
+    private static var commentColor: NSColor { .secondaryLabelColor }
+    #else
+    private typealias PlatformColor = UIColor
+    private static var keywordColor: UIColor { .systemPink }
+    private static var typeColor: UIColor { .systemTeal }
+    private static var numberColor: UIColor { .systemOrange }
+    private static var stringColor: UIColor { .systemGreen }
+    private static var commentColor: UIColor { .secondaryLabel }
+    #endif
+
+    static var blockBackground: AnyShapeStyle { AnyShapeStyle(.quaternary.opacity(0.4)) }
+
+    private static let keywords = [
+        "let", "var", "const", "func", "function", "fn", "fun", "def", "class", "struct",
+        "enum", "interface", "protocol", "extension", "return", "if", "else", "elif", "for",
+        "while", "do", "switch", "case", "default", "break", "continue", "import", "from",
+        "export", "public", "private", "protected", "internal", "static", "final", "override",
+        "new", "self", "this", "super", "true", "false", "nil", "null", "none", "void",
+        "int", "float", "double", "bool", "string", "char", "async", "await", "try", "catch",
+        "finally", "throw", "throws", "guard", "in", "is", "as", "where", "val", "yield",
+        "with", "and", "or", "not", "typeof", "namespace", "using", "package", "module"
+    ]
+
+    static func attributed(_ code: String, language: String?) -> AttributedString {
+        let mutable = NSMutableAttributedString(string: code)
+        let keywordPattern = "\\b(?:" + keywords.joined(separator: "|") + ")\\b"
+
+        // Applied in order; later passes override earlier colours so that
+        // strings win over keywords and comments win over everything.
+        apply(mutable, code, pattern: #"\b[A-Z][A-Za-z0-9_]*\b"#, color: typeColor)
+        apply(mutable, code, pattern: keywordPattern, color: keywordColor)
+        apply(mutable, code, pattern: #"\b\d[\d_]*(?:\.\d+)?\b"#, color: numberColor)
+        apply(mutable, code, pattern: ##""(?:\\.|[^"\\])*""##, color: stringColor)
+        apply(mutable, code, pattern: ##"'(?:\\.|[^'\\])*'"##, color: stringColor)
+        apply(mutable, code, pattern: #"/\*[\s\S]*?\*/"#, color: commentColor)
+        apply(mutable, code, pattern: #"(?m)(?<!:)(?://|#).*$"#, color: commentColor)
+
+        let range = NSRange(location: 0, length: mutable.length)
+        #if canImport(AppKit)
+        return (try? AttributedString(mutable, including: \.appKit)) ?? fallback(code, mutable, range)
+        #else
+        return (try? AttributedString(mutable, including: \.uiKit)) ?? fallback(code, mutable, range)
+        #endif
+    }
+
+    private static func fallback(_ code: String, _ mutable: NSAttributedString, _ range: NSRange) -> AttributedString {
+        AttributedString(code)
+    }
+
+    private static func apply(_ target: NSMutableAttributedString, _ source: String, pattern: String, color: PlatformColor) {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        for match in regex.matches(in: source, range: range) {
+            target.addAttribute(.foregroundColor, value: color, range: match.range)
+        }
     }
 }
 
@@ -876,7 +1104,9 @@ public struct HTMLContentText: View {
             let font: NSFont
             if isMono {
                 let weight: NSFont.Weight = traits.contains(.bold) ? .semibold : .regular
-                font = NSFont.monospacedSystemFont(ofSize: baseSize, weight: weight)
+                font = NSFont.monospacedSystemFont(ofSize: baseSize * 0.92, weight: weight)
+                // Give inline code a subtle chip so it reads as code.
+                mutable.addAttribute(.backgroundColor, value: NSColor.systemGray.withAlphaComponent(0.22), range: range)
             } else {
                 let descriptor = NSFont.systemFont(ofSize: baseSize).fontDescriptor.withSymbolicTraits(traits)
                 font = NSFont(descriptor: descriptor, size: baseSize) ?? NSFont.systemFont(ofSize: baseSize)
@@ -896,7 +1126,8 @@ public struct HTMLContentText: View {
             let font: UIFont
             if isMono {
                 let weight: UIFont.Weight = traits.contains(.traitBold) ? .semibold : .regular
-                font = UIFont.monospacedSystemFont(ofSize: baseSize, weight: weight)
+                font = UIFont.monospacedSystemFont(ofSize: baseSize * 0.92, weight: weight)
+                mutable.addAttribute(.backgroundColor, value: UIColor.systemGray.withAlphaComponent(0.22), range: range)
             } else {
                 let base = UIFont.systemFont(ofSize: baseSize)
                 font = UIFont(descriptor: base.fontDescriptor.withSymbolicTraits(traits) ?? base.fontDescriptor, size: baseSize)

@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var isImportingOPML = false
     @State private var isExportingOPML = false
     @State private var opmlImport: OPMLImportRequest?
+    @State private var imagePresenter = ArticleImagePresenter()
     @State private var columnVisibility: NavigationSplitViewVisibility
     @AppStorage("inspectorPresented") private var isInspectorPresented = true
     @AppStorage(ContentView.sidebarVisibleKey) private var sidebarVisible = true
@@ -69,6 +70,7 @@ struct ContentView: View {
         } detail: {
             ReaderWorkspaceView(store: store, isInspectorPresented: $isInspectorPresented)
         }
+        .articleImageOverlay(imagePresenter)
         .frame(minWidth: 920, minHeight: 640)
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
