@@ -3,6 +3,7 @@ import NaturalLanguage
 import NookKit
 import Observation
 import SwiftUI
+import Translation
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -1583,6 +1584,7 @@ private struct ReaderDetailView: View {
     @State private var translatedBody: [String]?
     @State private var isTranslated = false
     @State private var isTranslating = false
+    @State private var isShowingTranslation = false
 
     private var targetLanguage: Locale.Language {
         (appLanguage == .system ? Locale.current : appLanguage.locale).language
@@ -1593,13 +1595,18 @@ private struct ReaderDetailView: View {
         return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
     }
 
-    /// Only offer translation when the article's language differs from the target
-    /// and Apple Intelligence can run.
+    /// Offer translation whenever the article's language differs from the target.
+    /// Apple Intelligence is used when available; otherwise the button falls back
+    /// to the system Translation overlay (so the button matches iOS and never
+    /// silently disappears when Apple Intelligence is off/unsupported).
     private func canTranslate(_ article: Article) -> Bool {
-        guard NaturalTranslator.isAvailable,
-              let detected = detectedLanguage,
+        guard let detected = detectedLanguage,
               let target = targetLanguage.languageCode?.identifier else { return false }
         return detected != target
+    }
+
+    private static func translationText(for article: Article) -> String {
+        ([article.title] + article.bodyParagraphs).joined(separator: "\n\n")
     }
 
     private static func detectLanguage(for article: Article) -> String? {
@@ -1635,6 +1642,8 @@ private struct ReaderDetailView: View {
                 nativeTranslator.stop()
             } else if NaturalTranslator.isAvailable {
                 nativeTranslator.start(html: html, baseURL: article.url, title: article.title, into: targetLanguageName)
+            } else {
+                isShowingTranslation = true
             }
             return
         }
@@ -1647,7 +1656,10 @@ private struct ReaderDetailView: View {
             isTranslated = true
             return
         }
-        guard NaturalTranslator.isAvailable else { return }
+        guard NaturalTranslator.isAvailable else {
+            isShowingTranslation = true
+            return
+        }
         isTranslating = true
         let body = article.bodyParagraphs
         let title = article.title
@@ -1746,6 +1758,7 @@ private struct ReaderDetailView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
+        .translationPresentation(isPresented: $isShowingTranslation, text: Self.translationText(for: article))
         .task(id: article.id) {
             // Reset any prior translation and re-detect the language so the
             // Translate action is offered only when it differs from the target.
@@ -1753,6 +1766,7 @@ private struct ReaderDetailView: View {
             isTranslated = false
             translatedTitle = nil
             translatedBody = nil
+            isShowingTranslation = false
             detectedLanguage = Self.detectLanguage(for: article)
             await markReadAfterDwell(article)
         }
