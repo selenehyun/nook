@@ -902,6 +902,34 @@
       }
     },
     "Fetch Result": {},
+    "Fill in missing article dates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill in missing article dates"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "누락된 글 날짜 채우기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記事の欠落した日付を補完"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "补全缺失的文章日期"
+          }
+        }
+      }
+    },
     "Folder": {},
     "Folder Name": {
       "localizations": {
@@ -2802,6 +2830,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "在应用图标上显示未读数"
+          }
+        }
+      }
+    },
+    "Some feeds omit each article's date. When enabled, Nook reads the real date from the article's page (once per article).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some feeds omit each article's date. When enabled, Nook reads the real date from the article's page (once per article)."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일부 피드는 글마다 날짜를 제공하지 않습니다. 켜면 Nook이 글 페이지에서 실제 날짜를 읽어옵니다(글당 한 번)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のフィードは記事ごとの日付を提供しません。オンにすると、Nook は記事ページから実際の日付を読み取ります（記事ごとに1回）。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分订阅源不提供每篇文章的日期。开启后，Nook 会从文章页面读取真实日期（每篇一次）。"
           }
         }
       }

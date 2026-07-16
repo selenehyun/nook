@@ -1068,6 +1068,18 @@ public final class ReaderStore {
     /// feed) can cancel it and re-run it afterward.
     private var allFeedsRefreshTask: Task<Void, Never>?
 
+    /// Feed items seen without a real publish date; a background pass tries to
+    /// recover the real date from each article's page (see `resolveMissingDates`).
+    private var datelessArticleIDs: Set<Article.ID> = []
+    private var dateResolutionTask: Task<Void, Never>?
+    private static let maxConcurrentDateResolutions = 4
+    /// `UserDefaults` key for the "recover missing article dates" preference.
+    public static let resolveMissingDatesKey = "resolveMissingArticleDates"
+
+    private var resolvesMissingDates: Bool {
+        UserDefaults.standard.object(forKey: Self.resolveMissingDatesKey) as? Bool ?? true
+    }
+
     /// Starts (or restarts) a full refresh, replacing any in-flight one.
     private func startAllFeedsRefresh() {
         allFeedsRefreshTask?.cancel()
@@ -1457,6 +1469,10 @@ public final class ReaderStore {
                 }
             }
         }
+
+        // Recover real dates for any dateless items just merged — but not on the
+        // iOS background task, whose tight time budget is for fetching + notifying.
+        if mode != .background { resolveMissingDates() }
     }
 
     @discardableResult
@@ -1487,6 +1503,73 @@ public final class ReaderStore {
         } catch {
             markFeedUnhealthy(feedID: feed.id)
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// For feed items that shipped no date, fetch each article page once (bounded,
+    /// low priority) and read a real publish date from it. Fills in the article's
+    /// timestamp when found; every page is fetched at most once (attempts are
+    /// recorded), and network failures stay unrecorded so a later pass retries.
+    private func resolveMissingDates() {
+        guard resolvesMissingDates, let replicaStore, isStorageConfigured else { return }
+        let candidates = Array(datelessArticleIDs)
+        guard !candidates.isEmpty else { return }
+        dateResolutionTask?.cancel()
+        dateResolutionTask = Task { [weak self] in
+            await self?.performDateResolution(candidates: candidates, replicaStore: replicaStore)
+        }
+    }
+
+    private func performDateResolution(candidates: [Article.ID], replicaStore: ReplicaStore) async {
+        let pending = (try? replicaStore.articleIDsNeedingDateResolution(candidates)) ?? []
+        guard !pending.isEmpty else { return }
+        let urlByID = Dictionary(articles.map { ($0.id, $0.url) }, uniquingKeysWith: { first, _ in first })
+        let targets = pending.compactMap { id in urlByID[id].map { (id: id, url: $0) } }
+        guard !targets.isEmpty else { return }
+
+        let session = URLSession.shared
+        var resolved: [Article.ID: Date] = [:]
+        var attempted: [Article.ID] = []
+        // Bool = the page actually loaded (mark attempted); a network failure
+        // leaves it unmarked so a later pass retries.
+        await withTaskGroup(of: (Article.ID, Date?, Bool).self) { group in
+            func launch(_ target: (id: Article.ID, url: URL)) {
+                group.addTask(priority: .utility) {
+                    do {
+                        let date = try await ArticleDateResolver.publishedDate(for: target.url, session: session)
+                        return (target.id, date, true)
+                    } catch {
+                        return (target.id, nil, false)
+                    }
+                }
+            }
+            var next = 0
+            let limit = min(Self.maxConcurrentDateResolutions, targets.count)
+            while next < limit { launch(targets[next]); next += 1 }
+            while let (id, date, loaded) = await group.next() {
+                if Task.isCancelled { break }
+                if loaded {
+                    attempted.append(id)
+                    if let date { resolved[id] = date }
+                }
+                if next < targets.count { launch(targets[next]); next += 1 }
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        if !resolved.isEmpty {
+            articles = articles.map { article in
+                guard let date = resolved[article.id] else { return article }
+                var updated = article
+                updated.publishedAt = date
+                updated.hasExplicitPublishDate = true
+                return updated
+            }
+            scheduleSave()
+        }
+        if !attempted.isEmpty {
+            try? replicaStore.markDateResolutionAttempted(attempted)
+            for id in attempted { datelessArticleIDs.remove(id) }
         }
     }
 
@@ -1532,6 +1615,11 @@ public final class ReaderStore {
                 }
             } else {
                 hasNewArticles = true
+            }
+            // Track feed items that shipped no date so a background pass can try
+            // to recover the real one from the article page.
+            if !article.hasExplicitPublishDate {
+                datelessArticleIDs.insert(article.id)
             }
             existingArticlesByID[article.id] = article
         }

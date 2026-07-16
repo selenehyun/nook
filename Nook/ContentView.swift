@@ -2475,6 +2475,7 @@ private struct FeedsSettingsTab: View {
     @Bindable private var store = ReaderStore.shared
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
+    @AppStorage(ReaderStore.resolveMissingDatesKey) private var resolveMissingDates = true
     @AppStorage(NewArticleNotifier.enabledKey) private var newArticleNotifications = false
     @AppStorage(ReaderStorage.displayPathDefaultsKey) private var syncFolderDisplayPath = ""
 
@@ -2486,7 +2487,7 @@ private struct FeedsSettingsTab: View {
 
     var body: some View {
         Form {
-            Section("Feeds") {
+            Section {
                 Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
                     .disabled(!autoRefreshEnabled)
@@ -2497,6 +2498,11 @@ private struct FeedsSettingsTab: View {
                             Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
                         }
                     }
+                Toggle("Fill in missing article dates", isOn: $resolveMissingDates)
+            } header: {
+                Text("Feeds")
+            } footer: {
+                Text("Some feeds omit each article's date. When enabled, Nook reads the real date from the article's page (once per article).")
             }
 
             Section {

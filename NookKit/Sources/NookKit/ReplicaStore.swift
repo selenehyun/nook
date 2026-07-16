@@ -38,6 +38,9 @@ public final class ReplicaStore: @unchecked Sendable {
                     article_id TEXT PRIMARY KEY, first_seen_at REAL NOT NULL,
                     reserved_at REAL, delivered_at REAL
                 );
+                CREATE TABLE IF NOT EXISTS date_resolutions (
+                    article_id TEXT PRIMARY KEY, resolved_at REAL NOT NULL
+                );
             """)
         }
     }
@@ -200,6 +203,35 @@ public final class ReplicaStore: @unchecked Sendable {
                         reserved.append(article)
                     }
                     return reserved
+                }
+            }
+        }
+    }
+
+    /// Of `articleIDs`, those we have NOT yet tried to resolve a page date for —
+    /// so a dateless article's page is fetched at most once (per device).
+    public func articleIDsNeedingDateResolution(_ articleIDs: [Article.ID]) throws -> [Article.ID] {
+        guard !articleIDs.isEmpty else { return [] }
+        return try lock.withLock {
+            try withDatabase { db in
+                try articleIDs.filter { id in
+                    try scalar(db, "SELECT 1 FROM date_resolutions WHERE article_id=?", id) == nil
+                }
+            }
+        }
+    }
+
+    /// Marks these articles' page-date resolution as attempted (whether a date
+    /// was found or the page simply had none), so we don't refetch them.
+    public func markDateResolutionAttempted(_ articleIDs: [Article.ID]) throws {
+        guard !articleIDs.isEmpty else { return }
+        try lock.withLock {
+            try withDatabase { db in
+                try transaction(db) {
+                    let now = Date().timeIntervalSince1970
+                    for id in articleIDs {
+                        try run(db, "INSERT OR IGNORE INTO date_resolutions(article_id,resolved_at) VALUES(?,?)", [.text(id), .double(now)])
+                    }
                 }
             }
         }
