@@ -183,6 +183,10 @@ private struct FeedsSettingsScreen: View {
     /// (denied, or authorized for badge only) — the usual reason "notifications
     /// don't arrive."
     @State private var alertsBlocked = false
+    /// True when notifications are on but iOS won't run Nook in the background
+    /// (Background App Refresh off, globally or for Nook) — so scheduled refreshes
+    /// never fire and no new-article notification can ever arrive.
+    @State private var backgroundRefreshBlocked = false
     @State private var notificationStatus = "—"
     @State private var backgroundStatus = "—"
     @State private var pendingRefreshCount = 0
@@ -201,11 +205,17 @@ private struct FeedsSettingsScreen: View {
 
             Section {
                 Toggle("Notify me about new articles", isOn: $newArticleNotifications)
+                if newArticleNotifications && backgroundRefreshBlocked {
+                    Button {
+                        openSystemSettings()
+                    } label: {
+                        Label("Turn on Background App Refresh", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                }
                 if newArticleNotifications && alertsBlocked {
                     Button {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            openURL(url)
-                        }
+                        openSystemSettings()
                     } label: {
                         Label("Turn on notifications in Settings", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
@@ -223,9 +233,15 @@ private struct FeedsSettingsScreen: View {
                 }
                 .disabled(alertsBlocked)
             } footer: {
-                if newArticleNotifications && alertsBlocked {
-                    Text("Notification banners are turned off for Nook, so new-article alerts won't appear. Enable them in Settings › Nook › Notifications.")
-                } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    if newArticleNotifications && backgroundRefreshBlocked {
+                        Text("Background App Refresh is off, so Nook can't check for new articles in the background and no notifications will arrive. Tap above, then turn on Settings › General › Background App Refresh and enable it for Nook.")
+                            .foregroundStyle(.orange)
+                    }
+                    if newArticleNotifications && alertsBlocked {
+                        Text("Notification banners are turned off for Nook, so new-article alerts won't appear. Enable them in Settings › Nook › Notifications.")
+                            .foregroundStyle(.orange)
+                    }
                     Text("Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.")
                 }
             }
@@ -285,7 +301,9 @@ private struct FeedsSettingsScreen: View {
         alertsBlocked = settings.authorizationStatus == .denied
             || (settings.authorizationStatus == .authorized && settings.alertSetting != .enabled)
         notificationStatus = String(describing: settings.authorizationStatus)
-        backgroundStatus = switch UIApplication.shared.backgroundRefreshStatus {
+        let refreshStatus = UIApplication.shared.backgroundRefreshStatus
+        backgroundRefreshBlocked = refreshStatus != .available
+        backgroundStatus = switch refreshStatus {
         case .available: "available"
         case .denied: "denied"
         case .restricted: "restricted"
@@ -295,6 +313,16 @@ private struct FeedsSettingsScreen: View {
             BGTaskScheduler.shared.getPendingTaskRequests { requests in
                 continuation.resume(returning: requests.filter { $0.identifier == BackgroundRefresh.taskIdentifier }.count)
             }
+        }
+    }
+
+    /// Opens Nook's page in the system Settings app — the deepest link the OS
+    /// allows. From there the user reaches Notifications and (when the global
+    /// switch is on) Background App Refresh for Nook; the footer text points them
+    /// to Settings › General › Background App Refresh for the global toggle.
+    private func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            openURL(url)
         }
     }
 

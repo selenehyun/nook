@@ -1,4 +1,6 @@
-import BackgroundTasks
+// `@preconcurrency` so the non-`Sendable` `BGAppRefreshTask` can cross into the
+// async handler without a Swift 6 strict-concurrency error.
+@preconcurrency import BackgroundTasks
 import NookKit
 import UserNotifications
 
@@ -41,6 +43,17 @@ enum BackgroundRefresh {
     /// off).
     static func cancel() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
+    }
+
+    /// Drives one `BGAppRefreshTask` from the UIKit launch handler: wires the
+    /// system expiration handler to cancel the work, runs the refresh, and marks
+    /// the task complete so iOS keeps granting future runs.
+    @MainActor
+    static func handle(_ task: BGAppRefreshTask) async {
+        let work = Task { await run() }
+        task.expirationHandler = { work.cancel() }
+        _ = await work.value
+        task.setTaskCompleted(success: true)
     }
 
     /// Runs one background refresh and notifies about new articles. Always

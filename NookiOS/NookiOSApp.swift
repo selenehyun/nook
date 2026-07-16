@@ -1,3 +1,6 @@
+// `@preconcurrency` so passing the non-`Sendable` `BGTask` into the async
+// handler doesn't trip Swift 6 strict-concurrency checks.
+@preconcurrency import BackgroundTasks
 import NookKit
 import SwiftUI
 import UIKit
@@ -9,6 +12,26 @@ final class NookiOSDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // Register the background-refresh handler here (UIKit `BGTaskScheduler`
+        // registration) rather than via SwiftUI's `.backgroundTask` modifier.
+        // The register-based path is what iOS's launcher — and Xcode's
+        // `_simulateLaunchForTaskWithIdentifier` debug command — actually drive,
+        // so the task launches reliably and is testable.
+        // Run the launch handler on the main queue: it's created in this
+        // @MainActor context, so it inherits main-actor isolation, and iOS would
+        // otherwise invoke it on a background queue — tripping the Swift runtime's
+        // executor-isolation check (dispatch_assert_queue). The handler only
+        // spawns the async work and returns, so main-queue execution is cheap.
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: BackgroundRefresh.taskIdentifier,
+            using: .main
+        ) { task in
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            Task { await BackgroundRefresh.handle(refreshTask) }
+        }
         return true
     }
 
@@ -34,11 +57,6 @@ struct NookiOSApp: App {
                 // Format dates/numbers with the chosen UI language, not the OS
                 // locale (`Text(_, format:)` otherwise follows the environment).
                 .environment(\.locale, AppLanguage.formattingLocale)
-        }
-        // iOS wakes the app periodically to fetch feeds and notify about new
-        // articles (when the setting is on).
-        .backgroundTask(.appRefresh(BackgroundRefresh.taskIdentifier)) {
-            await BackgroundRefresh.run()
         }
     }
 }
