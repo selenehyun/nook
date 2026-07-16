@@ -75,12 +75,48 @@ public final class ReaderStore {
     private var activeFaviconFetches = 0
     private static let maxConcurrentFaviconFetches = 4
 
-    /// How many feeds fetch over the network at once during a full refresh.
-    /// Concurrency keeps a many-feed refresh inside iOS's short background
-    /// execution budget (a sequential fetch serialized every feed's latency and
-    /// routinely timed out before a notification could post), and stops one slow
-    /// feed from blocking the rest.
-    private static let maxConcurrentRefreshFetches = 6
+    /// How a full refresh should spend resources. An explicit, user-triggered
+    /// refresh wants results fast; automatic refreshes that may run while the
+    /// user is interacting stay quiet and light so content trickles in without
+    /// jolting the UI, while the UI-less iOS background task fetches fast to fit
+    /// the OS's time budget.
+    public enum RefreshMode: Sendable {
+        /// User asked (Refresh All, pull-to-refresh): fast, animated.
+        case interactive
+        /// Automatic and possibly concurrent with app use (activation sync,
+        /// macOS periodic timer): low concurrency/priority, no animation.
+        case ambient
+        /// iOS background task: no visible UI, so fetch fast (fit the budget) but
+        /// don't animate.
+        case background
+
+        /// Feeds fetched over the network at once. Higher = faster but heavier.
+        var maxConcurrentFetches: Int {
+            switch self {
+            case .interactive, .background: 6
+            case .ambient: 2
+            }
+        }
+
+        /// QoS for the network fetch + XML parse, so an automatic refresh yields
+        /// to interactive UI work instead of competing with it.
+        var fetchPriority: TaskPriority {
+            switch self {
+            case .interactive: .userInitiated
+            case .ambient, .background: .utility
+            }
+        }
+
+        /// Whether newly arrived articles animate into the list. Off for
+        /// automatic refreshes so rows appear quietly rather than sliding under
+        /// the user mid-scroll.
+        var animatesInsertion: Bool {
+            switch self {
+            case .interactive: true
+            case .ambient, .background: false
+            }
+        }
+    }
 
     private let feedService = RSSFeedService()
     private let faviconService = FaviconService()
@@ -898,7 +934,9 @@ public final class ReaderStore {
     /// the app again.
     public func refreshForBackground() async -> BackgroundRefreshResult {
         if !didBootstrap { await bootstrap() }
-        let result = await refreshAllReportingNew()
+        // The iOS background task runs with no visible UI but a tight OS time
+        // budget, so fetch fast (like interactive) yet without animation.
+        let result = await refreshAllReportingNew(mode: .background)
         // Write synchronously so the result is saved before the OS suspends the
         // app again (the iOS background-task caller depends on this).
         try? persistReplica()
@@ -908,7 +946,7 @@ public final class ReaderStore {
     /// Refreshes all feeds and reports the genuinely new (previously unseen,
     /// unread) articles that arrived, so a background refresher can decide
     /// whether to notify. Assumes the library is already loaded.
-    public func refreshAllReportingNew() async -> BackgroundRefreshResult {
+    public func refreshAllReportingNew(mode: RefreshMode = .ambient) async -> BackgroundRefreshResult {
         guard isStorageConfigured, !feeds.isEmpty else {
             return BackgroundRefreshResult(newArticleCount: 0, sampleTitles: [])
         }
@@ -918,7 +956,7 @@ public final class ReaderStore {
         // here and isn't re-announced as new.
         await reloadMerged()
         // Already synced above; skip the redundant reload inside refreshAllFeeds.
-        await refreshAllFeeds(syncFirst: false)
+        await refreshAllFeeds(syncFirst: false, mode: mode)
         try? persistReplica()
         // Never notify about an article the user already saw in the list on any
         // device — "seen" syncs via the shards, so it suppresses across devices.
@@ -1041,7 +1079,9 @@ public final class ReaderStore {
         activationRefreshInFlight = true
         allFeedsRefreshTask?.cancel()
         allFeedsRefreshTask = Task { [weak self] in
-            await self?.refreshAllFeeds()
+            // Automatic focus-driven sync: stay quiet and light so returning to
+            // Nook doesn't jolt the UI while content trickles in.
+            await self?.refreshAllFeeds(mode: .ambient)
             self?.activationRefreshInFlight = false
         }
     }
@@ -1310,7 +1350,7 @@ public final class ReaderStore {
         scheduleSave()
     }
 
-    private func refreshAllFeeds(syncFirst: Bool = true) async {
+    private func refreshAllFeeds(syncFirst: Bool = true, mode: RefreshMode = .interactive) async {
         // Pull the latest content + state shards before fetching, so the save at
         // the end can't clobber a feed another device just added but that hasn't
         // reached this device's in-memory list yet. (Callers that already synced
@@ -1339,7 +1379,7 @@ public final class ReaderStore {
             // Only the network fetch runs off the main actor; touching
             // `refreshingFeedIDs` stays in the main-isolated group body below.
             func launch(_ target: (id: Feed.ID, url: URL)) {
-                group.addTask {
+                group.addTask(priority: mode.fetchPriority) {
                     do {
                         var parsed = try await service.fetch(url: target.url)
                         parsed.feed.id = target.id
@@ -1350,7 +1390,7 @@ public final class ReaderStore {
                 }
             }
             var next = 0
-            let limit = min(Self.maxConcurrentRefreshFetches, targets.count)
+            let limit = min(mode.maxConcurrentFetches, targets.count)
             while next < limit {
                 // Mark in-flight so `isRefreshing` and the per-feed spinner track
                 // the concurrent fetch.
@@ -1368,7 +1408,7 @@ public final class ReaderStore {
                     continue
                 }
                 if let parsed {
-                    merge(parsed)
+                    merge(parsed, animated: mode.animatesInsertion)
                     ensureFavicon(for: parsed.feed)
                     lastRefreshedAt = Date.now
                     pruneSelectionIfHidden()
@@ -1417,7 +1457,7 @@ public final class ReaderStore {
         }
     }
 
-    private func merge(_ parsedFeed: ParsedFeed) {
+    private func merge(_ parsedFeed: ParsedFeed, animated: Bool = true) {
         if let feedIndex = feeds.firstIndex(where: { $0.id == parsedFeed.feed.id }) {
             var updated = parsedFeed.feed
             // Preserve the user's per-feed settings across refreshes; a freshly
@@ -1460,10 +1500,11 @@ public final class ReaderStore {
         }
 
         let merged = Array(existingArticlesByID.values)
-        // Animate the list only when a refresh actually brings in new stories,
-        // so rows slide/fade in like Apple Mail. Batch and single arrivals are
-        // both handled by the List's built-in insertion animation.
-        if hasNewArticles && !knownIDs.isEmpty {
+        // Animate the list only for interactive refreshes that bring in new
+        // stories, so rows slide/fade in like Apple Mail. Automatic (ambient/
+        // background) refreshes pass `animated: false` so new rows appear quietly
+        // instead of sliding under the user mid-scroll.
+        if animated && hasNewArticles && !knownIDs.isEmpty {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 articles = merged
             }
