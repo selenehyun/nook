@@ -50,14 +50,14 @@ That one decision means **no lock-in**:
 - 📥 **Painless migration, no lock-in.** Bring subscriptions in from any reader with **OPML import**, and **export** them whenever you want to move on.
 - 📰 **Real feeds.** Add an RSS/Atom URL, or just paste a website — Nook auto-discovers the feed from the page's `<link rel="alternate">`.
 - 📲 **Add from anywhere (iOS).** Share a page from Safari with **“Add Feed to Nook”** and it finds and subscribes to that site's feed.
-- 🌏 **Natural translation (iOS).** When an article isn't in your language, translate it in place — powered by **Apple Intelligence** on-device for fluent, idiomatic results (with the system Translation engine as a fallback). Works in both the native reader and the in-app web view.
+- 🌏 **Natural translation (iOS & macOS).** When an article isn't in your language, translate it in place — powered by **Apple Intelligence** on-device for fluent, idiomatic results (with the system Translation engine as a fallback). It streams in block by block, top to bottom, keeping the page's own layout, links, and formatting intact — in both the native reader and the in-app web view.
 - 📚 **Smart sources & folders.** Jump between **Unread**, **Today**, **Starred**, and **All Articles**, or organize feeds into your own folders (create, rename, delete).
 - 📖 **Two ways to read.** A clean, fast native reader by default; opt into a full-page reader (a `WKWebView` with an injected readability script) or pop the original page open in an in-app browser — per feed, if you like.
 - ✋ **Gesture-friendly (iOS).** Swipe to read/star, pull to refresh (all feeds or just the one you're viewing), and use the article body itself — double-tap to star, press-and-hold (with a haptic build-up) to open the web view.
 - 🔎 **Instant search** across titles, summaries, and feed names, with keyboard-first navigation on the Mac.
-- 🔄 **Quiet auto-sync.** Refreshes on a schedule and whenever the app launches or returns to the foreground — throttled so it never hammers your feeds.
-- 🔴 **Unread badges.** A Dock badge on the Mac and an app-icon badge on iOS, plus a home-screen widget with smart-source shortcuts.
-- 🔔 **At-most-once local alerts.** Each device keeps its own notification receipts, so a newly synced article can alert once on both Mac and iPhone without replaying after a restart. iOS Settings includes a test notification and background-refresh diagnostics.
+- 🔄 **Quiet auto-sync.** Refreshes on a schedule and whenever the app launches or returns to the foreground — throttled so it never hammers your feeds. Automatic refreshes run quietly at low priority and slip new articles in without jolting the list, while an explicit refresh fetches fast; you can even add a feed mid-refresh.
+- 🔴 **Unread badges.** A Dock badge on the Mac and an app-icon badge on iOS (showing your total unread), plus a home-screen widget with smart-source shortcuts.
+- 🔔 **Smart new-article alerts.** A local notification when genuinely new articles arrive — never for ones you've already seen in the list. That "seen" state syncs across devices, so catching up on your Mac won't re-ping your iPhone. Each device still keeps its own at-most-once receipts, and iOS Settings has a test notification plus background-refresh diagnostics (and a nudge to turn on Background App Refresh if it's off).
 - 🌓 **Adaptive icon** (light/dark) and a **localized UI** — English, 한국어, 日本語, 简体中文.
 - ⬆️ **Auto-updates** on macOS via [Sparkle](https://sparkle-project.org) — quiet, never a modal.
 
@@ -75,7 +75,7 @@ That one decision means **no lock-in**:
      ```
 4. Point Nook at a **sync folder** — any folder your cloud of choice keeps in sync. That's where your library lives.
 
-> Requires **macOS 26 (Tahoe)** or later. Universal binary (Apple Silicon + Intel).
+> Requires **macOS 26 (Tahoe)** or later. Universal binary (Apple Silicon + Intel). On-device Apple Intelligence translation needs an Apple Silicon Mac with Apple Intelligence enabled; elsewhere translation falls back to the system Translation overlay.
 
 ### iOS / iPadOS
 
@@ -161,7 +161,7 @@ xcodebuild -project Nook.xcodeproj -scheme NookiOS \
 - **UI:** SwiftUI + AppKit on macOS, SwiftUI on iOS/iPadOS (native split view, toolbars, menus, commands, widget, share extension).
 - **Networking & parsing:** `URLSession` + `XMLParser` for RSS/Atom and OPML.
 - **Reader mode:** `WKWebView` with a self-contained injected readability script.
-- **Translation (iOS):** Apple's on-device **Foundation Models** (Apple Intelligence) with a **Translation** framework fallback; language detection via **NaturalLanguage**.
+- **Translation (iOS & macOS):** Apple's on-device **Foundation Models** (Apple Intelligence) — an AST-based engine translates each block in place preserving inline markup, threading a rolling context summary for consistency — with a **Translation** framework fallback; language detection via **NaturalLanguage**.
 - **Sync:** per-device content/body/state shards; state-based last-writer-wins CRDTs with hybrid logical clocks; a system SQLite3 replica/outbox cache; `NSFileCoordinator` + `NSFilePresenter` as coordinated I/O and rescan hints.
 - **Widget:** WidgetKit. **Updates (macOS):** Sparkle (EdDSA-signed appcast, built and published by GitHub Actions).
 - No third-party UI frameworks. No Electron.
