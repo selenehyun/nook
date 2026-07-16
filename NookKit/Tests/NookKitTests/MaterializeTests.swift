@@ -51,6 +51,24 @@ struct MaterializeTests {
         #expect(merged.articles.first?.isStarred == true)
     }
 
+    @Test("Seen state merges across devices by HLC")
+    func seenMergesAcrossDevices() {
+        // Device A saw a1 in its list; B never did. The merged state must report
+        // a1 seen and a2 not, so a background refresh on either device skips
+        // notifying about a1 but can still notify about a2.
+        let deviceA = shard("A") { $0.setArticleSeen("a1", true, hlc: Fixture.hlc(1000, node: "A")) }
+        let deviceB = shard("B") { $0.setArticleRead("a2", false, hlc: Fixture.hlc(1000, node: "B")) }
+
+        let merged = DeviceStateDocument.mergedState(from: [deviceA, deviceB])
+        #expect(merged.articles["a1"]?.seen?.value == true)
+        #expect(merged.articles["a2"]?.seen?.value == nil)
+
+        // A later "unseen" (higher HLC) wins, so seen is a normal LWW register.
+        let unsee = shard("B") { $0.setArticleSeen("a1", false, hlc: Fixture.hlc(2000, node: "B")) }
+        let after = DeviceStateDocument.mergedState(from: [deviceA, unsee])
+        #expect(after.articles["a1"]?.seen?.value == false)
+    }
+
     @Test("A feed tombstone drops the feed and its articles")
     func tombstoneDropsFeedAndArticles() {
         let base = Fixture.library(

@@ -62,6 +62,10 @@ struct RootView: View {
                 UNUserNotificationCenter.current().setBadgeCount(count)
             }
             store.showsUnreadBadge = showUnreadBadge
+            // Cold launch is foreground; `scenePhase`'s onChange doesn't fire for
+            // the initial value, so set active here or the on-screen list would
+            // never be marked "seen" until the first background→active cycle.
+            store.setForegroundActive(true)
             await store.bootstrap()
             // Warm up WebKit so the first article web view opens without the
             // ~2-3s cold-start delay.
@@ -92,13 +96,19 @@ struct RootView: View {
             case .active:
                 // Returning to the foreground: pull another device's changes
                 // from the sync folder, then refresh feeds over the network.
+                // Foreground-active marks the on-screen list "seen" so its
+                // articles don't fire a background notification later.
+                store.setForegroundActive(true)
                 store.setSyncObservationActive(true)
                 store.syncFromDisk()
                 if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
             case .background:
                 // Queue the next background refresh as we leave.
+                store.setForegroundActive(false)
                 store.setSyncObservationActive(false)
                 BackgroundRefresh.schedule()
+            case .inactive:
+                store.setForegroundActive(false)
             default:
                 break
             }

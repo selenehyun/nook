@@ -19,18 +19,29 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     public struct ArticleState: Codable, Sendable, Equatable {
         public var isRead: LWWRegister<Bool>?
         public var isStarred: LWWRegister<Bool>?
+        /// Set once the article has been surfaced in the foreground list on some
+        /// device. Syncs like read/starred so an article you already saw on one
+        /// device never fires a "new article" notification on another. Distinct
+        /// from `isRead`: you can see a title in the list without reading it.
+        public var seen: LWWRegister<Bool>?
 
-        public init(isRead: LWWRegister<Bool>? = nil, isStarred: LWWRegister<Bool>? = nil) {
+        public init(
+            isRead: LWWRegister<Bool>? = nil,
+            isStarred: LWWRegister<Bool>? = nil,
+            seen: LWWRegister<Bool>? = nil
+        ) {
             self.isRead = isRead
             self.isStarred = isStarred
+            self.seen = seen
         }
 
-        var isEmpty: Bool { isRead == nil && isStarred == nil }
+        var isEmpty: Bool { isRead == nil && isStarred == nil && seen == nil }
 
         func merged(with other: ArticleState) -> ArticleState {
             ArticleState(
                 isRead: mergeRegisters(isRead, other.isRead),
-                isStarred: mergeRegisters(isStarred, other.isStarred)
+                isStarred: mergeRegisters(isStarred, other.isStarred),
+                seen: mergeRegisters(seen, other.seen)
             )
         }
     }
@@ -180,6 +191,12 @@ extension DeviceStateDocument {
         articleState[id] = state
     }
 
+    public mutating func setArticleSeen(_ id: Article.ID, _ value: Bool, hlc: HLC) {
+        var state = articleState[id] ?? ArticleState()
+        state.seen = LWWRegister(value: value, hlc: hlc)
+        articleState[id] = state
+    }
+
     public mutating func setFeedCategory(_ id: Feed.ID, _ value: String, hlc: HLC) {
         var state = feedState[id] ?? FeedState()
         state.category = LWWRegister(value: value, hlc: hlc)
@@ -222,6 +239,7 @@ extension DeviceStateDocument {
         for state in articleState.values {
             fold(state.isRead?.hlc)
             fold(state.isStarred?.hlc)
+            fold(state.seen?.hlc)
         }
         for state in feedState.values {
             fold(state.category?.hlc)

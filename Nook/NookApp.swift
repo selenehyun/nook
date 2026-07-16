@@ -75,7 +75,18 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
         if NewArticleNotifier.isEnabled {
             Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
         }
+        // Tell the store whether Nook is frontmost so it can mark on-screen
+        // articles "seen" and skip re-notifying about them later.
+        ReaderStore.shared.setForegroundActive(NSApp.isActive)
         loopTask = Task { [weak self] in await self?.runLoop() }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        ReaderStore.shared.setForegroundActive(true)
+    }
+
+    func applicationDidResignActive(_ notification: Notification) {
+        ReaderStore.shared.setForegroundActive(false)
     }
 
     // Keep running in the background when the window is closed so scheduled

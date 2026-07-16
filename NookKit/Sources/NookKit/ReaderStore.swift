@@ -58,6 +58,12 @@ public final class ReaderStore {
     /// the view) so the Dock badge is a deterministic function of store state
     /// rather than of SwiftUI view-lifecycle timing.
     public var showsUnreadBadge = true { didSet { updateUnreadBadge() } }
+    /// Whether the app is currently foreground-active, set by each platform app
+    /// on scene/activation changes. While active, articles surfaced in the list
+    /// are marked "seen" so they never fire a later "new article" notification
+    /// (on this device or, via shard sync, any other). Defaults `false` so a
+    /// background refresh — the one path that *should* notify — never marks seen.
+    public private(set) var isForegroundActive = false
     public private(set) var syncFolderDisplayPath: String?
     private(set) var feedIcons: [Feed.ID: PlatformImage] = [:]
     private(set) var folders: [String] = []
@@ -68,6 +74,13 @@ public final class ReaderStore {
     private var faviconQueue: [Feed] = []
     private var activeFaviconFetches = 0
     private static let maxConcurrentFaviconFetches = 4
+
+    /// How many feeds fetch over the network at once during a full refresh.
+    /// Concurrency keeps a many-feed refresh inside iOS's short background
+    /// execution budget (a sequential fetch serialized every feed's latency and
+    /// routinely timed out before a notification could post), and stops one slow
+    /// feed from blocking the rest.
+    private static let maxConcurrentRefreshFetches = 6
 
     private let feedService = RSSFeedService()
     private let faviconService = FaviconService()
@@ -232,6 +245,9 @@ public final class ReaderStore {
             displayedArticles = result
         }
         pruneSelectionIfHidden()
+        // The list the user is looking at now counts as "seen"; suppress future
+        // notifications for it (no-op unless the app is foreground-active).
+        markVisibleArticlesSeen()
     }
 
     /// Pure filtering + sorting over a snapshot. `nonisolated` so it can run on
@@ -765,6 +781,45 @@ public final class ReaderStore {
         onUnreadBadgeChange?(showsUnreadBadge ? totalUnreadCount : 0)
     }
 
+    // MARK: - "Seen" tracking (notification suppression)
+
+    /// Called by the platform app when foreground-active state changes. Becoming
+    /// active marks the articles already on screen as seen (the user is looking
+    /// at the synced list right now), so a later background refresh won't
+    /// re-announce them.
+    public func setForegroundActive(_ active: Bool) {
+        guard active != isForegroundActive else { return }
+        isForegroundActive = active
+        if active { markVisibleArticlesSeen() }
+    }
+
+    /// While the app is foreground-active, records every currently-visible unread
+    /// article as "seen" in this device's shard, so it never triggers a
+    /// new-article notification later. Reads only in-memory `ownShard` (no disk
+    /// I/O) and writes a register only for articles not already seen, so the
+    /// common "nothing new on screen" case is a cheap scan. Seen state syncs to
+    /// peers via the shard, suppressing the notification on the other device too.
+    private func markVisibleArticlesSeen() {
+        guard isForegroundActive, storage != nil else { return }
+        var wrote = false
+        for article in displayedArticles where !article.isRead {
+            if ownShard.articleState[article.id]?.seen?.value == true { continue }
+            ownShard.setArticleSeen(article.id, true, hlc: nextHLC())
+            wrote = true
+        }
+        if wrote { scheduleShardSave() }
+    }
+
+    /// Article ids marked "seen" across every device's shard (peers + this
+    /// device's authoritative in-memory shard). Used by the background refresh to
+    /// skip notifying about articles the user already saw on any device.
+    private func mergedSeenArticleIDs(storage: ReaderStorage) -> Set<Article.ID> {
+        let merged = DeviceStateDocument.mergedState(from: observedShards(from: storage))
+        var ids: Set<Article.ID> = []
+        for (id, state) in merged.articles where state.seen?.value == true { ids.insert(id) }
+        return ids
+    }
+
     public func unreadCount(feedID: Feed.ID? = nil) -> Int {
         guard let feedID else { return totalUnread }
         return unreadByFeed[feedID] ?? 0
@@ -854,7 +909,10 @@ public final class ReaderStore {
         // Already synced above; skip the redundant reload inside refreshAllFeeds.
         await refreshAllFeeds(syncFirst: false)
         try? persistReplica()
-        let candidates = articles.filter { !$0.isRead }
+        // Never notify about an article the user already saw in the list on any
+        // device — "seen" syncs via the shards, so it suppresses across devices.
+        let seen = storage.map { mergedSeenArticleIDs(storage: $0) } ?? []
+        let candidates = articles.filter { !$0.isRead && !seen.contains($0.id) }
         let fresh = (try? replicaStore?.reserveNotifications(for: candidates)) ?? []
         let sorted = fresh.sorted(by: Article.isOrderedBefore)
         return BackgroundRefreshResult(
@@ -1244,8 +1302,58 @@ public final class ReaderStore {
             isBatchRefreshing = false
             scheduleSave()
         }
-        for feed in feeds {
-            await refreshFeed(feed)
+
+        // Fetch feeds concurrently (bounded) — the network is the slow part and
+        // `RSSFeedService` is a `Sendable` value, so fetches run off the main
+        // actor in parallel while each result is merged back here serially. This
+        // keeps a many-feed refresh inside iOS's background budget; a sequential
+        // fetch serialized every feed's up-to-15s timeout and timed out first.
+        let targets = feeds.map { (id: $0.id, url: $0.feedURL) }
+        guard !targets.isEmpty else { return }
+        let service = feedService
+        // `Error` isn't `Sendable`, so a child task returns the parsed feed or an
+        // error message string across the actor boundary, never the error itself.
+        await withTaskGroup(of: (Feed.ID, ParsedFeed?, String?).self) { group in
+            // Only the network fetch runs off the main actor; touching
+            // `refreshingFeedIDs` stays in the main-isolated group body below.
+            func launch(_ target: (id: Feed.ID, url: URL)) {
+                group.addTask {
+                    do {
+                        var parsed = try await service.fetch(url: target.url)
+                        parsed.feed.id = target.id
+                        return (target.id, parsed, nil)
+                    } catch {
+                        return (target.id, nil, error.localizedDescription)
+                    }
+                }
+            }
+            var next = 0
+            let limit = min(Self.maxConcurrentRefreshFetches, targets.count)
+            while next < limit {
+                // Mark in-flight so `isRefreshing` and the per-feed spinner track
+                // the concurrent fetch.
+                refreshingFeedIDs.insert(targets[next].id)
+                launch(targets[next])
+                next += 1
+            }
+            while let (feedID, parsed, failure) = await group.next() {
+                refreshingFeedIDs.remove(feedID)
+                if let parsed {
+                    merge(parsed)
+                    ensureFavicon(for: parsed.feed)
+                    lastRefreshedAt = Date.now
+                    pruneSelectionIfHidden()
+                    errorMessage = nil
+                } else {
+                    markFeedUnhealthy(feedID: feedID)
+                    errorMessage = failure
+                }
+                if next < targets.count {
+                    refreshingFeedIDs.insert(targets[next].id)
+                    launch(targets[next])
+                    next += 1
+                }
+            }
         }
     }
 
