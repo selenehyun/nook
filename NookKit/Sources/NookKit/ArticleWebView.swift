@@ -449,16 +449,26 @@ extension ArticleWebView {
                 wantsTranslation = true
                 runTranslationIfNeeded()
             } else {
+                // Stop any in-flight streaming (the loop bails on the next block)
+                // and reload to restore the original text.
                 wantsTranslation = false
-                if translationApplied {
-                    translationApplied = false
-                    webView?.reload()
-                }
+                let wasActive = translationApplied || translationInFlight
+                translationApplied = false
+                finishTranslating()
+                if wasActive { webView?.reload() }
             }
         }
 
-        /// Translates once the page is loaded; safe to call repeatedly (guards
-        /// against re-entry and re-translation).
+        /// A translatable text block collected from the page, decoded from JS.
+        private struct TextBlock: Decodable {
+            let id: Int
+            /// The block's text with inline elements marked as ⟦Tn⟧…⟦/Tn⟧, so the
+            /// translation can be re-inserted while preserving links/emphasis.
+            let text: String
+        }
+
+        /// Starts translation once the content is ready; safe to call repeatedly
+        /// (guards against re-entry and re-translation).
         @MainActor
         private func runTranslationIfNeeded() {
             // `contentReady` is the hard gate: translation never starts until the
@@ -468,65 +478,105 @@ extension ArticleWebView {
                   !translationLanguage.isEmpty, let webView else { return }
             translationInFlight = true
             onTranslatingChange(true)
-            collectAndTranslate(webView, languageName: translationLanguage)
+            beginBlockTranslation(webView, languageName: translationLanguage)
         }
 
+        /// Tags every translatable block in the page, then translates them one by
+        /// one in document order — replacing each block's text in place as its
+        /// result arrives (title first), so the page's own styles and inline
+        /// links/emphasis survive and content appears top-to-bottom like a
+        /// browser translation. A running summary is threaded through each block
+        /// so the model keeps context across paragraphs.
         @MainActor
-        private func collectAndTranslate(_ webView: WKWebView, languageName: String) {
-            // Snapshot the navigation this translation belongs to; if the page
-            // navigates before it finishes, the result is discarded rather than
-            // injected into the wrong article.
+        private func beginBlockTranslation(_ webView: WKWebView, languageName: String) {
             let token = navigationToken
-            webView.evaluateJavaScript(Self.collectTextScript) { [weak self] result, _ in
+            webView.evaluateJavaScript(Self.collectBlocksScript) { [weak self] result, _ in
                 guard let self else { return }
-                guard token == self.navigationToken else {
-                    self.translationInFlight = false
-                    self.onTranslatingChange(false)
-                    return
-                }
-                guard let text = (result as? String), !text.isEmpty else {
-                    self.translationInFlight = false
-                    self.onTranslatingChange(false)
+                guard token == self.navigationToken,
+                      let json = result as? String,
+                      let data = json.data(using: .utf8),
+                      let blocks = try? JSONDecoder().decode([TextBlock].self, from: data),
+                      !blocks.isEmpty else {
+                    self.finishTranslating()
                     return
                 }
                 Task { [weak self] in
-                    let translated = try? await NaturalTranslator.translate(text, into: languageName)
-                    await MainActor.run {
-                        guard let self else { return }
-                        self.translationInFlight = false
-                        self.onTranslatingChange(false)
-                        guard token == self.navigationToken else { return }
-                        guard let translated, !translated.isEmpty, let webView = self.webView else { return }
-                        webView.evaluateJavaScript(Self.injectTranslationScript(translated))
-                        self.translationApplied = true
-                    }
+                    await self?.translateBlocks(blocks, languageName: languageName, token: token)
                 }
             }
         }
 
-        /// Collects the main content's block text, joined by blank lines.
-        private static let collectTextScript = """
+        @MainActor
+        private func translateBlocks(_ blocks: [TextBlock], languageName: String, token: Int) async {
+            var context = ""
+            for block in blocks {
+                // Stop promptly if we navigated away or the user turned
+                // translation back off mid-stream.
+                guard token == navigationToken, wantsTranslation else { break }
+                let source = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !source.isEmpty else { continue }
+                guard let result = try? await NaturalTranslator.translateBlock(
+                    block.text, into: languageName, context: context
+                ) else { continue }
+                guard token == navigationToken, let webView else { break }
+                context = result.context
+                // Completion-handler overload (returns Void) so this async context
+                // doesn't pick the throwing async one; the IIFE returns undefined.
+                webView.evaluateJavaScript(Self.applyBlockScript(id: block.id, marked: result.translation), completionHandler: nil)
+            }
+            if token == navigationToken { translationApplied = true }
+            finishTranslating()
+        }
+
+        @MainActor
+        private func finishTranslating() {
+            translationInFlight = false
+            onTranslatingChange(false)
+        }
+
+        /// Tags each leaf text block with `data-nook-block` and returns
+        /// `[{id, text}]` (JSON), where `text` keeps inline elements as
+        /// ⟦Tn⟧…⟦/Tn⟧ markers so they can be restored after translation.
+        private static let collectBlocksScript = """
         (function () {
           var root = document.querySelector('#nook-reader') || document.body;
-          var nodes = root.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption');
-          var parts = [];
-          nodes.forEach(function (n) {
-            var t = (n.innerText || '').trim();
-            if (t) parts.push(t);
+          var sel = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption';
+          var out = [];
+          var i = 0;
+          root.querySelectorAll(sel).forEach(function (el) {
+            // Skip containers of other blocks (translate the leaves) and code.
+            if (el.querySelector(sel)) return;
+            if (el.closest('pre, code')) return;
+            if (el.getAttribute('data-nook-block') !== null) return;
+            if (!(el.innerText || '').trim()) return;
+            var parts = [];
+            var elemIndex = 0;
+            el.childNodes.forEach(function (node) {
+              if (node.nodeType === 3) {
+                parts.push(node.textContent);
+              } else if (node.nodeType === 1) {
+                var t = node.innerText || node.textContent || '';
+                parts.push('\\u27E6T' + elemIndex + '\\u27E7' + t + '\\u27E6/T' + elemIndex + '\\u27E7');
+                elemIndex++;
+              }
+            });
+            var marked = parts.join('');
+            if (!marked.trim()) return;
+            el.setAttribute('data-nook-block', String(i));
+            out.push({ id: i, text: marked });
+            i++;
           });
-          if (parts.length === 0) {
-            var all = (root.innerText || '').trim();
-            if (all) parts.push(all);
-          }
-          return parts.join('\\n\\n');
+          return JSON.stringify(out);
         })();
         """
 
-        /// Rebuilds the main content as translated paragraphs, keeping the
-        /// reader styling. Returns the JS to run.
-        private static func injectTranslationScript(_ translated: String) -> String {
+        /// Replaces one block's text with its translation, restoring inline
+        /// elements from the original DOM by marker index (attributes such as
+        /// `href` are preserved via shallow clones). Falls back to plain text if
+        /// the model dropped or garbled the markers.
+        private static func applyBlockScript(id: Int, marked: String) -> String {
             let json: String
-            if let data = try? JSONSerialization.data(withJSONObject: translated, options: [.fragmentsAllowed]),
+            if let data = try? JSONSerialization.data(withJSONObject: marked, options: [.fragmentsAllowed]),
                let string = String(data: data, encoding: .utf8) {
                 json = string
             } else {
@@ -534,13 +584,23 @@ extension ArticleWebView {
             }
             return """
             (function () {
-              var root = document.querySelector('#nook-reader') || document.body;
-              var text = \(json);
-              var parts = text.split('\\n\\n');
-              function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-              root.innerHTML = parts.map(function (p) {
-                return '<p style="margin:0 0 1.1em; line-height:1.7;">' + esc(p) + '</p>';
-              }).join('');
+              var el = document.querySelector('[data-nook-block="\(id)"]');
+              if (!el) return;
+              var marked = \(json);
+              var clones = Array.prototype.map.call(el.children, function (c) { return c.cloneNode(false); });
+              var frag = document.createDocumentFragment();
+              var re = /\\u27E6T(\\d+)\\u27E7([\\s\\S]*?)\\u27E6\\/T\\d+\\u27E7/g;
+              var last = 0, m;
+              while ((m = re.exec(marked)) !== null) {
+                if (m.index > last) frag.appendChild(document.createTextNode(marked.slice(last, m.index)));
+                var clone = clones[parseInt(m[1], 10)];
+                if (clone) { clone.textContent = m[2]; frag.appendChild(clone); }
+                else { frag.appendChild(document.createTextNode(m[2])); }
+                last = re.lastIndex;
+              }
+              if (last < marked.length) frag.appendChild(document.createTextNode(marked.slice(last)));
+              while (el.firstChild) el.removeChild(el.firstChild);
+              el.appendChild(frag);
             })();
             """
         }
