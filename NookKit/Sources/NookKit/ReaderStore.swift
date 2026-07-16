@@ -5,8 +5,8 @@ import SwiftUI
 @MainActor
 @Observable
 public final class ReaderStore {
-    public var feeds: [Feed] = [] { didSet { scheduleArticleFilter() } }
-    var articles: [Article] = [] { didSet { recomputeCounts(); scheduleArticleFilter(); updateUnreadBadge() } }
+    public var feeds: [Feed] = [] { didSet { scheduleArticleFilter(debounced: true) } }
+    var articles: [Article] = [] { didSet { recomputeCounts(); scheduleArticleFilter(debounced: true); updateUnreadBadge() } }
 
     // Sidebar badge counts, recomputed in a single pass whenever `articles`
     // changes, so rendering a feed/folder/source badge is an O(1)/O(feeds)
@@ -32,7 +32,7 @@ public final class ReaderStore {
     }
     // Articles kept visible in the current source even after being read, until
     // the user navigates to another source (Chrome-tab-close heuristic).
-    private var retainedArticleIDs: Set<Article.ID> = [] { didSet { scheduleArticleFilter() } }
+    private var retainedArticleIDs: Set<Article.ID> = [] { didSet { scheduleArticleFilter(debounced: true) } }
     public var selectedArticleID: Article.ID?
     /// The raw text bound to the search field; updates instantly as the user types.
     public var searchText = ""
@@ -45,6 +45,11 @@ public final class ReaderStore {
     /// thread for large libraries so typing/scrolling never blocks the UI.
     private(set) var displayedArticles: [Article] = []
     private var filterTask: Task<Void, Never>?
+    /// Coalesces data-driven recomputes (a sync streams articles in bursts, each
+    /// mutation firing `didSet`) so the expensive filter+sort runs at most once
+    /// per quiet window instead of dozens of times a second.
+    private var filterDebounceTask: Task<Void, Never>?
+    private static let filterDebounceInterval: Duration = .seconds(1)
     /// Above this many articles, filtering runs on a background executor.
     private static let backgroundFilterThreshold = 600
     var lastRefreshedAt: Date?
@@ -153,11 +158,33 @@ public final class ReaderStore {
     /// recomputed (off-main for large libraries) whenever a filter input changes.
     public var visibleArticles: [Article] { displayedArticles }
 
-    /// Recomputes `displayedArticles` from the current inputs. Coalesces rapid
-    /// input changes by cancelling any in-flight recompute. Small libraries are
-    /// filtered synchronously (instant, animatable); large ones are filtered on
-    /// a background executor so the main thread stays responsive.
-    private func scheduleArticleFilter() {
+    /// Recomputes `displayedArticles` from the current inputs.
+    ///
+    /// User-driven changes (source/feed selection, search) pass `debounced:
+    /// false` for an instant response. Data-driven changes that arrive in
+    /// bursts (articles/feeds streaming in during a sync) pass `debounced: true`
+    /// so the recompute is deferred until the burst settles, capturing the
+    /// latest snapshot once instead of re-sorting on every mutation.
+    private func scheduleArticleFilter(debounced: Bool = false) {
+        guard debounced else {
+            filterDebounceTask?.cancel()
+            filterDebounceTask = nil
+            performArticleFilter()
+            return
+        }
+
+        filterDebounceTask?.cancel()
+        filterDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.filterDebounceInterval)
+            guard !Task.isCancelled, let self else { return }
+            self.performArticleFilter()
+        }
+    }
+
+    /// Captures the current inputs and recomputes `displayedArticles`. Small
+    /// libraries are filtered synchronously (instant, animatable); large ones
+    /// are filtered on a background executor so the main thread stays responsive.
+    private func performArticleFilter() {
         filterTask?.cancel()
 
         let snapshot = articles
