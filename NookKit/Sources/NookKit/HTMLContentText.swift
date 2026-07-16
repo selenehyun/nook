@@ -735,17 +735,16 @@ private struct ArticleImageOverlay: View {
     }
 }
 
-/// A full-surface photo viewer with pinch/double-tap zoom and drag-to-pan,
-/// mirroring the standard photo-viewing gestures users expect. Rendered inline
-/// as an overlay so the image scales up into the center of the window.
+/// A full-surface photo viewer with pinch/double-tap zoom. Panning is handled
+/// by a scrollable container so a zoomed image can be moved with the trackpad
+/// or mouse wheel on macOS (no dragging required) and by touch on iOS.
+/// Rendered inline as an overlay so the image scales up into the center.
 private struct ImageViewer: View {
     let item: ArticleImageItem
     let onClose: () -> Void
 
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
 
     private let minScale: CGFloat = 1
     private let maxScale: CGFloat = 6
@@ -759,23 +758,27 @@ private struct ImageViewer: View {
                 .contentShape(Rectangle())
                 .onTapGesture { onClose() }
 
-            AsyncImage(url: item.url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .gesture(magnification)
-                        .simultaneousGesture(scale > 1 ? drag : nil)
-                        .onTapGesture(count: 2) { toggleZoom() }
-                case .failure:
-                    Label(String(localized: "Couldn’t load image", bundle: .module), systemImage: "photo")
-                        .foregroundStyle(.white.opacity(0.8))
-                default:
-                    ProgressView().controlSize(.large).tint(.white)
+            GeometryReader { geometry in
+                // The image grows past the viewport when zoomed, so the
+                // ScrollView exposes it to scroll/drag panning.
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                    AsyncImage(url: item.url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFit()
+                        case .failure:
+                            Label(String(localized: "Couldn’t load image", bundle: .module), systemImage: "photo")
+                                .foregroundStyle(.white.opacity(0.8))
+                        default:
+                            ProgressView().controlSize(.large).tint(.white)
+                        }
+                    }
+                    .frame(width: geometry.size.width * scale, height: geometry.size.height * scale)
+                    .gesture(magnification)
+                    .onTapGesture(count: 2) { toggleZoom() }
                 }
+                .scrollDisabled(scale <= minScale)
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
             .padding(24)
 
@@ -812,38 +815,14 @@ private struct ImageViewer: View {
             .onChanged { value in
                 scale = min(max(lastScale * value, minScale), maxScale)
             }
-            .onEnded { _ in
-                lastScale = scale
-                if scale <= minScale { resetPan() }
-            }
-    }
-
-    private var drag: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                offset = CGSize(
-                    width: lastOffset.width + value.translation.width,
-                    height: lastOffset.height + value.translation.height
-                )
-            }
-            .onEnded { _ in lastOffset = offset }
+            .onEnded { _ in lastScale = scale }
     }
 
     private func toggleZoom() {
         withAnimation(.easeInOut(duration: 0.2)) {
-            if scale > minScale {
-                scale = minScale
-                resetPan()
-            } else {
-                scale = 2.5
-            }
+            scale = scale > minScale ? minScale : 2.5
             lastScale = scale
         }
-    }
-
-    private func resetPan() {
-        offset = .zero
-        lastOffset = .zero
     }
 }
 
@@ -1092,8 +1071,10 @@ public struct HTMLContentText: View {
         ]
         guard let mutable = try? NSMutableAttributedString(data: data, options: options, documentAttributes: nil) else { return nil }
         let fullRange = NSRange(location: 0, length: mutable.length)
+        let codeSize = baseSize * 0.92
 
         #if canImport(AppKit)
+        var monoRanges: [NSRange] = []
         mutable.enumerateAttribute(.font, in: fullRange) { value, range, _ in
             let existing = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
             let isMono = existing.contains(.monoSpace)
@@ -1104,18 +1085,24 @@ public struct HTMLContentText: View {
             let font: NSFont
             if isMono {
                 let weight: NSFont.Weight = traits.contains(.bold) ? .semibold : .regular
-                font = NSFont.monospacedSystemFont(ofSize: baseSize * 0.92, weight: weight)
-                // Give inline code a subtle chip so it reads as code.
-                mutable.addAttribute(.backgroundColor, value: NSColor.systemGray.withAlphaComponent(0.22), range: range)
+                font = NSFont.monospacedSystemFont(ofSize: codeSize, weight: weight)
+                monoRanges.append(range)
             } else {
                 let descriptor = NSFont.systemFont(ofSize: baseSize).fontDescriptor.withSymbolicTraits(traits)
                 font = NSFont(descriptor: descriptor, size: baseSize) ?? NSFont.systemFont(ofSize: baseSize)
             }
             mutable.addAttribute(.font, value: font, range: range)
         }
-        styleLinks(mutable, fullRange: fullRange, linkColor: NSColor.controlAccentColor, plainColor: NSColor.labelColor)
+        padInlineCode(
+            mutable,
+            ranges: monoRanges,
+            spaceAttributes: [.font: NSFont.monospacedSystemFont(ofSize: codeSize, weight: .regular)],
+            chip: NSColor.systemGray.withAlphaComponent(0.18)
+        )
+        styleLinks(mutable, fullRange: NSRange(location: 0, length: mutable.length), linkColor: NSColor.controlAccentColor, plainColor: NSColor.labelColor)
         return try? AttributedString(mutable, including: \.appKit)
         #else
+        var monoRanges: [NSRange] = []
         mutable.enumerateAttribute(.font, in: fullRange) { value, range, _ in
             let existing = (value as? UIFont)?.fontDescriptor.symbolicTraits ?? []
             let isMono = existing.contains(.traitMonoSpace)
@@ -1126,17 +1113,42 @@ public struct HTMLContentText: View {
             let font: UIFont
             if isMono {
                 let weight: UIFont.Weight = traits.contains(.traitBold) ? .semibold : .regular
-                font = UIFont.monospacedSystemFont(ofSize: baseSize * 0.92, weight: weight)
-                mutable.addAttribute(.backgroundColor, value: UIColor.systemGray.withAlphaComponent(0.22), range: range)
+                font = UIFont.monospacedSystemFont(ofSize: codeSize, weight: weight)
+                monoRanges.append(range)
             } else {
                 let base = UIFont.systemFont(ofSize: baseSize)
                 font = UIFont(descriptor: base.fontDescriptor.withSymbolicTraits(traits) ?? base.fontDescriptor, size: baseSize)
             }
             mutable.addAttribute(.font, value: font, range: range)
         }
-        styleLinks(mutable, fullRange: fullRange, linkColor: UIColor.tintColor, plainColor: UIColor.label)
+        padInlineCode(
+            mutable,
+            ranges: monoRanges,
+            spaceAttributes: [.font: UIFont.monospacedSystemFont(ofSize: codeSize, weight: .regular)],
+            chip: UIColor.systemGray.withAlphaComponent(0.18)
+        )
+        styleLinks(mutable, fullRange: NSRange(location: 0, length: mutable.length), linkColor: UIColor.tintColor, plainColor: UIColor.label)
         return try? AttributedString(mutable, including: \.uiKit)
         #endif
+    }
+
+    /// Wraps each inline-code run in thin spaces and paints a chip background
+    /// over the padded range, so the highlight has breathing room instead of
+    /// hugging the glyphs. Ranges are padded back-to-front to keep indices valid.
+    private static func padInlineCode(
+        _ mutable: NSMutableAttributedString,
+        ranges: [NSRange],
+        spaceAttributes: [NSAttributedString.Key: Any],
+        chip: Any
+    ) {
+        let pad = "\u{2009}\u{2009}" // two thin spaces
+        let padLength = (pad as NSString).length
+        for range in ranges.sorted(by: { $0.location > $1.location }) {
+            mutable.insert(NSAttributedString(string: pad, attributes: spaceAttributes), at: range.location + range.length)
+            mutable.insert(NSAttributedString(string: pad, attributes: spaceAttributes), at: range.location)
+            let chipRange = NSRange(location: range.location, length: range.length + padLength * 2)
+            mutable.addAttribute(.backgroundColor, value: chip, range: chipRange)
+        }
     }
 
     #if canImport(AppKit)
