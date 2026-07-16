@@ -534,23 +534,60 @@ extension ArticleWebView {
             onTranslatingChange(false)
         }
 
+        /// Shared JS predicates identifying content that must NOT be translated:
+        /// visually hidden text (screen-reader-only, display:none, etc.) and icon
+        /// glyphs (icon-font ligatures like "arrow_forward"). Used identically at
+        /// collection and reconstruction so element indices stay aligned.
+        private static let opaqueHelperJS = """
+        function nookHidden(el) {
+          try {
+            if (el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden')) return true;
+            var cs = getComputedStyle(el);
+            if (!cs) return false;
+            if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return true;
+            if (parseFloat(cs.opacity || '1') === 0) return true;
+            var r = el.getBoundingClientRect();
+            if (r.width <= 1 && r.height <= 1) return true;
+            return false;
+          } catch (e) { return false; }
+        }
+        function nookIcon(el) {
+          try {
+            var cls = (typeof el.className === 'string') ? el.className : ((el.className && el.className.baseVal) || '');
+            cls = ' ' + cls + ' ';
+            if (/ (material-icons|material-symbols[a-z-]*|glyphicon|fa|fas|far|fab|bi|icon) /i.test(cls)) return true;
+            if (/ (fa-|bi-|icon-|glyphicon-)/i.test(cls)) return true;
+            if (/-icon /i.test(cls)) return true;
+            var ff = (getComputedStyle(el).fontFamily || '');
+            if (/icon|material symbols|font awesome|glyphicon/i.test(ff)) return true;
+            return false;
+          } catch (e) { return false; }
+        }
+        // Opaque = preserve verbatim, exclude its text from translation.
+        function nookOpaque(el) { return nookHidden(el) || nookIcon(el); }
+        """
+
         /// Tags each leaf text block with `data-nook-block` and returns
         /// `[{id, text}]` (JSON). `text` is a template of the block's content: a
         /// depth-first walk where every inline element becomes `⟦n⟧…⟦/n⟧` with a
-        /// pre-order index, so nested links/emphasis are represented faithfully
-        /// and can be restored against the original DOM after translation.
-        private static let collectBlocksScript = """
+        /// pre-order index, so nested links/emphasis are represented faithfully.
+        /// Invisible/icon elements become a self-contained `⟦=n⟧` marker so their
+        /// (untranslatable) text is excluded but their node is preserved in place.
+        private static var collectBlocksScript: String {
+        opaqueHelperJS + """
         (function () {
           var root = document.querySelector('#nook-reader') || document.body;
           var sel = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption';
           var out = [];
           var i = 0;
           root.querySelectorAll(sel).forEach(function (el) {
-            // Skip containers of other blocks (translate the leaves) and code.
+            // Skip containers of other blocks (translate the leaves), code, and
+            // blocks that aren't actually visible.
             if (el.querySelector(sel)) return;
             if (el.closest('pre, code')) return;
             if (el.getAttribute('data-nook-block') !== null) return;
             if (!(el.innerText || '').trim()) return;
+            if (nookHidden(el)) return;
             var n = 0;
             function walk(node) {
               var s = '';
@@ -559,13 +596,19 @@ extension ArticleWebView {
                   s += child.textContent;
                 } else if (child.nodeType === 1) {
                   var idx = n++;
-                  s += '\\u27E6' + idx + '\\u27E7' + walk(child) + '\\u27E6/' + idx + '\\u27E7';
+                  if (nookOpaque(child)) {
+                    s += '\\u27E6=' + idx + '\\u27E7';
+                  } else {
+                    s += '\\u27E6' + idx + '\\u27E7' + walk(child) + '\\u27E6/' + idx + '\\u27E7';
+                  }
                 }
               });
               return s;
             }
             var tpl = walk(el);
-            if (!tpl.trim()) return;
+            // Nothing translatable once markers are stripped (e.g. an icon-only
+            // block): skip so we don't spend a model call on it.
+            if (!tpl.replace(/\\u27E6[=\\/]?\\d+\\u27E7/g, '').trim()) return;
             el.setAttribute('data-nook-block', String(i));
             out.push({ id: i, text: tpl });
             i++;
@@ -573,6 +616,7 @@ extension ArticleWebView {
           return JSON.stringify(out);
         })();
         """
+        }
 
         /// Re-inserts one block's translated template. The original inline
         /// elements are reused as containers (so every attribute, listener, and
@@ -589,27 +633,35 @@ extension ArticleWebView {
             } else {
                 json = "\"\""
             }
-            return """
+            return opaqueHelperJS + """
             (function () {
               var el = document.querySelector('[data-nook-block="\(id)"]');
               if (!el) return;
               var tpl = \(json);
 
               // Original inline elements in the same pre-order used at collection.
-              var elems = [];
+              // Opaque (hidden/icon) elements are preserved but not recursed into,
+              // exactly as during collection, so indices stay aligned.
+              var elems = [], opaque = {};
               (function collect(node) {
                 node.childNodes.forEach(function (c) {
-                  if (c.nodeType === 1) { elems.push(c); collect(c); }
+                  if (c.nodeType === 1) {
+                    var idx = elems.length;
+                    elems.push(c);
+                    if (nookOpaque(c)) { opaque[idx] = true; } else { collect(c); }
+                  }
                 });
               })(el);
               var count = elems.length;
 
-              // Validate markers: every index present once, correctly paired/nested.
-              var re = /\\u27E6(\\/?)(\\d+)\\u27E7/g, m, stack = [], seen = {}, valid = true;
+              // Validate markers: every index present once, correctly paired
+              // (⟦n⟧…⟦/n⟧) or self-contained (⟦=n⟧ for opaque), correctly nested.
+              var re = /\\u27E6(=|\\/)?(\\d+)\\u27E7/g, m, stack = [], seen = {}, valid = true;
               while ((m = re.exec(tpl)) !== null) {
-                var closing = m[1] === '/', k = parseInt(m[2], 10);
+                var kind = m[1] || '', k = parseInt(m[2], 10);
                 if (k < 0 || k >= count) { valid = false; break; }
-                if (!closing) { if (seen[k]) { valid = false; break; } seen[k] = true; stack.push(k); }
+                if (kind === '=') { if (seen[k] || !opaque[k]) { valid = false; break; } seen[k] = true; }
+                else if (kind === '') { if (seen[k] || opaque[k]) { valid = false; break; } seen[k] = true; stack.push(k); }
                 else { if (stack.pop() !== k) { valid = false; break; } }
               }
               if (stack.length) valid = false;
@@ -617,7 +669,7 @@ extension ArticleWebView {
 
               if (!valid) {
                 // Safe fallback: drop markers, keep plain translated text.
-                el.textContent = tpl.replace(/\\u27E6\\/?\\d+\\u27E7/g, '');
+                el.textContent = tpl.replace(/\\u27E6[=\\/]?\\d+\\u27E7/g, '');
                 return;
               }
 
@@ -637,6 +689,11 @@ extension ArticleWebView {
                   var tag = tpl.slice(open + 1, close);
                   pos = close + 1;
                   if (tag.charAt(0) === '/') { return nodes; }
+                  if (tag.charAt(0) === '=') {
+                    // Opaque: keep the original node and its content untouched.
+                    nodes.push(elems[parseInt(tag.slice(1), 10)]);
+                    continue;
+                  }
                   var elem = elems[parseInt(tag, 10)];
                   var kids = parse();
                   while (elem.firstChild) elem.removeChild(elem.firstChild);

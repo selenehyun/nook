@@ -118,7 +118,7 @@ public enum NaturalTranslator {
     private static func looksUntranslated(source: String, output: String) -> Bool {
         func normalize(_ s: String) -> String {
             let stripped = s.replacingOccurrences(
-                of: "⟦/?\\d+⟧", with: "", options: .regularExpression
+                of: "⟦[=/]?\\d+⟧", with: "", options: .regularExpression
             )
             return stripped.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
