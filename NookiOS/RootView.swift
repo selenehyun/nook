@@ -66,10 +66,17 @@ struct RootView: View {
             // the initial value, so set active here or the on-screen list would
             // never be marked "seen" until the first background→active cycle.
             store.setForegroundActive(true)
+            // Warm up WebKit well after launch — off the critical path so its
+            // WebContent process (and the noisy system logs it emits) spin up
+            // once the app is settled, not during launch. Independent task with
+            // its own timer so the delay is measured from launch, still ahead of
+            // the user's first article tap. Idempotent, so a tap that beats it is
+            // fine.
+            Task {
+                try? await Task.sleep(for: .seconds(6))
+                WebViewWarmer.warmUp()
+            }
             await store.bootstrap()
-            // Warm up WebKit so the first article web view opens without the
-            // ~2-3s cold-start delay.
-            WebViewWarmer.warmUp()
             // Keep the splash up while the nest assembles and the wordmark
             // appears, then reveal the loaded UI.
             try? await Task.sleep(for: .milliseconds(1850))
