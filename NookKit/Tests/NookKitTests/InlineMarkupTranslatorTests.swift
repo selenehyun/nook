@@ -69,4 +69,28 @@ struct InlineMarkupTranslatorTests {
         let (template, _) = Engine.markify("a &amp; b &lt; c")
         #expect(template == "a & b < c")
     }
+
+    @Test("A multi-paragraph block splits into per-paragraph segments")
+    func paragraphSegments() {
+        let segments = Engine.segments("<p>First</p><p>Second</p>")
+        #expect(segments.count == 2)
+        #expect(segments.map(\.translatable) == [true, true])
+        #expect(segments[0].open == "<p>" && segments[0].inner == "First" && segments[0].close == "</p>")
+        #expect(segments[1].inner == "Second")
+    }
+
+    @Test("List wrappers pass through untranslated; items are segments")
+    func listSegments() {
+        let segments = Engine.segments("<ul><li>one</li><li>two</li></ul>")
+        let translatable = segments.filter(\.translatable)
+        #expect(translatable.map(\.inner) == ["one", "two"])
+        // The <ul>/</ul> wrappers are tag-only gaps, preserved verbatim.
+        #expect(segments.contains { !$0.translatable && $0.raw.contains("<ul>") })
+    }
+
+    @Test("A fragment with no paragraph structure is one segment")
+    func looseTextSegment() {
+        let segments = Engine.segments("just some text")
+        #expect(segments == [Engine.Segment(raw: "just some text", translatable: true, open: "", inner: "just some text", close: "")])
+    }
 }

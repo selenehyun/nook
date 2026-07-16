@@ -134,6 +134,63 @@ enum InlineMarkupTranslator {
         )
     }
 
+    /// One translatable unit of a `.text` block. Paragraph-level so a long body
+    /// (which the parser keeps as one `.text` block) is translated and streamed
+    /// paragraph by paragraph instead of in a single oversized model call.
+    struct Segment: Equatable {
+        let raw: String        // the original slice, shown until translated
+        let translatable: Bool // false for tag-only/whitespace gaps (e.g. <ul>)
+        let open: String       // wrapping open tag (e.g. "<p>"), "" for loose text
+        let inner: String      // content to translate
+        let close: String      // wrapping close tag (e.g. "</p>"), "" for loose text
+    }
+
+    private static let paragraphRegex = try! NSRegularExpression(
+        pattern: "<(p|li|h[1-6]|figcaption|dt|dd|caption)\\b[^>]*>(.*?)</\\1\\s*>",
+        options: [.caseInsensitive, .dotMatchesLineSeparators]
+    )
+
+    /// Splits a `.text` fragment into paragraph-level segments in document order.
+    static func segments(_ html: String) -> [Segment] {
+        let ns = html as NSString
+        let matches = paragraphRegex.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        guard !matches.isEmpty else {
+            // No paragraph structure: translate the whole fragment as one unit.
+            return [Segment(raw: html, translatable: true, open: "", inner: html, close: "")]
+        }
+        var segments: [Segment] = []
+        var cursor = 0
+        for match in matches {
+            let full = match.range
+            if full.location > cursor {
+                appendGap(ns.substring(with: NSRange(location: cursor, length: full.location - cursor)), to: &segments)
+            }
+            cursor = full.location + full.length
+            let innerRange = match.range(at: 2)
+            let open = ns.substring(with: NSRange(location: full.location, length: innerRange.location - full.location))
+            let inner = ns.substring(with: innerRange)
+            let closeStart = innerRange.location + innerRange.length
+            let close = ns.substring(with: NSRange(location: closeStart, length: (full.location + full.length) - closeStart))
+            segments.append(Segment(raw: ns.substring(with: full), translatable: true, open: open, inner: inner, close: close))
+        }
+        if cursor < ns.length {
+            appendGap(ns.substring(from: cursor), to: &segments)
+        }
+        return segments
+    }
+
+    private static func appendGap(_ gap: String, to segments: inout [Segment]) {
+        guard !gap.isEmpty else { return }
+        let text = HTMLContentParser.decodeEntities(
+            gap.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty {
+            segments.append(Segment(raw: gap, translatable: false, open: "", inner: "", close: ""))
+        } else {
+            segments.append(Segment(raw: gap, translatable: true, open: "", inner: gap, close: ""))
+        }
+    }
+
     private static func tagName(_ tag: String) -> String {
         var scalarsView = Substring(tag.dropFirst())   // drop '<'
         if scalarsView.hasPrefix("/") { scalarsView = scalarsView.dropFirst() }
@@ -205,63 +262,111 @@ public final class NativeArticleTranslator {
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
         var context = ""
 
+        // Title: a plain, bounded translation. Using the simple translator (not
+        // the block/marker one) keeps a short title from ever ballooning into a
+        // paragraph, and a length guard drops any runaway result.
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedTitle.isEmpty,
-           let result = try? await NaturalTranslator.translateBlock(trimmedTitle, into: language, context: context) {
+        if !trimmedTitle.isEmpty, let translated = try? await NaturalTranslator.translate(trimmedTitle, into: language) {
             guard token == generation else { return }
-            context = result.context
-            translatedTitle = InlineMarkupTranslator.stripMarkers(result.translation)
+            let cleaned = translated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty, cleaned.count <= max(120, trimmedTitle.count * 4) {
+                translatedTitle = cleaned
+            }
         }
 
         for (index, block) in blocks.enumerated() {
             guard token == generation, !Task.isCancelled else { return }
-            guard let (translated, newContext) = await translate(block, language: language, context: context, token: token) else {
-                continue
-            }
-            guard token == generation else { return }
-            context = newContext
-            overrides[index] = translated
+            context = await translate(block, at: index, language: language, context: context, token: token)
         }
 
         if token == generation { isTranslating = false }
     }
 
-    /// Translates one block, returning the replacement and the updated context.
-    /// Returns nil for non-translatable blocks (rendered as-is).
+    /// Translates one top-level block, updating its override as results stream in
+    /// and returning the advanced context. Non-translatable blocks are left as-is.
     private func translate(
-        _ block: HTMLContentBlock, language: String, context: String, token: Int
-    ) async -> (HTMLContentBlock, String)? {
+        _ block: HTMLContentBlock, at index: Int, language: String, context: String, token: Int
+    ) async -> String {
         switch block {
         case .text(let html):
-            guard let (fragment, newContext) = await translateFragment(html, language: language, context: context, token: token) else {
-                return nil
-            }
-            return (.text(fragment), newContext)
+            return await translateTextBlock(html, at: index, wrap: { .text($0) }, language: language, context: context, token: token)
         case .heading(let level, let html):
-            guard let (fragment, newContext) = await translateFragment(html, language: language, context: context, token: token) else {
-                return nil
-            }
-            return (.heading(level: level, html: fragment), newContext)
+            return await translateTextBlock(html, at: index, wrap: { .heading(level: level, html: $0) }, language: language, context: context, token: token)
         case .blockquote(let inner):
             var context = context
-            var translatedInner: [HTMLContentBlock] = []
-            translatedInner.reserveCapacity(inner.count)
-            for child in inner {
-                if let (translatedChild, newContext) = await translate(child, language: language, context: context, token: token) {
-                    context = newContext
-                    translatedInner.append(translatedChild)
-                } else {
-                    translatedInner.append(child)
+            var translatedInner = inner
+            for (childIndex, child) in inner.enumerated() {
+                guard token == generation else { return context }
+                let (replacement, newContext) = await translateNested(child, language: language, context: context, token: token)
+                context = newContext
+                if let replacement {
+                    translatedInner[childIndex] = replacement
+                    overrides[index] = .blockquote(translatedInner)
                 }
             }
-            return (.blockquote(translatedInner), context)
+            return context
         default:
-            return nil   // code, tables, media, rules: keep the original
+            return context   // code, tables, media, rules: keep the original
         }
     }
 
-    /// Translates one HTML fragment preserving inline markup, with a plain-text
-    /// fallback if the model garbled the markers.
+    /// Translates a `.text`/`.heading` fragment paragraph by paragraph, updating
+    /// the override after each so the block fills in top-to-bottom.
+    private func translateTextBlock(
+        _ html: String,
+        at index: Int,
+        wrap: (String) -> HTMLContentBlock,
+        language: String,
+        context: String,
+        token: Int
+    ) async -> String {
+        var context = context
+        let segments = InlineMarkupTranslator.segments(html)
+        var output = segments.map(\.raw)
+        for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
+            guard token == generation else { return context }
+            guard let (translatedInner, newContext) = await translateFragment(segment.inner, language: language, context: context, token: token) else {
+                continue
+            }
+            context = newContext
+            output[segmentIndex] = segment.open + translatedInner + segment.close
+            guard token == generation else { return context }
+            overrides[index] = wrap(output.joined())
+        }
+        return context
+    }
+
+    /// Translates a nested block (inside a blockquote) without its own override.
+    private func translateNested(
+        _ block: HTMLContentBlock, language: String, context: String, token: Int
+    ) async -> (HTMLContentBlock?, String) {
+        switch block {
+        case .text(let html):
+            let segments = InlineMarkupTranslator.segments(html)
+            var context = context
+            var output = segments.map(\.raw)
+            for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
+                guard token == generation else { return (nil, context) }
+                guard let (translatedInner, newContext) = await translateFragment(segment.inner, language: language, context: context, token: token) else {
+                    continue
+                }
+                context = newContext
+                output[segmentIndex] = segment.open + translatedInner + segment.close
+            }
+            return (.text(output.joined()), context)
+        case .heading(let level, let html):
+            guard let (fragment, newContext) = await translateFragment(html, language: language, context: context, token: token) else {
+                return (nil, context)
+            }
+            return (.heading(level: level, html: fragment), newContext)
+        default:
+            return (nil, context)
+        }
+    }
+
+    /// Translates one inline fragment, preserving markup, with a plain-text
+    /// fallback if the model garbled the markers. Returns nil when there's
+    /// nothing translatable.
     private func translateFragment(
         _ html: String, language: String, context: String, token: Int
     ) async -> (String, String)? {
