@@ -735,19 +735,13 @@ private struct ArticleImageOverlay: View {
     }
 }
 
-/// A full-surface photo viewer with pinch/double-tap zoom. Panning is handled
-/// by a scrollable container so a zoomed image can be moved with the trackpad
-/// or mouse wheel on macOS (no dragging required) and by touch on iOS.
-/// Rendered inline as an overlay so the image scales up into the center.
+/// A full-surface photo viewer. Zoom and pan are handled by a native scroll
+/// view (`NSScrollView`/`UIScrollView`) so pinch and double-tap zoom are
+/// centered on the pointer/touch and a zoomed image pans with the trackpad,
+/// mouse wheel, or a drag. Rendered inline as an overlay.
 private struct ImageViewer: View {
     let item: ArticleImageItem
     let onClose: () -> Void
-
-    @State private var scale: CGFloat = 1
-    @State private var lastScale: CGFloat = 1
-
-    private let minScale: CGFloat = 1
-    private let maxScale: CGFloat = 6
 
     var body: some View {
         ZStack {
@@ -758,29 +752,8 @@ private struct ImageViewer: View {
                 .contentShape(Rectangle())
                 .onTapGesture { onClose() }
 
-            GeometryReader { geometry in
-                // The image grows past the viewport when zoomed, so the
-                // ScrollView exposes it to scroll/drag panning.
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    AsyncImage(url: item.url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFit()
-                        case .failure:
-                            Label(String(localized: "Couldn’t load image", bundle: .module), systemImage: "photo")
-                                .foregroundStyle(.white.opacity(0.8))
-                        default:
-                            ProgressView().controlSize(.large).tint(.white)
-                        }
-                    }
-                    .frame(width: geometry.size.width * scale, height: geometry.size.height * scale)
-                    .gesture(magnification)
-                    .onTapGesture(count: 2) { toggleZoom() }
-                }
-                .scrollDisabled(scale <= minScale)
-                .frame(width: geometry.size.width, height: geometry.size.height)
-            }
-            .padding(24)
+            ZoomableImageView(url: item.url)
+                .padding(24)
 
             VStack {
                 HStack {
@@ -809,22 +782,191 @@ private struct ImageViewer: View {
             }
         }
     }
+}
 
-    private var magnification: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                scale = min(max(lastScale * value, minScale), maxScale)
-            }
-            .onEnded { _ in lastScale = scale }
+#if canImport(AppKit)
+/// Wraps an `NSScrollView` whose magnification is centered on the cursor, so a
+/// trackpad pinch zooms toward the pointer and the wheel/trackpad pans.
+private struct ZoomableImageView: NSViewRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.contentView = CenteringClipView()
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.allowsMagnification = true
+        scrollView.minMagnification = 1
+        scrollView.maxMagnification = 6
+
+        let imageView = NSImageView()
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.imageAlignment = .alignCenter
+        scrollView.documentView = imageView
+
+        let doubleClick = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleClick(_:)))
+        doubleClick.numberOfClicksRequired = 2
+        imageView.addGestureRecognizer(doubleClick)
+
+        context.coordinator.scrollView = scrollView
+        context.coordinator.imageView = imageView
+        context.coordinator.load(url: url)
+        return scrollView
     }
 
-    private func toggleZoom() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scale = scale > minScale ? minScale : 2.5
-            lastScale = scale
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        if context.coordinator.url != url { context.coordinator.load(url: url) }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        weak var scrollView: NSScrollView?
+        weak var imageView: NSImageView?
+        private(set) var url: URL?
+        private var task: URLSessionDataTask?
+
+        func load(url: URL) {
+            self.url = url
+            task?.cancel()
+            task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+                guard let data, let image = NSImage(data: data) else { return }
+                Task { @MainActor in self?.apply(image) }
+            }
+            task?.resume()
+        }
+
+        private func apply(_ image: NSImage) {
+            guard let scrollView, let imageView else { return }
+            imageView.image = image
+            imageView.frame = NSRect(origin: .zero, size: image.size)
+            // Fit the whole image on first load; that becomes the minimum zoom.
+            scrollView.magnify(toFit: imageView.bounds)
+            scrollView.minMagnification = scrollView.magnification
+            scrollView.contentView.scroll(to: .zero)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+
+        @objc func handleDoubleClick(_ gesture: NSClickGestureRecognizer) {
+            guard let scrollView, let imageView else { return }
+            let fit = scrollView.minMagnification
+            if scrollView.magnification > fit + 0.001 {
+                scrollView.animator().magnify(toFit: imageView.bounds)
+            } else {
+                let point = gesture.location(in: imageView)
+                let target = min(fit * 2.5, scrollView.maxMagnification)
+                scrollView.animator().setMagnification(target, centeredAt: point)
+            }
         }
     }
 }
+
+/// Keeps the document centered when it is smaller than the viewport (which the
+/// fitted image always is in one dimension).
+private final class CenteringClipView: NSClipView {
+    override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
+        var rect = super.constrainBoundsRect(proposedBounds)
+        guard let documentView else { return rect }
+        let doc = documentView.frame
+        if rect.width > doc.width { rect.origin.x = (doc.width - rect.width) / 2 }
+        if rect.height > doc.height { rect.origin.y = (doc.height - rect.height) / 2 }
+        return rect
+    }
+}
+#else
+/// Wraps a `UIScrollView` so pinch and double-tap zoom are centered on the
+/// touch point and a zoomed image pans with a drag.
+private struct ZoomableImageView: UIViewRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.delegate = context.coordinator
+        scrollView.minimumZoomScale = 1
+        scrollView.maximumZoomScale = 6
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.backgroundColor = .clear
+        scrollView.contentInsetAdjustmentBehavior = .never
+
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        scrollView.addSubview(imageView)
+
+        let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        scrollView.addGestureRecognizer(doubleTap)
+
+        context.coordinator.scrollView = scrollView
+        context.coordinator.imageView = imageView
+        context.coordinator.load(url: url)
+        return scrollView
+    }
+
+    func updateUIView(_ uiView: UIScrollView, context: Context) {
+        if context.coordinator.url != url { context.coordinator.load(url: url) }
+        context.coordinator.layoutImage()
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        weak var scrollView: UIScrollView?
+        weak var imageView: UIImageView?
+        private(set) var url: URL?
+        private var task: URLSessionDataTask?
+
+        func load(url: URL) {
+            self.url = url
+            task?.cancel()
+            task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+                guard let data, let image = UIImage(data: data) else { return }
+                Task { @MainActor in
+                    self?.imageView?.image = image
+                    self?.layoutImage()
+                }
+            }
+            task?.resume()
+        }
+
+        func layoutImage() {
+            guard let scrollView, let imageView, imageView.image != nil else { return }
+            imageView.frame = scrollView.bounds
+            scrollView.contentSize = scrollView.bounds.size
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            // Keep the image centered while zoomed out.
+            guard let imageView else { return }
+            let offsetX = max((scrollView.bounds.width - scrollView.contentSize.width) / 2, 0)
+            let offsetY = max((scrollView.bounds.height - scrollView.contentSize.height) / 2, 0)
+            imageView.center = CGPoint(
+                x: scrollView.contentSize.width / 2 + offsetX,
+                y: scrollView.contentSize.height / 2 + offsetY
+            )
+        }
+
+        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+            guard let scrollView else { return }
+            if scrollView.zoomScale > scrollView.minimumZoomScale + 0.001 {
+                scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+            } else {
+                let point = gesture.location(in: imageView)
+                let target = min(scrollView.minimumZoomScale * 2.5, scrollView.maximumZoomScale)
+                let size = CGSize(width: scrollView.bounds.width / target, height: scrollView.bounds.height / target)
+                let rect = CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height)
+                scrollView.zoom(to: rect, animated: true)
+            }
+        }
+    }
+}
+#endif
 
 // MARK: - Block-level text views
 
@@ -1096,7 +1238,7 @@ public struct HTMLContentText: View {
         padInlineCode(
             mutable,
             ranges: monoRanges,
-            spaceAttributes: [.font: NSFont.monospacedSystemFont(ofSize: codeSize, weight: .regular)],
+            spaceAttributes: [.font: NSFont.monospacedSystemFont(ofSize: codeSize * 0.5, weight: .regular)],
             chip: NSColor.systemGray.withAlphaComponent(0.18)
         )
         styleLinks(mutable, fullRange: NSRange(location: 0, length: mutable.length), linkColor: NSColor.controlAccentColor, plainColor: NSColor.labelColor)
@@ -1124,7 +1266,7 @@ public struct HTMLContentText: View {
         padInlineCode(
             mutable,
             ranges: monoRanges,
-            spaceAttributes: [.font: UIFont.monospacedSystemFont(ofSize: codeSize, weight: .regular)],
+            spaceAttributes: [.font: UIFont.monospacedSystemFont(ofSize: codeSize * 0.5, weight: .regular)],
             chip: UIColor.systemGray.withAlphaComponent(0.18)
         )
         styleLinks(mutable, fullRange: NSRange(location: 0, length: mutable.length), linkColor: UIColor.tintColor, plainColor: UIColor.label)
@@ -1141,7 +1283,7 @@ public struct HTMLContentText: View {
         spaceAttributes: [NSAttributedString.Key: Any],
         chip: Any
     ) {
-        let pad = "\u{2009}\u{2009}" // two thin spaces
+        let pad = " " // a single space, shrunk via a small font at the call site
         let padLength = (pad as NSString).length
         for range in ranges.sorted(by: { $0.location > $1.location }) {
             mutable.insert(NSAttributedString(string: pad, attributes: spaceAttributes), at: range.location + range.length)
