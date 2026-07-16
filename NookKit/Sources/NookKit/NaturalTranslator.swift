@@ -71,26 +71,63 @@ public enum NaturalTranslator {
         _ text: String, into languageName: String, context: String
     ) async throws -> BlockResult {
         let instructions = """
-        You are an expert literary translator. Translate each paragraph the user \
-        sends into \(languageName): natural, fluent, idiomatic — never literal or \
-        word-for-word — preserving meaning, tone, and proper nouns. The source may \
-        contain inline markers like ⟦T0⟧…⟦/T0⟧ marking links or emphasis; keep every \
-        marker exactly, around the translation of the same words, and never translate \
-        or renumber them. Also maintain a short running summary of the article for \
-        your own consistency across paragraphs.
+        You are an expert literary translator translating a web article into \
+        \(languageName). For each paragraph the user sends, output its translation \
+        in the `translation` field.
+
+        Hard rules:
+        - The translation MUST be written entirely in \(languageName). Never leave \
+        text in the source language. The only exception is untranslatable tokens \
+        (proper nouns, brand names, code, URLs), which stay as-is.
+        - Translate naturally and idiomatically — never word-for-word.
+        - The text may contain inline markers of the form ⟦0⟧…⟦/0⟧ marking links or \
+        emphasis. Keep every marker verbatim, wrapping the translation of the same \
+        span, in the same nesting. Never translate, drop, add, or renumber a marker.
+        - Keep a short running summary of the article (in English) in \
+        `runningContext` for your own cross-paragraph consistency.
         """
         let session = LanguageModelSession(instructions: instructions)
         let prompt = """
-        Article context so far (for consistency only — do not translate or repeat it):
+        Article context so far (for your understanding only — do not translate or repeat it):
         \(context.isEmpty ? "(none yet)" : context)
 
-        Paragraph to translate:
+        Translate this paragraph into \(languageName):
         \(text)
         """
-        let response = try await session.respond(to: prompt, generating: BlockTranslation.self)
-        return BlockResult(translation: response.content.translation, context: response.content.runningContext)
+        let first = try await session.respond(to: prompt, generating: BlockTranslation.self)
+
+        // Guard against the model echoing the source untranslated (a known failure
+        // on short blocks / titles): if the output reads as the same text, ask once
+        // more, firmly. Same session, so it keeps the marker/context rules.
+        if looksUntranslated(source: text, output: first.content.translation) {
+            let retry = try? await session.respond(
+                to: "That was not translated. Output the SAME paragraph fully translated into \(languageName), keeping every ⟦n⟧ marker.",
+                generating: BlockTranslation.self
+            )
+            if let retry, !looksUntranslated(source: text, output: retry.content.translation) {
+                return BlockResult(translation: retry.content.translation, context: retry.content.runningContext)
+            }
+        }
+        return BlockResult(translation: first.content.translation, context: first.content.runningContext)
     }
     #endif
+
+    /// Whether `output` is effectively the untranslated `source` (the model echoed
+    /// it). Compares marker-stripped, whitespace-collapsed text; ignores very short
+    /// strings, which are often proper nouns that legitimately stay unchanged.
+    private static func looksUntranslated(source: String, output: String) -> Bool {
+        func normalize(_ s: String) -> String {
+            let stripped = s.replacingOccurrences(
+                of: "⟦/?\\d+⟧", with: "", options: .regularExpression
+            )
+            return stripped.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        }
+        let a = normalize(source)
+        guard a.count >= 12 else { return false }
+        return a == normalize(output)
+    }
 
     #if canImport(FoundationModels)
     @available(iOS 26, macOS 26, *)

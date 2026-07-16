@@ -535,8 +535,10 @@ extension ArticleWebView {
         }
 
         /// Tags each leaf text block with `data-nook-block` and returns
-        /// `[{id, text}]` (JSON), where `text` keeps inline elements as
-        /// ⟦Tn⟧…⟦/Tn⟧ markers so they can be restored after translation.
+        /// `[{id, text}]` (JSON). `text` is a template of the block's content: a
+        /// depth-first walk where every inline element becomes `⟦n⟧…⟦/n⟧` with a
+        /// pre-order index, so nested links/emphasis are represented faithfully
+        /// and can be restored against the original DOM after translation.
         private static let collectBlocksScript = """
         (function () {
           var root = document.querySelector('#nook-reader') || document.body;
@@ -549,31 +551,36 @@ extension ArticleWebView {
             if (el.closest('pre, code')) return;
             if (el.getAttribute('data-nook-block') !== null) return;
             if (!(el.innerText || '').trim()) return;
-            var parts = [];
-            var elemIndex = 0;
-            el.childNodes.forEach(function (node) {
-              if (node.nodeType === 3) {
-                parts.push(node.textContent);
-              } else if (node.nodeType === 1) {
-                var t = node.innerText || node.textContent || '';
-                parts.push('\\u27E6T' + elemIndex + '\\u27E7' + t + '\\u27E6/T' + elemIndex + '\\u27E7');
-                elemIndex++;
-              }
-            });
-            var marked = parts.join('');
-            if (!marked.trim()) return;
+            var n = 0;
+            function walk(node) {
+              var s = '';
+              node.childNodes.forEach(function (child) {
+                if (child.nodeType === 3) {
+                  s += child.textContent;
+                } else if (child.nodeType === 1) {
+                  var idx = n++;
+                  s += '\\u27E6' + idx + '\\u27E7' + walk(child) + '\\u27E6/' + idx + '\\u27E7';
+                }
+              });
+              return s;
+            }
+            var tpl = walk(el);
+            if (!tpl.trim()) return;
             el.setAttribute('data-nook-block', String(i));
-            out.push({ id: i, text: marked });
+            out.push({ id: i, text: tpl });
             i++;
           });
           return JSON.stringify(out);
         })();
         """
 
-        /// Replaces one block's text with its translation, restoring inline
-        /// elements from the original DOM by marker index (attributes such as
-        /// `href` are preserved via shallow clones). Falls back to plain text if
-        /// the model dropped or garbled the markers.
+        /// Re-inserts one block's translated template. The original inline
+        /// elements are reused as containers (so every attribute, listener, and
+        /// nested structure is preserved — only text nodes change, à la Chrome's
+        /// translator). The markers are validated first: unless every original
+        /// index appears exactly once, properly paired and nested, it falls back
+        /// to plain translated text with the markers stripped — so a block can at
+        /// worst lose inline styling, never render broken/duplicated markup.
         private static func applyBlockScript(id: Int, marked: String) -> String {
             let json: String
             if let data = try? JSONSerialization.data(withJSONObject: marked, options: [.fragmentsAllowed]),
@@ -586,21 +593,61 @@ extension ArticleWebView {
             (function () {
               var el = document.querySelector('[data-nook-block="\(id)"]');
               if (!el) return;
-              var marked = \(json);
-              var clones = Array.prototype.map.call(el.children, function (c) { return c.cloneNode(false); });
-              var frag = document.createDocumentFragment();
-              var re = /\\u27E6T(\\d+)\\u27E7([\\s\\S]*?)\\u27E6\\/T\\d+\\u27E7/g;
-              var last = 0, m;
-              while ((m = re.exec(marked)) !== null) {
-                if (m.index > last) frag.appendChild(document.createTextNode(marked.slice(last, m.index)));
-                var clone = clones[parseInt(m[1], 10)];
-                if (clone) { clone.textContent = m[2]; frag.appendChild(clone); }
-                else { frag.appendChild(document.createTextNode(m[2])); }
-                last = re.lastIndex;
+              var tpl = \(json);
+
+              // Original inline elements in the same pre-order used at collection.
+              var elems = [];
+              (function collect(node) {
+                node.childNodes.forEach(function (c) {
+                  if (c.nodeType === 1) { elems.push(c); collect(c); }
+                });
+              })(el);
+              var count = elems.length;
+
+              // Validate markers: every index present once, correctly paired/nested.
+              var re = /\\u27E6(\\/?)(\\d+)\\u27E7/g, m, stack = [], seen = {}, valid = true;
+              while ((m = re.exec(tpl)) !== null) {
+                var closing = m[1] === '/', k = parseInt(m[2], 10);
+                if (k < 0 || k >= count) { valid = false; break; }
+                if (!closing) { if (seen[k]) { valid = false; break; } seen[k] = true; stack.push(k); }
+                else { if (stack.pop() !== k) { valid = false; break; } }
               }
-              if (last < marked.length) frag.appendChild(document.createTextNode(marked.slice(last)));
+              if (stack.length) valid = false;
+              if (valid) { for (var q = 0; q < count; q++) if (!seen[q]) { valid = false; break; } }
+
+              if (!valid) {
+                // Safe fallback: drop markers, keep plain translated text.
+                el.textContent = tpl.replace(/\\u27E6\\/?\\d+\\u27E7/g, '');
+                return;
+              }
+
+              // Rebuild, reusing original nodes as containers (attrs/nesting kept).
+              var pos = 0;
+              function parse() {
+                var nodes = [];
+                while (pos < tpl.length) {
+                  var open = tpl.indexOf('\\u27E6', pos);
+                  if (open === -1) {
+                    if (pos < tpl.length) nodes.push(document.createTextNode(tpl.slice(pos)));
+                    pos = tpl.length;
+                    break;
+                  }
+                  if (open > pos) nodes.push(document.createTextNode(tpl.slice(pos, open)));
+                  var close = tpl.indexOf('\\u27E7', open);
+                  var tag = tpl.slice(open + 1, close);
+                  pos = close + 1;
+                  if (tag.charAt(0) === '/') { return nodes; }
+                  var elem = elems[parseInt(tag, 10)];
+                  var kids = parse();
+                  while (elem.firstChild) elem.removeChild(elem.firstChild);
+                  kids.forEach(function (c) { elem.appendChild(c); });
+                  nodes.push(elem);
+                }
+                return nodes;
+              }
+              var top = parse();
               while (el.firstChild) el.removeChild(el.firstChild);
-              el.appendChild(frag);
+              top.forEach(function (c) { el.appendChild(c); });
             })();
             """
         }
