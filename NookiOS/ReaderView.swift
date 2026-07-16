@@ -395,7 +395,10 @@ struct ReaderDetailView: View {
                 async let titleText = NaturalTranslator.translate(title, into: language)
                 async let bodyText = NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language)
                 let (t, b) = try await (titleText, bodyText)
-                translatedTitle = t
+                // Guard against the model "answering" an imperative title instead
+                // of translating it: drop a result that ballooned past the source.
+                let cleanedTitle = t.trimmingCharacters(in: .whitespacesAndNewlines)
+                translatedTitle = cleanedTitle.count <= max(120, title.count * 4) ? cleanedTitle : title
                 translatedBody = b
                     .components(separatedBy: "\n\n")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
