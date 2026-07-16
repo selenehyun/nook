@@ -23,7 +23,6 @@ struct ContentView: View {
 
     // In-app browser (window-wide bottom sheet).
     @State private var browserDragOffset: CGFloat = 0
-    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
     @AppStorage("readerFontSize") private var readerFontSize = 18
@@ -199,9 +198,11 @@ struct ContentView: View {
         .onChange(of: store.isBrowserPresented) { _, presented in
             if presented {
                 // Honor the selected article's feed preference, falling back to
-                // the global default.
-                let feedMode = store.selectedArticle.flatMap { store.feed(for: $0.feedID)?.preferredViewMode }
-                store.browserMode = feedMode ?? readerViewMode
+                // the global default (advancing articles re-resolves this in the
+                // store, so "next" follows the setting too).
+                if let article = store.selectedArticle {
+                    store.browserMode = store.resolvedBrowserMode(for: article)
+                }
                 browserDragOffset = 0
             }
         }

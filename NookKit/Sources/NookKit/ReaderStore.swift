@@ -30,6 +30,16 @@ public final class ReaderStore {
         guard isBrowserPresented else { return }
         browserMode = (browserMode == .reader) ? .original : .reader
     }
+
+    /// The in-app browser's reading mode for `article`: the feed's per-feed
+    /// override, else the global default. The single source of truth so opening
+    /// an article and advancing to the next one resolve the mode identically —
+    /// previously "next" skipped this and stuck on the prior article's mode.
+    public func resolvedBrowserMode(for article: Article) -> ReaderViewMode {
+        if let feedMode = feed(for: article.feedID)?.preferredViewMode { return feedMode }
+        let stored = UserDefaults.standard.string(forKey: "readerViewMode")
+        return stored.flatMap(ReaderViewMode.init(rawValue:)) ?? .reader
+    }
     // Articles kept visible in the current source even after being read, until
     // the user navigates to another source (Chrome-tab-close heuristic).
     private var retainedArticleIDs: Set<Article.ID> = [] { didSet { scheduleArticleFilter(debounced: true) } }
@@ -1257,6 +1267,15 @@ public final class ReaderStore {
 
     public func selectNextArticle() {
         moveSelection(offset: 1)
+        syncBrowserModeToSelection()
+    }
+
+    /// When the in-app browser is open, advancing to another article must
+    /// re-resolve the reading mode for the new article's feed; otherwise it keeps
+    /// the previous article's mode instead of following the feed/global setting.
+    private func syncBrowserModeToSelection() {
+        guard isBrowserPresented, let article = selectedArticle else { return }
+        browserMode = resolvedBrowserMode(for: article)
     }
 
     /// The article shown right after `id` in the current visible list, or nil if
@@ -1271,6 +1290,7 @@ public final class ReaderStore {
 
     public func selectPreviousArticle() {
         moveSelection(offset: -1)
+        syncBrowserModeToSelection()
     }
 
     public func readBinding(articleID: Article.ID) -> Binding<Bool> {

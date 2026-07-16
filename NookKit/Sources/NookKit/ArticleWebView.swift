@@ -75,17 +75,37 @@ public struct ArticleWebView {
         configuration.processPool = WebViewWarmer.processPool
         let controller = configuration.userContentController
 
+        coordinator.usesReaderMode = useReaderMode
         if useReaderMode {
             if let readabilitySource = Self.readabilitySource {
                 controller.addUserScript(WKUserScript(source: readabilitySource, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
             }
+            // The reader script posts `nookContentReady` once it has rebuilt the
+            // DOM, so translation runs against the reader's text, not the raw page.
             controller.addUserScript(WKUserScript(source: readerScript(style: style), injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        } else {
+            // Original mode: signal readiness when the page (and its resources)
+            // finish loading, so translation never runs against a half-loaded page.
+            controller.addUserScript(WKUserScript(source: Self.contentReadyScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
         controller.add(coordinator, name: "nookScroll")
+        controller.add(coordinator, name: "nookContentReady")
         controller.addUserScript(WKUserScript(source: Self.scrollReportScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         return configuration
     }
+
+    /// Fires `nookContentReady` once the original page has fully loaded (all
+    /// resources), so translation only collects settled content.
+    static let contentReadyScript = """
+    (function () {
+      function ready() {
+        try { window.webkit.messageHandlers.nookContentReady.postMessage(1); } catch (e) {}
+      }
+      if (document.readyState === 'complete') { ready(); }
+      else { window.addEventListener('load', ready, { once: true }); }
+    })();
+    """
 
     /// Reports the page's scroll position so the native layer knows when the
     /// content is at the very top or bottom (used to drive the overscroll
@@ -123,7 +143,16 @@ public struct ArticleWebView {
         (function () {
           var attempts = 0;
           var originalURL = document.baseURI;
+          var signaledReady = false;
           function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+          // Tell the native layer the reader content is in place so translation
+          // runs against it, not the raw page. Fires exactly once per load.
+          function signalReady() {
+            if (signaledReady) return;
+            signaledReady = true;
+            try { window.webkit.messageHandlers.nookContentReady.postMessage(1); } catch (e) {}
+          }
 
           function normalizeMedia(root) {
             root.querySelectorAll('img').forEach(function (img) {
@@ -173,7 +202,10 @@ public struct ArticleWebView {
               var article = extractedArticle();
               if (!article) {
                 attempts += 1;
-                if (attempts < 3) setTimeout(renderReader, attempts * 250);
+                if (attempts < 3) { setTimeout(renderReader, attempts * 250); return; }
+                // Extraction failed for good: the original page stays, so let
+                // translation proceed against whatever content is present.
+                signalReady();
                 return;
               }
 
@@ -207,9 +239,11 @@ public struct ArticleWebView {
               ].join('\\n');
               document.head.appendChild(style);
               window.dispatchEvent(new Event('resize'));
+              signalReady();
             } catch (error) {
               // Keep the untouched original page available if every extraction
               // path fails; the mode toggle still lets the user switch back.
+              signalReady();
             }
           }
 
@@ -258,6 +292,7 @@ extension ArticleWebView: NSViewRepresentable {
         coordinator.detach()
         coordinator.stopObservingProgress()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookScroll")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookContentReady")
     }
 }
 #endif
@@ -300,6 +335,7 @@ extension ArticleWebView: UIViewRepresentable {
         coordinator.stopObservingProgress()
         webView.scrollView.panGestureRecognizer.removeTarget(coordinator, action: #selector(Coordinator.handleScrollPan(_:)))
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookScroll")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "nookContentReady")
     }
 }
 #endif
@@ -361,6 +397,17 @@ extension ArticleWebView {
         private var translationInFlight = false
         private var wantsTranslation = false
         private var translationLanguage = ""
+        /// Whether the translatable content has settled — the reader script has
+        /// rebuilt the DOM (reader mode) or the page finished loading (original).
+        /// Translation waits for this so it never runs against a half-loaded or
+        /// pre-reader page. Reset on every navigation.
+        private var contentReady = false
+        /// Whether this web view renders the reader view; drives which readiness
+        /// signal applies and is only informational for the coordinator.
+        var usesReaderMode = false
+        /// Bumped on each navigation so an in-flight translation from a previous
+        /// page can detect it became stale and refuse to inject into the new one.
+        private var navigationToken = 0
 
         #if canImport(AppKit)
         private var monitor: Any?
@@ -414,7 +461,10 @@ extension ArticleWebView {
         /// against re-entry and re-translation).
         @MainActor
         private func runTranslationIfNeeded() {
-            guard wantsTranslation, !translationApplied, !translationInFlight,
+            // `contentReady` is the hard gate: translation never starts until the
+            // reader has rendered (or the original page fully loaded), so a
+            // freshly-navigated page can't be translated against stale/blank DOM.
+            guard wantsTranslation, contentReady, !translationApplied, !translationInFlight,
                   !translationLanguage.isEmpty, let webView else { return }
             translationInFlight = true
             onTranslatingChange(true)
@@ -423,8 +473,17 @@ extension ArticleWebView {
 
         @MainActor
         private func collectAndTranslate(_ webView: WKWebView, languageName: String) {
+            // Snapshot the navigation this translation belongs to; if the page
+            // navigates before it finishes, the result is discarded rather than
+            // injected into the wrong article.
+            let token = navigationToken
             webView.evaluateJavaScript(Self.collectTextScript) { [weak self] result, _ in
                 guard let self else { return }
+                guard token == self.navigationToken else {
+                    self.translationInFlight = false
+                    self.onTranslatingChange(false)
+                    return
+                }
                 guard let text = (result as? String), !text.isEmpty else {
                     self.translationInFlight = false
                     self.onTranslatingChange(false)
@@ -436,6 +495,7 @@ extension ArticleWebView {
                         guard let self else { return }
                         self.translationInFlight = false
                         self.onTranslatingChange(false)
+                        guard token == self.navigationToken else { return }
                         guard let translated, !translated.isEmpty, let webView = self.webView else { return }
                         webView.evaluateJavaScript(Self.injectTranslationScript(translated))
                         self.translationApplied = true
@@ -719,6 +779,12 @@ extension ArticleWebView {
             hasFinishedLoading = false
             lastBottomGap = .greatestFiniteMagnitude
             resetBottomEase()
+            // A new navigation invalidates the previous page's readiness and any
+            // translation applied to it, and makes in-flight translations stale.
+            navigationToken &+= 1
+            contentReady = false
+            translationApplied = false
+            translationInFlight = false
             #if canImport(AppKit)
             engaged = false
             bottomEngaged = false
@@ -751,6 +817,13 @@ extension ArticleWebView {
         }
 
         public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "nookContentReady" {
+                // The page's translatable content has settled (reader rendered or
+                // original page loaded): now translation may run.
+                contentReady = true
+                runTranslationIfNeeded()
+                return
+            }
             guard message.name == "nookScroll" else { return }
             if let body = message.body as? [String: Any] {
                 let top = (body["top"] as? NSNumber)?.doubleValue ?? 0

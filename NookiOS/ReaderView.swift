@@ -10,7 +10,6 @@ struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
-    @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
     @AppStorage("readerFontSize") private var readerFontSize = 18
@@ -298,8 +297,7 @@ struct ReaderDetailView: View {
     }
 
     private func openBrowser(for article: Article) {
-        let feedMode = store.feed(for: article.feedID)?.preferredViewMode
-        store.browserMode = feedMode ?? readerViewMode
+        store.browserMode = store.resolvedBrowserMode(for: article)
         store.isBrowserPresented = true
     }
 
