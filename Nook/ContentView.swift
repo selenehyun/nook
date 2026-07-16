@@ -1463,8 +1463,29 @@ private struct InAppBrowserPanel: View {
 
     @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @State private var loadingProgress: Double = 0
     @State private var bottomPull: CGFloat = 0
+    @State private var isTranslationOn = false
+    @State private var translationInFlight = false
+
+    private var targetLanguage: Locale.Language {
+        (appLanguage == .system ? Locale.current : appLanguage.locale).language
+    }
+
+    private var targetLanguageName: String {
+        let code = targetLanguage.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+    }
+
+    /// Web-view translation uses Apple Intelligence in place; offer it only when
+    /// that's available and the article's language differs from the app's.
+    private var canTranslate: Bool {
+        guard NaturalTranslator.isAvailable,
+              let detected = ReaderDetailView.detectLanguage(for: article),
+              let target = targetLanguage.languageCode?.identifier else { return false }
+        return detected != target
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1476,6 +1497,9 @@ private struct InAppBrowserPanel: View {
                 useReaderMode: store.browserMode == .reader,
                 style: style,
                 linkOpensInApp: linkOpensInApp,
+                translate: isTranslationOn,
+                translationLanguage: targetLanguageName,
+                onTranslatingChange: { translationInFlight = $0 },
                 onLoadingProgress: { loadingProgress = $0 },
                 onOverscroll: { amount in
                     dragOffset = amount
@@ -1494,6 +1518,12 @@ private struct InAppBrowserPanel: View {
             .overlay(alignment: .bottom) {
                 BottomPullAffordance(pull: bottomPull, nextTitle: store.article(after: article.id)?.title)
             }
+            .overlay(alignment: .top) {
+                if translationInFlight {
+                    TranslationBanner()
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: translationInFlight)
         }
         .frame(maxWidth: 980)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -1549,6 +1579,15 @@ private struct InAppBrowserPanel: View {
                 .help("Switch Reader / Original (⌘⇧F)")
 
                 Spacer()
+
+                if canTranslate {
+                    Button {
+                        isTranslationOn.toggle()
+                    } label: {
+                        Image(systemName: isTranslationOn ? "character.bubble.fill" : "character.bubble")
+                    }
+                    .help(isTranslationOn ? "Show Original Text" : "Translate")
+                }
 
                 Button { openURL(article.url) } label: {
                     Image(systemName: "safari")
@@ -1609,7 +1648,7 @@ private struct ReaderDetailView: View {
         ([article.title] + article.bodyParagraphs).joined(separator: "\n\n")
     }
 
-    private static func detectLanguage(for article: Article) -> String? {
+    static func detectLanguage(for article: Article) -> String? {
         let sample = (article.bodyParagraphs.prefix(4).joined(separator: " ") + " " + article.title)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sample.isEmpty else { return nil }
