@@ -56,6 +56,23 @@ public enum NaturalTranslator {
         throw Unavailable()
     }
 
+    /// Streaming variant: `onPartial` is called on the main actor with each
+    /// cumulative snapshot of the translation as it generates (ChatGPT-style),
+    /// so callers can REPLACE the displayed text token by token. Returns the
+    /// final, validated result. Runs on the main actor so callers can update
+    /// observable UI state directly from `onPartial` in order.
+    @MainActor
+    public static func streamTranslateBlock(
+        _ text: String, into languageName: String, onPartial: @escaping (String) -> Void
+    ) async throws -> BlockResult {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+            return try await llmStreamTranslateBlock(text, into: languageName, onPartial: onPartial)
+        }
+        #endif
+        throw Unavailable()
+    }
+
     #if canImport(FoundationModels)
     @available(iOS 26, macOS 26, *)
     @Generable
@@ -67,11 +84,10 @@ public enum NaturalTranslator {
         var translation: String
     }
 
+    /// Shared system instructions for block translation.
     @available(iOS 26, macOS 26, *)
-    private static func llmTranslateBlock(
-        _ text: String, into languageName: String, context: String
-    ) async throws -> BlockResult {
-        let instructions = """
+    private static func blockInstructions(_ languageName: String) -> String {
+        """
         You are an expert literary translator translating a web article into \
         \(languageName). For each paragraph the user sends, output its translation \
         in the `translation` field.
@@ -91,7 +107,13 @@ public enum NaturalTranslator {
         emphasis. Keep every marker verbatim, wrapping the translation of the same \
         span, in the same nesting. Never translate, drop, add, or renumber a marker.
         """
-        let session = LanguageModelSession(instructions: instructions)
+    }
+
+    @available(iOS 26, macOS 26, *)
+    private static func llmTranslateBlock(
+        _ text: String, into languageName: String, context: String
+    ) async throws -> BlockResult {
+        let session = LanguageModelSession(instructions: blockInstructions(languageName))
         // No article-context injection: feeding an English summary biased output
         // toward English and could leak into the body (a repetition vector). Each
         // block session is already isolated.
@@ -110,6 +132,40 @@ public enum NaturalTranslator {
             }
         }
         return BlockResult(translation: first.content.translation, context: "")
+    }
+
+    @available(iOS 26, macOS 26, *) @MainActor
+    private static func llmStreamTranslateBlock(
+        _ text: String, into languageName: String, onPartial: (String) -> Void
+    ) async throws -> BlockResult {
+        let session = LanguageModelSession(instructions: blockInstructions(languageName))
+        let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
+        let stream = session.streamResponse(to: prompt, generating: BlockTranslation.self)
+        var finalText = ""
+        var lastEmittedLength = 0
+        // Snapshots are CUMULATIVE (the full text so far), so callers replace, not
+        // append. Throttle by growth so the UI updates smoothly, not per token.
+        for try await partial in stream {
+            guard let translation = partial.content.translation else { continue }
+            finalText = translation
+            if translation.count - lastEmittedLength >= 24 {
+                lastEmittedLength = translation.count
+                onPartial(translation)
+            }
+        }
+        onPartial(finalText)
+
+        // Validate the completed text; retry once (non-streaming) on failure.
+        if !isAcceptable(source: text, output: finalText) {
+            if let retry = try? await session.respond(
+                to: "That was not correct. Output the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text, keeping every ⟦n⟧ marker.",
+                generating: BlockTranslation.self
+            ), isAcceptable(source: text, output: retry.content.translation) {
+                onPartial(retry.content.translation)
+                return BlockResult(translation: retry.content.translation, context: "")
+            }
+        }
+        return BlockResult(translation: finalText, context: "")
     }
     #endif
 

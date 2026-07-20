@@ -89,6 +89,8 @@ struct HTMLBlockList: View {
             NativeArticleTable(table: table, selectable: selectable)
         case .thematicBreak:
             Divider()
+        case .mixedText(let parts):
+            NativeMixedText(parts: parts, selectable: selectable)
         case .list(let ordered, let items):
             NativeArticleList(ordered: ordered, items: items, selectable: selectable)
         case .image(let media):
@@ -115,6 +117,16 @@ indirect enum HTMLContentBlock: Equatable, Sendable {
     case video(HTMLMedia)
     case audio(HTMLMedia)
     case embed(HTMLMedia)
+    /// A transient block used while a translation streams in: finished/pending
+    /// pieces render as HTML (cached importer), the actively-streaming piece as
+    /// cheap plain text (no importer per token). Collapses to `.text`/`.heading`
+    /// once complete.
+    case mixedText([TextPart])
+
+    enum TextPart: Equatable, Sendable {
+        case html(String)
+        case plain(String)
+    }
 }
 
 struct HTMLMedia: Equatable, Sendable {
@@ -1204,6 +1216,38 @@ private struct ZoomableImageView: UIViewRepresentable {
 #endif
 
 // MARK: - Block-level text views
+
+/// Renders a block mid-translation: settled/pending pieces via the cached HTML
+/// importer, the actively-streaming piece as plain `Text` (no per-token importer)
+/// so it fills in ChatGPT-style.
+private struct NativeMixedText: View {
+    let parts: [HTMLContentBlock.TextPart]
+    let selectable: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                switch part {
+                case .html(let html):
+                    HTMLContentText(html: html, selectable: selectable)
+                case .plain(let text):
+                    plainText(text)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func plainText(_ text: String) -> some View {
+        let rendered = Text(text).lineSpacing(4)
+        if selectable {
+            rendered.textSelection(.enabled)
+        } else {
+            rendered.textSelection(.disabled)
+        }
+    }
+}
 
 /// A heading rendered natively at a scaled, bold size while keeping inline
 /// formatting (links, emphasis, code) from the source markup.

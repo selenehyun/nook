@@ -360,15 +360,64 @@ public final class NativeArticleTranslator {
         var output = segments.map(\.raw)
         for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
             guard token == generation else { return context }
-            guard let (translatedInner, newContext) = await translateFragment(segment.inner, language: language, context: context, token: token) else {
-                continue
+            let active = segmentIndex
+            // Stream this segment token-by-token: show the growing plain text for
+            // the active segment while the others stay rendered as HTML.
+            let result = await translateFragmentStreaming(
+                segment.inner, language: language, context: context, token: token
+            ) { partial in
+                guard token == self.generation else { return }
+                self.overrides[index] = .mixedText(self.mixedParts(output: output, activeIndex: active, activePartial: partial))
             }
+            guard let (translatedInner, newContext) = result else { continue }
             context = newContext
             output[segmentIndex] = segment.open + translatedInner + segment.close
             guard token == generation else { return context }
-            overrides[index] = wrap(output.joined())
+            // Settle the finished segment; the next one re-emits (or the loop ends
+            // and the block collapses to a single importer-rendered block below).
+            overrides[index] = .mixedText(mixedParts(output: output, activeIndex: -1, activePartial: ""))
         }
+        guard token == generation else { return context }
+        // Collapse to the final single block so the settled layout/import path is
+        // identical to a non-streamed translation.
+        overrides[index] = wrap(output.joined())
         return context
+    }
+
+    /// Builds the streaming block's parts: the active segment as plain streaming
+    /// text (no importer), every other non-empty segment as its HTML.
+    private func mixedParts(output: [String], activeIndex: Int, activePartial: String) -> [HTMLContentBlock.TextPart] {
+        var parts: [HTMLContentBlock.TextPart] = []
+        for (i, segment) in output.enumerated() {
+            if i == activeIndex {
+                parts.append(activePartial.isEmpty ? .html(segment) : .plain(activePartial))
+            } else if !segment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                parts.append(.html(segment))
+            }
+        }
+        return parts
+    }
+
+    /// Streaming counterpart to `translateFragment`: forwards each marker-stripped
+    /// partial to `onPartial` for live rendering, then returns the final rebuilt
+    /// fragment. Returns nil when there's nothing translatable or it failed.
+    private func translateFragmentStreaming(
+        _ html: String, language: String, context: String, token: Int,
+        onPartial: @escaping (String) -> Void
+    ) async -> (String, String)? {
+        let (template, entries) = InlineMarkupTranslator.markify(html)
+        guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        guard let result = try? await NaturalTranslator.streamTranslateBlock(template, into: language, onPartial: { partial in
+            onPartial(InlineMarkupTranslator.stripMarkers(partial))
+        }) else {
+            return nil
+        }
+        guard token == generation else { return nil }
+        let rebuilt = InlineMarkupTranslator.rebuild(result.translation, entries: entries)
+            ?? InlineMarkupTranslator.plainFallback(result.translation)
+        return (rebuilt, result.context)
     }
 
     /// Translates a nested block (inside a blockquote) without its own override.
