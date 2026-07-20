@@ -53,9 +53,6 @@ private struct ReaderSwipeNavigation: ViewModifier {
     /// Pull distance past an edge needed to commit to a navigation. Matches the
     /// web reader's next-article threshold so the two surfaces feel the same.
     static let threshold: CGFloat = BottomPullAffordance.nextThreshold
-    /// The pull distance below which the affordance stays hidden. Low, so the
-    /// indicator appears as soon as the pull starts and then fills toward commit.
-    private static let revealThreshold: CGFloat = 2
 
     @State private var pull = EdgePull()
 
@@ -67,17 +64,14 @@ private struct ReaderSwipeNavigation: ViewModifier {
 
     func body(content: Content) -> some View {
         platformContent(content)
+            // Reuse the web reader's affordance so the gradual emerge and the
+            // selection roll are identical — bottom pulls to the next article,
+            // top mirrors it to the previous one (no "close" stage here).
             .overlay(alignment: .bottom) {
-                if pull.bottom > Self.revealThreshold {
-                    ReaderEdgePullAffordance(edge: .bottom, pull: pull.bottom, title: nextTitle)
-                        .transition(.opacity)
-                }
+                BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true)
             }
             .overlay(alignment: .top) {
-                if pull.top > Self.revealThreshold {
-                    ReaderEdgePullAffordance(edge: .top, pull: pull.top, title: previousTitle)
-                        .transition(.opacity)
-                }
+                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false)
             }
     }
 
@@ -224,6 +218,7 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
         private var beganAtTop = false
         private var beganAtBottom = false
         private var lastReported: CGFloat = 0
+        private var didCrossThreshold = false
 
         func attach(to view: NSView) {
             probe = view
@@ -284,6 +279,7 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             engaged = nil
             raw = 0
             lastReported = 0
+            didCrossThreshold = false
         }
 
         /// Returns true to consume the event (we're driving the pull).
@@ -338,6 +334,13 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
                 return false
             }
 
+            // Fire a single Taptic tick when the pull crosses the commit
+            // threshold (iOS gets its haptics from the affordance's sensoryFeedback).
+            if !didCrossThreshold, lastReported >= threshold {
+                didCrossThreshold = true
+                NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            }
+
             if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
                 let amount = lastReported
                 let edge = engaged
@@ -357,82 +360,3 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
     }
 }
 #endif
-
-// MARK: - Affordance
-
-/// A floating pill revealed as the native reader is pulled past an edge: a hint
-/// while pulling, turning into the target article's title once past the commit
-/// threshold. Mirrors the web reader's affordance styling.
-private struct ReaderEdgePullAffordance: View {
-    enum Edge { case top, bottom }
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    let edge: Edge
-    let pull: CGFloat
-    /// The target article's title, or nil at the end/start of the list.
-    let title: String?
-
-    private var reached: Bool { pull >= ReaderSwipeNavigation.threshold }
-
-    private var hintTick: Int {
-        guard !reached, pull > ReaderSwipeNavigation.threshold * 0.06 else { return 0 }
-        return Int(pull / 10)
-    }
-
-    var body: some View {
-        pill
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(edge == .bottom ? .bottom : .top, 22)
-            .padding(.horizontal, 20)
-            .scaleEffect(reached ? 1 : 0.94, anchor: edge == .bottom ? .bottom : .top)
-            .animation(reduceMotion ? .easeOut(duration: 0.12) : .interpolatingSpring(
-                mass: 0.7, stiffness: 260, damping: 22
-            ), value: reached)
-            #if !os(macOS)
-            .sensoryFeedback(trigger: reached) { _, isReached in
-                isReached ? .impact(weight: .light) : nil
-            }
-            .sensoryFeedback(trigger: hintTick) { old, new in
-                new > old ? .selection : nil
-            }
-            #endif
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(Text(label))
-    }
-
-    private var pill: some View {
-        HStack(spacing: 9) {
-            Image(systemName: iconName)
-                .font(.headline)
-            Text(label)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 260)
-        }
-        .foregroundStyle(reached ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .modifier(GlassPill())
-    }
-
-    private var iconName: String {
-        if reached {
-            if title == nil { return "checkmark.circle" }
-            return edge == .bottom ? "arrow.right" : "arrow.left"
-        }
-        return edge == .bottom ? "chevron.up" : "chevron.down"
-    }
-
-    private var label: String {
-        if reached {
-            if let title { return title }
-            return edge == .bottom
-                ? String(localized: "You're all caught up", bundle: .module)
-                : String(localized: "You're at the start", bundle: .module)
-        }
-        return String(localized: "Keep pulling", bundle: .module)
-    }
-}

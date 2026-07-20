@@ -20,11 +20,33 @@ public struct BottomPullAffordance: View {
 
     private let pull: CGFloat
     private let nextTitle: String?
+    /// Which screen edge the affordance is anchored to. `.bottom` (default) is
+    /// the in-app browser's pull-up; `.top` mirrors it for the native reader's
+    /// pull-down-to-previous.
+    private let edge: VerticalEdge
+    /// Whether the extra "release to close" stage is available (the browser).
+    /// The native reader has nothing to close, so it passes `false`.
+    private let includeClose: Bool
+    /// Whether the primary action goes forward (next) or backward (previous),
+    /// which chooses the arrow direction and the "nothing more" message.
+    private let forward: Bool
 
-    public init(pull: CGFloat, nextTitle: String?) {
+    public init(
+        pull: CGFloat,
+        nextTitle: String?,
+        edge: VerticalEdge = .bottom,
+        includeClose: Bool = true,
+        forward: Bool = true
+    ) {
         self.pull = pull
         self.nextTitle = nextTitle
+        self.edge = edge
+        self.includeClose = includeClose
+        self.forward = forward
     }
+
+    /// +1 for the bottom edge, -1 to mirror the reel geometry for the top edge.
+    private var sign: CGFloat { edge == .bottom ? 1 : -1 }
 
     private enum Stage: Int, CaseIterable, Equatable {
         case hint
@@ -35,7 +57,7 @@ public struct BottomPullAffordance: View {
     private enum PullDirection: Equatable { case forward, backward }
 
     private var stage: Stage {
-        if pull >= Self.closeThreshold { return .close }
+        if includeClose, pull >= Self.closeThreshold { return .close }
         if pull >= Self.nextThreshold { return .next }
         return .hint
     }
@@ -54,16 +76,16 @@ public struct BottomPullAffordance: View {
         ZStack {
             reelItem(.hint) { hintCard }
             reelItem(.next) { nextCard }
-            reelItem(.close) { closeCard }
+            if includeClose { reelItem(.close) { closeCard } }
         }
         .frame(height: 82)
         .clipped()
         // Presentation is spring-driven. Within a stage, pull distance only
         // draws the incoming neighbour closer; the selected cell stays fixed.
-        .scaleEffect(isPresented ? 1 : 0.86, anchor: .bottom)
-        .offset(y: isPresented ? 0 : 38)
+        .scaleEffect(isPresented ? 1 : 0.86, anchor: edge == .bottom ? .bottom : .top)
+        .offset(y: isPresented ? 0 : 38 * sign)
         .opacity(isPresented ? 1 : 0)
-        .padding(.bottom, 22)
+        .padding(edge == .bottom ? .bottom : .top, 22)
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, alignment: .center)
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .interpolatingSpring(
@@ -117,13 +139,13 @@ public struct BottomPullAffordance: View {
         let isNeighbour = abs(slotDistance) == 1
         return content()
             .rotation3DEffect(
-                .degrees(reduceMotion ? 0 : Double(distance * -52)),
+                .degrees(reduceMotion ? 0 : Double(distance * -52 * sign)),
                 axis: (x: 1, y: 0, z: 0),
-                anchor: distance > 0 ? .top : .bottom,
+                anchor: (distance * sign) > 0 ? .top : .bottom,
                 perspective: 0.58
             )
             .scaleEffect(isSelected ? 1 : 0.82 + 0.06 * approach)
-            .offset(y: distance * 54)
+            .offset(y: distance * 54 * sign)
             // The release target is invariantly solid. The incoming neighbour
             // may gain emphasis as it approaches, but never at its expense.
             .opacity(isSelected ? 1 : (isNeighbour ? 0.3 + 0.2 * approach : 0))
@@ -153,18 +175,24 @@ public struct BottomPullAffordance: View {
 
     private var hintCard: some View {
         pill {
-            Image(systemName: "chevron.up").font(.headline)
+            Image(systemName: edge == .bottom ? "chevron.up" : "chevron.down").font(.headline)
             Text("Keep pulling", bundle: .module)
                 .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(.secondary)
     }
 
+    private var emptyActionTitle: String {
+        forward
+            ? String(localized: "You're all caught up", bundle: .module)
+            : String(localized: "You're at the start", bundle: .module)
+    }
+
     private var nextCard: some View {
         pill {
-            Image(systemName: nextTitle == nil ? "checkmark.circle" : "arrow.right")
+            Image(systemName: nextTitle == nil ? "checkmark.circle" : (forward ? "arrow.right" : "arrow.left"))
                 .font(.headline)
-            Text(nextTitle ?? String(localized: "You're all caught up", bundle: .module))
+            Text(nextTitle ?? emptyActionTitle)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -185,7 +213,7 @@ public struct BottomPullAffordance: View {
     private var accessibilityLabel: Text {
         switch stage {
         case .hint: Text("Keep pulling", bundle: .module)
-        case .next: Text(nextTitle ?? String(localized: "You're all caught up", bundle: .module))
+        case .next: Text(nextTitle ?? emptyActionTitle)
         case .close: Text("Release to close", bundle: .module)
         }
     }
