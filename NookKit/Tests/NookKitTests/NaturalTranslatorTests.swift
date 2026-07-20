@@ -12,6 +12,22 @@ struct NaturalTranslatorTests {
         #expect(NaturalTranslator.stripTranslationPreamble(english) == "안녕하세요 여러분.")
     }
 
+    @Test("A runaway repetition loop is detected")
+    func detectsRunaway() {
+        // A single word repeated forever.
+        #expect(NaturalTranslator.looksRunaway(String(repeating: "메아리 ", count: 20)))
+        // A single character repeated.
+        #expect(NaturalTranslator.looksRunaway("정상적인 시작 " + String(repeating: "가", count: 40)))
+    }
+
+    @Test("Ordinary text is not flagged as runaway")
+    func normalTextNotRunaway() {
+        #expect(!NaturalTranslator.looksRunaway("이것은 완전히 평범한 번역된 문장이며 반복이 없습니다."))
+        #expect(!NaturalTranslator.looksRunaway("짧은 글"))
+        // A couple of legitimate repeats (e.g. "매우 매우 좋다") must not trip it.
+        #expect(!NaturalTranslator.looksRunaway("그것은 매우 매우 좋은 결과였습니다."))
+    }
+
     @Test("Ordinary prose with a colon is left intact")
     func keepsRealColon() {
         let real = "그가 말했다: 나는 준비되었다."

@@ -180,16 +180,31 @@ public enum NaturalTranslator {
         let stream = session.streamResponse(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false)
         var finalText = ""
         var lastEmittedLength = 0
+        var runaway = false
+        // A translation is never this much longer than its source; growing past it
+        // means the model is stuck expanding/looping, not translating.
+        let maxLength = max(400, text.count * 4)
         // Snapshots are CUMULATIVE (the full text so far), so callers replace, not
         // append. Throttle by growth so the UI updates smoothly, not per token.
         for try await partial in stream {
             guard let translation = partial.content.translation else { continue }
             finalText = translation
+            // Abort a degenerate repetition loop (the model spitting one word
+            // forever) as soon as it shows, instead of waiting for it to grind to
+            // the token limit — which freezes translation for a long time.
+            if looksRunaway(translation) || translation.count > maxLength {
+                runaway = true
+                break
+            }
             if translation.count - lastEmittedLength >= 12 {
                 lastEmittedLength = translation.count
                 onPartial(translation)
             }
         }
+        // A runaway is unrecoverable in this session — throw straight to the
+        // caller's escalation (a fresh session usually doesn't loop) rather than
+        // retrying in the same, poisoned session.
+        if runaway { throw TranslationRejected() }
         onPartial(finalText)
         if isAcceptable(source: text, output: finalText) {
             return BlockResult(translation: finalText, context: "")
@@ -238,7 +253,8 @@ public enum NaturalTranslator {
                     if !out.isEmpty,
                        !looksUntranslated(source: text, output: out),
                        !hasImmediateRepetition(out),
-                       !looksLikeSchemaLeak(out) {
+                       !looksLikeSchemaLeak(out),
+                       !looksRunaway(out) {
                         return out
                     }
                 }
@@ -256,6 +272,7 @@ public enum NaturalTranslator {
         !looksUntranslated(source: source, output: output)
             && !hasImmediateRepetition(output)
             && !looksLikeSchemaLeak(output)
+            && !looksRunaway(output)
     }
 
     /// Detects the model echoing the generation schema / instructions instead of
@@ -294,6 +311,26 @@ public enum NaturalTranslator {
         let after = ns.substring(from: colon.location + colon.length)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return after.isEmpty ? text : after
+    }
+
+    /// Detects a degenerate repetition loop from a streaming snapshot: the tail is
+    /// a short unit repeated over and over (e.g. "word word word …" or "aaaa…").
+    /// Cheap enough to check on every snapshot so a stuck generation is aborted
+    /// early instead of grinding to the token limit.
+    static func looksRunaway(_ text: String) -> Bool {
+        guard text.count >= 30 else { return false }
+        let tail = Array(text.suffix(140))
+        let n = tail.count
+        for unit in 1...min(24, n / 4) {
+            var repeats = 1
+            var i = n - unit
+            while i - unit >= 0, Array(tail[i..<i + unit]) == Array(tail[i - unit..<i]) {
+                repeats += 1
+                i -= unit
+            }
+            if repeats >= 4, repeats * unit >= 30 { return true }
+        }
+        return false
     }
 
     /// Marker-stripped, whitespace-collapsed, lowercased text for comparisons.

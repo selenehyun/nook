@@ -689,10 +689,13 @@ public final class NativeArticleTranslator {
             return result.translation
         }
         guard token == generation else { return template }
-        // 2) Fresh guided session — still preserves markers. Non-streaming, so
-        // pace the result in so it types like step 1 rather than popping in.
-        if let result = try? await NaturalTranslator.translateBlock(template, into: language, context: "", domain: conceptDomain) {
-            await paceEmit(InlineMarkupTranslator.stripMarkers(result.translation), onPartial: onPartial, token: token)
+        // 2) Fresh guided streaming — a new session usually escapes a repetition
+        // loop or echo the first attempt hit, and streams so it types in and can
+        // be aborted early if it too runs away.
+        if let result = try? await NaturalTranslator.streamTranslateBlock(
+            template, into: language, domain: conceptDomain,
+            onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
+        ) {
             return result.translation
         }
         guard token == generation else { return template }
