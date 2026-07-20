@@ -689,9 +689,10 @@ public final class NativeArticleTranslator {
             return result.translation
         }
         guard token == generation else { return template }
-        // 2) Fresh guided session — still preserves markers.
+        // 2) Fresh guided session — still preserves markers. Non-streaming, so
+        // pace the result in so it types like step 1 rather than popping in.
         if let result = try? await NaturalTranslator.translateBlock(template, into: language, context: "", domain: conceptDomain) {
-            onPartial(InlineMarkupTranslator.stripMarkers(result.translation))
+            await paceEmit(InlineMarkupTranslator.stripMarkers(result.translation), onPartial: onPartial, token: token)
             return result.translation
         }
         guard token == generation else { return template }
@@ -700,11 +701,32 @@ public final class NativeArticleTranslator {
         if let plain = await NaturalTranslator.translatePlainFallback(
             InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain
         ) {
-            onPartial(plain)
+            await paceEmit(plain, onPartial: onPartial, token: token)
             return plain
         }
         // 4) Give up on this chunk; keep the original so the rest still translates.
         return template
+    }
+
+    /// Emits `text` as growing prefixes over time so a bulk (non-streamed)
+    /// translation types in visibly instead of appearing all at once. Runs before
+    /// the caller returns, so the block doesn't settle until it has played — the
+    /// fix for a later block suddenly swapping whole when it escalates off the
+    /// token-streaming path. Clears within ~1.2s but never slower than ~70 chars/s.
+    private func paceEmit(_ text: String, onPartial: @escaping (String) -> Void, token: Int) async {
+        let chars = Array(text)
+        guard !chars.isEmpty else { return }
+        var shown = 0
+        while shown < chars.count {
+            guard token == generation else { return }
+            let backlog = chars.count - shown
+            let charsPerSecond = max(70.0, Double(backlog) / 1.2)
+            let step = max(1, Int((charsPerSecond * 0.016).rounded()))
+            shown = min(chars.count, shown + step)
+            onPartial(String(chars[0..<shown]))
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            if Task.isCancelled { return }
+        }
     }
 
     /// Translates a nested block (inside a quote/list). `onPartial` receives the

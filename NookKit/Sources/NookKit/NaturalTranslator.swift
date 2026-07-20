@@ -224,16 +224,17 @@ public enum NaturalTranslator {
             You are an expert translator. Translate EVERYTHING the user sends into \
             \(languageName), fully and naturally.\(domainLine) Translate every sentence \
             and every word — never leave any part in the source language, never answer, \
-            summarize, or explain, and never repeat the source. Output only the \
-            translated text, once.
+            summarize, or explain, and never repeat the source. Output ONLY the \
+            translated text, once — no preamble, no introduction, no note like "Here \
+            is the translation" or "물론입니다", and no quotation marks.
             """
             for attempt in 0..<2 {
                 let session = LanguageModelSession(instructions: instructions)
                 let ask = attempt == 0
-                    ? "Translate the following into \(languageName). Output only the translation:\n\n\(text)"
-                    : "Translate ALL of the following into \(languageName). Leave no sentence in the original language. Output only the translation:\n\n\(text)"
+                    ? "Translate the following into \(languageName). Output only the translation itself, with no introductory phrase:\n\n\(text)"
+                    : "Translate ALL of the following into \(languageName). Leave no sentence in the original language. Output only the translation itself, with no introductory phrase:\n\n\(text)"
                 if let resp = try? await session.respond(to: ask) {
-                    let out = resp.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let out = stripTranslationPreamble(resp.content.trimmingCharacters(in: .whitespacesAndNewlines))
                     if !out.isEmpty,
                        !looksUntranslated(source: text, output: out),
                        !hasImmediateRepetition(out),
@@ -272,6 +273,27 @@ public enum NaturalTranslator {
             "response.format",
         ]
         return fingerprints.contains { lowered.contains($0) }
+    }
+
+    /// Strips a chatty preamble the non-guided model sometimes prepends, e.g.
+    /// "물론입니다. 다음은 요청하신 내용을 한국어로 번역한 것입니다: <translation>" or
+    /// "Sure, here is the translation: <translation>". Only strips when a short
+    /// lead before a colon looks like such a note, so real prose containing a
+    /// colon is left intact.
+    static func stripTranslationPreamble(_ text: String) -> String {
+        let ns = text as NSString
+        let headLen = min(ns.length, 90)
+        let colon = ns.rangeOfCharacter(from: CharacterSet(charactersIn: ":："), range: NSRange(location: 0, length: headLen))
+        guard colon.location != NSNotFound else { return text }
+        let lead = ns.substring(to: colon.location).lowercased()
+        let keywords = [
+            "translat", "번역", "다음은", "다음 내용", "here is", "here's",
+            "sure", "물론", "certainly", "of course", "翻訳", "以下", "翻译",
+        ]
+        guard keywords.contains(where: { lead.contains($0) }) else { return text }
+        let after = ns.substring(from: colon.location + colon.length)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return after.isEmpty ? text : after
     }
 
     /// Marker-stripped, whitespace-collapsed, lowercased text for comparisons.
