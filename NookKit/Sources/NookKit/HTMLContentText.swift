@@ -126,6 +126,10 @@ indirect enum HTMLContentBlock: Equatable, Sendable {
     enum TextPart: Equatable, Sendable {
         case html(String)
         case plain(String)
+        /// The segment about to be translated: its original HTML, shown dimmed so
+        /// the block stays visible (never blanks) while the model works, then
+        /// crossfades to the streaming translation once the first token arrives.
+        case pending(String)
     }
 }
 
@@ -1230,15 +1234,24 @@ private struct NativeMixedText: View {
                 switch part {
                 case .html(let html):
                     HTMLContentText(html: html, selectable: selectable)
+                        .transition(.opacity)
                 case .plain(let text):
                     // A `.plain` part is only ever the segment currently being
                     // translated (it settles to `.html` once done), so it always
                     // shows the live typing effect.
                     StreamingText(text: text, selectable: selectable)
+                        .transition(.opacity)
+                case .pending(let html):
+                    // The soon-to-be-translated segment: original text kept visible
+                    // but dimmed, so the block never blanks before typing starts.
+                    HTMLContentText(html: html, selectable: selectable)
+                        .opacity(0.35)
+                        .transition(.opacity)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeInOut(duration: 0.28), value: parts)
     }
 }
 

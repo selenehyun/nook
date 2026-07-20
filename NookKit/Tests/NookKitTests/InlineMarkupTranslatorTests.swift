@@ -94,6 +94,26 @@ struct InlineMarkupTranslatorTests {
         #expect(segments == [Engine.Segment(raw: "just some text", translatable: true, open: "", inner: "just some text", close: "")])
     }
 
+    @Test("A chunk localizes to self-contained 0-based markers and rebuilds alone")
+    func localizesChunk() {
+        let (_, entries) = Engine.markify("<a href=\"/1\">one</a> and <em>two</em> and <a href=\"/3\">three</a>")
+        // entries: 0 = a(/1), 1 = em, 2 = a(/3). Second chunk holds globals 1 and 2.
+        let chunk = "\u{27E6}1\u{27E7}two\u{27E6}/1\u{27E7} and \u{27E6}2\u{27E7}three\u{27E6}/2\u{27E7}"
+        let (local, localEntries) = Engine.localize(chunk, entries: entries)
+        #expect(local == "\u{27E6}0\u{27E7}two\u{27E6}/0\u{27E7} and \u{27E6}1\u{27E7}three\u{27E6}/1\u{27E7}")
+        #expect(localEntries == [entries[1], entries[2]])
+        // The localized chunk rebuilds independently, restoring the right tags.
+        let translated = "\u{27E6}0\u{27E7}둘\u{27E6}/0\u{27E7} 그리고 \u{27E6}1\u{27E7}셋\u{27E6}/1\u{27E7}"
+        #expect(Engine.rebuild(translated, entries: localEntries) == "<em>둘</em> 그리고 <a href=\"/3\">셋</a>")
+    }
+
+    @Test("A marker-free chunk localizes to itself with no entries")
+    func localizesPlainChunk() {
+        let (local, localEntries) = Engine.localize("just some words", entries: [])
+        #expect(local == "just some words")
+        #expect(localEntries.isEmpty)
+    }
+
     @Test("Corrupted markers are stripped, not leaked into the text")
     func stripsCorruptedMarkers() {
         // The model mangled a footnote marker into "⟦5⟦3" at the end of a sentence.

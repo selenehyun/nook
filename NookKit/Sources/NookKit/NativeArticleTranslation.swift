@@ -214,6 +214,46 @@ enum InlineMarkupTranslator {
         return chunks
     }
 
+    /// Re-expresses a marker-balanced chunk of a template as a self-contained
+    /// template with its own 0-based marker indices, paired with the matching
+    /// subset of `entries`. This lets each chunk be rebuilt independently, so one
+    /// chunk mangling its markers degrades only that chunk to plain text instead
+    /// of stripping styles (links, emphasis, strikethrough) from the whole
+    /// paragraph. Chunks from `chunk` are always depth-0 balanced, so every
+    /// close's open — and thus its local index — is present in the same chunk.
+    static func localize(_ chunk: String, entries: [Entry]) -> (template: String, entries: [Entry]) {
+        let ns = chunk as NSString
+        let matches = markerRegex.matches(in: chunk, range: NSRange(location: 0, length: ns.length))
+        guard !matches.isEmpty else { return (chunk, []) }
+
+        var globalToLocal: [Int: Int] = [:]
+        var localEntries: [Entry] = []
+        for m in matches {
+            guard let g = Int(ns.substring(with: m.range(at: 2))), g >= 0, g < entries.count else { continue }
+            if globalToLocal[g] == nil {
+                globalToLocal[g] = localEntries.count
+                localEntries.append(entries[g])
+            }
+        }
+        var out = ""
+        var cursor = 0
+        for m in matches {
+            let range = m.range
+            if range.location > cursor {
+                out += ns.substring(with: NSRange(location: cursor, length: range.location - cursor))
+            }
+            cursor = range.location + range.length
+            let kind = m.range(at: 1).location == NSNotFound ? "" : ns.substring(with: m.range(at: 1))
+            if let g = Int(ns.substring(with: m.range(at: 2))), let l = globalToLocal[g] {
+                out += "\u{27E6}\(kind)\(l)\u{27E7}"
+            } else {
+                out += ns.substring(with: range)
+            }
+        }
+        if cursor < ns.length { out += ns.substring(from: cursor) }
+        return (out, localEntries)
+    }
+
     /// One translatable unit of a `.text` block. Paragraph-level so a long body
     /// (which the parser keeps as one `.text` block) is translated and streamed
     /// paragraph by paragraph instead of in a single oversized model call.
@@ -500,15 +540,15 @@ public final class NativeArticleTranslator {
         return context
     }
 
-    /// Builds the streaming block's parts: the active segment as plain streaming
-    /// text (no importer) — always plain, even while empty, so the caret shows at
-    /// its start before the first token — and every other non-empty segment as
-    /// its HTML.
+    /// Builds the streaming block's parts: the active segment shows its dimmed
+    /// original (`.pending`) until the first token arrives, then streams as plain
+    /// text (`.plain`) — so the block never blanks and crossfades in place — while
+    /// every other non-empty segment renders as its HTML.
     private func mixedParts(output: [String], activeIndex: Int, activePartial: String) -> [HTMLContentBlock.TextPart] {
         var parts: [HTMLContentBlock.TextPart] = []
         for (i, segment) in output.enumerated() {
             if i == activeIndex {
-                parts.append(.plain(activePartial))
+                parts.append(activePartial.isEmpty ? .pending(segment) : .plain(activePartial))
             } else if !segment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append(.html(segment))
             }
@@ -532,63 +572,83 @@ public final class NativeArticleTranslator {
         // Chunks translate in order; the live text shows finished chunks plus the
         // one currently streaming.
         let chunks = InlineMarkupTranslator.chunk(template)
-        var translatedParts: [String] = []
+        var htmlParts: [String] = []
         var finishedStripped = ""
         for chunk in chunks {
             guard token == generation else { return nil }
             let prefix = finishedStripped   // immutable snapshot for the closure
-            let (piece, stripped) = await translateChunk(
-                chunk, language: language, token: token,
+            let (chunkHTML, stripped) = await translateChunk(
+                chunk, entries: entries, language: language, token: token,
                 onPartial: { live in
                     guard token == self.generation else { return }
                     onPartial(prefix + live)
                 }
             )
-            translatedParts.append(piece)
+            htmlParts.append(chunkHTML)
             finishedStripped += stripped
             if !finishedStripped.hasSuffix(" ") { finishedStripped += " " }
         }
         guard token == generation else { return nil }
-        let combined = translatedParts.joined(separator: " ")
-        let rebuilt = InlineMarkupTranslator.rebuild(combined, entries: entries)
-            ?? InlineMarkupTranslator.plainFallback(combined)
-        return (rebuilt, "")
+        // Each chunk is already rebuilt HTML; just join them.
+        return (htmlParts.joined(), "")
     }
 
-    /// Translates one chunk with escalating robustness so a paragraph is never
-    /// left in the source language: guided streaming → a fresh guided attempt
-    /// (both preserve inline markers) → a plain, non-guided translation (markers
-    /// dropped; the whole fragment then degrades to plain text on rebuild) → the
-    /// original chunk as a last resort. Returns the piece to concatenate for
-    /// rebuild and its marker-stripped text for the live display.
+    /// Translates one chunk and rebuilds it **independently**: the chunk is
+    /// re-numbered to self-contained local markers, translated, then rebuilt on
+    /// its own. So a chunk that mangles its markers degrades only itself to plain
+    /// text, while sibling chunks keep their links/emphasis/strikethrough — rather
+    /// than one bad chunk stripping styles from the whole paragraph. Returns the
+    /// rebuilt HTML piece to concatenate and its marker-stripped text for the live
+    /// display.
     private func translateChunk(
-        _ chunk: String, language: String, token: Int,
+        _ chunk: String, entries: [InlineMarkupTranslator.Entry], language: String, token: Int,
         onPartial: @escaping (String) -> Void
-    ) async -> (piece: String, stripped: String) {
+    ) async -> (html: String, stripped: String) {
+        let (local, localEntries) = InlineMarkupTranslator.localize(chunk, entries: entries)
+        let translated = await escalateTranslate(local, language: language, token: token, onPartial: onPartial)
+        // Rebuild this chunk alone; on marker failure fall back to plain text for
+        // just this chunk. When we gave up (translated == local, the untranslated
+        // original), rebuild restores the original tags around the original text —
+        // so a failed chunk still shows its source styling rather than raw markers.
+        let html = InlineMarkupTranslator.rebuild(translated, entries: localEntries)
+            ?? InlineMarkupTranslator.plainFallback(translated)
+        return (html, InlineMarkupTranslator.stripMarkers(translated))
+    }
+
+    /// The escalation ladder for one localized chunk, returning a marker-bearing
+    /// translation (or plain text, or the original) so the caller can rebuild it:
+    /// guided streaming → a fresh guided attempt (both preserve inline markers) →
+    /// a plain, non-guided translation (markers dropped; the chunk rebuilds to
+    /// plain text) → the original chunk as a last resort (styles preserved, text
+    /// untranslated).
+    private func escalateTranslate(
+        _ template: String, language: String, token: Int,
+        onPartial: @escaping (String) -> Void
+    ) async -> String {
         // 1) Guided streaming — markers preserved, streams token by token.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            chunk, into: language, domain: conceptDomain,
+            template, into: language, domain: conceptDomain,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
-            return (result.translation, InlineMarkupTranslator.stripMarkers(result.translation))
+            return result.translation
         }
-        guard token == generation else { return (chunk, InlineMarkupTranslator.stripMarkers(chunk)) }
+        guard token == generation else { return template }
         // 2) Fresh guided session — still preserves markers.
-        if let result = try? await NaturalTranslator.translateBlock(chunk, into: language, context: "", domain: conceptDomain) {
-            let stripped = InlineMarkupTranslator.stripMarkers(result.translation)
-            onPartial(stripped)
-            return (result.translation, stripped)
+        if let result = try? await NaturalTranslator.translateBlock(template, into: language, context: "", domain: conceptDomain) {
+            onPartial(InlineMarkupTranslator.stripMarkers(result.translation))
+            return result.translation
         }
-        guard token == generation else { return (chunk, InlineMarkupTranslator.stripMarkers(chunk)) }
+        guard token == generation else { return template }
         // 3) Plain, non-guided translation — recovers from the echo failure mode
-        // that guided decoding falls into, at the cost of inline markup.
-        let plainSource = InlineMarkupTranslator.stripMarkers(chunk)
-        if let plain = await NaturalTranslator.translatePlainFallback(plainSource, into: language, domain: conceptDomain) {
+        // guided decoding falls into, at the cost of this chunk's inline markup.
+        if let plain = await NaturalTranslator.translatePlainFallback(
+            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain
+        ) {
             onPartial(plain)
-            return (plain, plain)
+            return plain
         }
         // 4) Give up on this chunk; keep the original so the rest still translates.
-        return (chunk, InlineMarkupTranslator.stripMarkers(chunk))
+        return template
     }
 
     /// Translates a nested block (inside a blockquote) without its own override.
@@ -659,19 +719,17 @@ public final class NativeArticleTranslator {
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        // Same chunking + escalation as the streaming path (no live callback) so
-        // long cells/quotes don't overflow or echo and stay untranslated.
+        // Same chunking + per-chunk rebuild as the streaming path (no live
+        // callback) so long cells/quotes don't overflow or echo, and one bad chunk
+        // doesn't strip styles from the whole cell/quote.
         let chunks = InlineMarkupTranslator.chunk(template)
-        var parts: [String] = []
+        var htmlParts: [String] = []
         for chunk in chunks {
             guard token == generation else { return nil }
-            let (piece, _) = await translateChunk(chunk, language: language, token: token, onPartial: { _ in })
-            parts.append(piece)
+            let (chunkHTML, _) = await translateChunk(chunk, entries: entries, language: language, token: token, onPartial: { _ in })
+            htmlParts.append(chunkHTML)
         }
         guard token == generation else { return nil }
-        let combined = parts.joined(separator: " ")
-        let rebuilt = InlineMarkupTranslator.rebuild(combined, entries: entries)
-            ?? InlineMarkupTranslator.plainFallback(combined)
-        return (rebuilt, "")
+        return (htmlParts.joined(), "")
     }
 }
