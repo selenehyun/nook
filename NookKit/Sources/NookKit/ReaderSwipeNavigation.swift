@@ -57,7 +57,6 @@ private struct ReaderSwipeNavigation: ViewModifier {
     @State private var pull = EdgePull()
 
     // iOS-only tracking.
-    @State private var peak = EdgePull()
     @State private var isDragging = false
     @State private var beganAtTop = false
     @State private var beganAtBottom = false
@@ -114,30 +113,29 @@ private struct ReaderSwipeNavigation: ViewModifier {
                 let bottom = (isDragging && beganAtBottom) ? newValue.bottom : 0
                 let top = (isDragging && beganAtTop) ? newValue.top : 0
                 pull = EdgePull(top: top, bottom: bottom)
-                if isDragging {
-                    peak = EdgePull(top: max(peak.top, top), bottom: max(peak.bottom, bottom))
-                }
             }
             .onScrollPhaseChange { oldPhase, newPhase, context in
                 switch newPhase {
                 case .tracking, .interacting:
                     if !isDragging {
-                        peak = EdgePull()
                         let edges = Self.edges(context.geometry)
                         beganAtTop = edges.top
                         beganAtBottom = edges.bottom
                     }
                     isDragging = true
                 default:
+                    // Commit from the overscroll AT RELEASE (not the peak), so
+                    // pulling past the threshold and then easing back before
+                    // lifting cancels instead of still navigating.
                     if oldPhase == .interacting || oldPhase == .tracking {
-                        if beganAtBottom, peak.bottom >= Self.threshold {
+                        let released = Self.pull(from: context.geometry)
+                        if beganAtBottom, released.bottom >= Self.threshold {
                             commit(.bottom)
-                        } else if beganAtTop, peak.top >= Self.threshold {
+                        } else if beganAtTop, released.top >= Self.threshold {
                             commit(.top)
                         }
                     }
                     isDragging = false
-                    peak = EdgePull()
                 }
                 if newPhase == .idle { pull = EdgePull() }
             }
