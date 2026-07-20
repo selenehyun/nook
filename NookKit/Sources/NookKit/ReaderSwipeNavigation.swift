@@ -256,16 +256,21 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             return cachedScrollView
         }
 
-        /// Whether the reader content rests at each edge, read straight from the
-        /// scroll view's visible rect (exact, no inset guesswork).
+        /// Whether the reader content rests at each edge. Derived from the clip
+        /// view's actual scrollable range via `constrainBoundsRect`, which folds
+        /// in content insets (a top toolbar/safe-area inset otherwise made the
+        /// resting top read as negative, so 10–20pt down still counted as "top").
         private func edges() -> (top: Bool, bottom: Bool) {
-            guard let scroll = scrollView(), let document = scroll.documentView else { return (false, false) }
-            let visible = scroll.documentVisibleRect
+            guard let scroll = scrollView() else { return (false, false) }
+            let clip = scroll.contentView
+            let bounds = clip.bounds
+            let currentY = bounds.minY
+            // The clamped bounds for pulling far past each end give the true
+            // min/max scroll positions, insets and document size included.
+            let minY = clip.constrainBoundsRect(CGRect(x: bounds.minX, y: -1_000_000, width: bounds.width, height: bounds.height)).minY
+            let maxY = clip.constrainBoundsRect(CGRect(x: bounds.minX, y: 1_000_000, width: bounds.width, height: bounds.height)).minY
             let tolerance: CGFloat = 3
-            // SwiftUI's document view is flipped: y grows downward from the top.
-            let top = visible.minY <= tolerance
-            let bottom = visible.maxY >= document.bounds.height - tolerance
-            return (top, bottom)
+            return (currentY <= minY + tolerance, currentY >= maxY - tolerance)
         }
 
         /// Rubber-band resistance matching the web reader's, so the pull needs a
