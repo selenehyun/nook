@@ -143,27 +143,29 @@ private struct ReaderSwipeNavigation: ViewModifier {
             }
     }
 
-    /// iOS overscroll past each edge. Unamplified, so the commit threshold maps
-    /// to the same real overscroll distance the web reader uses.
+    /// iOS overscroll past each edge, from the inset-accounted visible rect (in
+    /// content coordinates): at rest the top is 0 and the bottom is the content
+    /// height, so overscroll shows as the visible rect extending past either end.
+    /// Symmetric, unlike the earlier offset math which used the top inset for the
+    /// top edge but `containerSize` for the bottom — the latter was reduced by
+    /// the nav-bar inset, so the bottom edge never registered.
     private static func pull(from geometry: ScrollGeometry) -> EdgePull {
-        let amplification: CGFloat = 1.0
-        let minY = -geometry.contentInsets.top
-        let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
-        let top = max(0, minY - geometry.contentOffset.y) * amplification
-        let bottom = max(0, geometry.contentOffset.y - maxY) * amplification
+        let visible = geometry.visibleRect
+        let top = max(0, -visible.minY)
+        let bottom = max(0, visible.maxY - geometry.contentSize.height)
         return EdgePull(top: top, bottom: bottom)
     }
     #endif
 
-    /// Whether the content rests at (within a hair of) each edge. Uses the
-    /// visible region vs. the content extent rather than an inset-derived max
-    /// offset — the latter overshot on macOS, so the bottom edge was never
-    /// detected and only the top pull engaged.
+    /// Whether the content rests at (within a hair of) each edge, from the same
+    /// inset-accounted visible rect used for the overscroll.
     private static func edges(_ geometry: ScrollGeometry) -> EdgePair {
         let tolerance: CGFloat = 8
-        let atTop = geometry.contentOffset.y <= -geometry.contentInsets.top + tolerance
-        let atBottom = geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - tolerance
-        return EdgePair(top: atTop, bottom: atBottom)
+        let visible = geometry.visibleRect
+        return EdgePair(
+            top: visible.minY <= tolerance,
+            bottom: visible.maxY >= geometry.contentSize.height - tolerance
+        )
     }
 }
 
