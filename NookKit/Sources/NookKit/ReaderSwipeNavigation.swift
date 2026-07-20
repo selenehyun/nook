@@ -169,14 +169,15 @@ private struct ReaderSwipeNavigation: ViewModifier {
     }
     #endif
 
-    /// Whether the content rests at (within a hair of) each edge.
+    /// Whether the content rests at (within a hair of) each edge. Uses the
+    /// visible region vs. the content extent rather than an inset-derived max
+    /// offset — the latter overshot on macOS, so the bottom edge was never
+    /// detected and only the top pull engaged.
     private static func edges(_ geometry: ScrollGeometry) -> EdgePair {
-        let minY = -geometry.contentInsets.top
-        let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
-        return EdgePair(
-            top: geometry.contentOffset.y <= minY + 2,
-            bottom: geometry.contentOffset.y >= maxY - 2
-        )
+        let tolerance: CGFloat = 8
+        let atTop = geometry.contentOffset.y <= -geometry.contentInsets.top + tolerance
+        let atBottom = geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - tolerance
+        return EdgePair(top: atTop, bottom: atBottom)
     }
 }
 
