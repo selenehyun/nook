@@ -50,10 +50,9 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let onNext: () -> Void
     let onPrevious: () -> Void
 
-    /// Pull distance past an edge needed to commit to a navigation. A moderate,
-    /// deliberate pull — a pull only ever starts at an edge (never mid-scroll),
-    /// so this is purely about how far to pull, not about avoiding false hits.
-    static let threshold: CGFloat = 60
+    /// Pull distance past an edge needed to commit to a navigation. Matches the
+    /// web reader's next-article threshold so the two surfaces feel the same.
+    static let threshold: CGFloat = BottomPullAffordance.nextThreshold
     /// The pull distance below which the affordance stays hidden. Low, so the
     /// indicator appears as soon as the pull starts and then fills toward commit.
     private static let revealThreshold: CGFloat = 2
@@ -150,10 +149,10 @@ private struct ReaderSwipeNavigation: ViewModifier {
             }
     }
 
-    /// iOS overscroll past each edge, amplified so the elastic distance drives
-    /// the affordance and threshold comfortably.
+    /// iOS overscroll past each edge. Unamplified, so the commit threshold maps
+    /// to the same real overscroll distance the web reader uses.
     private static func pull(from geometry: ScrollGeometry) -> EdgePull {
-        let amplification: CGFloat = 2.5
+        let amplification: CGFloat = 1.0
         let minY = -geometry.contentInsets.top
         let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
         let top = max(0, minY - geometry.contentOffset.y) * amplification
@@ -274,9 +273,9 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             return (top, bottom)
         }
 
-        /// Light rubber-band resistance so the pull grows quickly and the low
-        /// commit threshold is reached with a gentle overscroll.
-        private func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 240) -> CGFloat {
+        /// Rubber-band resistance matching the web reader's, so the pull needs a
+        /// firm, deliberate overscroll — the same feel as the in-app browser.
+        private func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 700) -> CGFloat {
             guard distance > 0 else { return 0 }
             return limit * distance / (distance + softness)
         }
@@ -309,10 +308,16 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
                 // momentum, and is over the reader — so scrolling through the body
                 // (or a legacy mouse wheel with no gesture end) never engages.
                 guard overReader, event.momentumPhase == [], !event.phase.isEmpty else { return false }
-                if delta > 0, beganAtTop {
+                // Engage only when the content is STILL at that edge right now AND
+                // the gesture began there. The live check stops a gesture that
+                // began at the top, scrolled down, then reversed back up (now away
+                // from the top) from flipping to the previous article — and vice
+                // versa at the bottom.
+                let atEdge = edges()
+                if delta > 0, beganAtTop, atEdge.top {
                     engaged = .top
                     raw = 0
-                } else if delta < 0, beganAtBottom {
+                } else if delta < 0, beganAtBottom, atEdge.bottom {
                     engaged = .bottom
                     raw = 0
                 } else {
