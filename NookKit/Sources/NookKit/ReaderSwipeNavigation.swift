@@ -60,8 +60,6 @@ private struct ReaderSwipeNavigation: ViewModifier {
     @State private var pull = EdgePull()
 
     // iOS-only tracking.
-    @State private var atTop = false
-    @State private var atBottom = false
     @State private var peak = EdgePull()
     @State private var isDragging = false
     @State private var beganAtTop = false
@@ -95,18 +93,10 @@ private struct ReaderSwipeNavigation: ViewModifier {
     @ViewBuilder
     private func platformContent(_ content: Content) -> some View {
         content
-            // Track which edge the content rests at; the monitor only engages a
-            // pull that starts at an edge.
-            .onScrollGeometryChange(for: EdgePair.self) { geometry in
-                Self.edges(geometry)
-            } action: { _, edges in
-                atTop = edges.top
-                atBottom = edges.bottom
-            }
             .background(
+                // Reads the real NSScrollView position directly, so "at the edge"
+                // is exact rather than derived from ambiguous scroll geometry.
                 ScrollWheelOverscrollMonitor(
-                    atTop: atTop,
-                    atBottom: atBottom,
                     threshold: Self.threshold,
                     onPull: { pull = $0 },
                     onCommit: commit
@@ -198,8 +188,6 @@ private struct EdgePair: Equatable {
 /// events are consumed, so the article content doesn't move; the commit fires
 /// on the gesture's `.ended` phase. Mirrors `ArticleWebView.Coordinator`.
 private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
-    var atTop: Bool
-    var atBottom: Bool
     var threshold: CGFloat
     var onPull: (EdgePull) -> Void
     var onCommit: (ReaderPullEdge) -> Void
@@ -212,8 +200,6 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         let c = context.coordinator
-        c.atTop = atTop
-        c.atBottom = atBottom
         c.threshold = threshold
         c.onPull = onPull
         c.onCommit = onCommit
@@ -226,13 +212,12 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator {
-        var atTop = false
-        var atBottom = false
-        var threshold: CGFloat = 70
+        var threshold: CGFloat = 15
         var onPull: (EdgePull) -> Void = { _ in }
         var onCommit: (ReaderPullEdge) -> Void = { _ in }
 
-        private weak var view: NSView?
+        private weak var probe: NSView?
+        private weak var cachedScrollView: NSScrollView?
         private var monitor: Any?
         private var engaged: ReaderPullEdge?
         private var raw: CGFloat = 0
@@ -241,7 +226,7 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
         private var lastReported: CGFloat = 0
 
         func attach(to view: NSView) {
-            self.view = view
+            probe = view
             monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
                 self?.handle(event) == true ? nil : event
             }
@@ -252,9 +237,44 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             monitor = nil
         }
 
-        /// Light rubber-band resistance. Softer than the web reader's so the pull
-        /// grows quickly and the low commit threshold is reached with a gentle
-        /// overscroll rather than a hard one.
+        /// The reader's `NSScrollView`, found (and cached) by picking the scroll
+        /// view in the window that overlaps this monitor's background the most —
+        /// that's the reader's, not the sidebar's or the article list's.
+        private func scrollView() -> NSScrollView? {
+            if let cached = cachedScrollView, cached.window != nil { return cached }
+            guard let probe, let content = probe.window?.contentView else { return nil }
+            let target = probe.convert(probe.bounds, to: nil)
+            var best: (view: NSScrollView, overlap: CGFloat)?
+            func walk(_ view: NSView) {
+                if let scroll = view as? NSScrollView {
+                    let frame = scroll.convert(scroll.bounds, to: nil)
+                    let intersection = frame.intersection(target)
+                    if !intersection.isNull {
+                        let area = intersection.width * intersection.height
+                        if best == nil || area > best!.overlap { best = (scroll, area) }
+                    }
+                }
+                view.subviews.forEach(walk)
+            }
+            walk(content)
+            cachedScrollView = best?.view
+            return cachedScrollView
+        }
+
+        /// Whether the reader content rests at each edge, read straight from the
+        /// scroll view's visible rect (exact, no inset guesswork).
+        private func edges() -> (top: Bool, bottom: Bool) {
+            guard let scroll = scrollView(), let document = scroll.documentView else { return (false, false) }
+            let visible = scroll.documentVisibleRect
+            let tolerance: CGFloat = 3
+            // SwiftUI's document view is flipped: y grows downward from the top.
+            let top = visible.minY <= tolerance
+            let bottom = visible.maxY >= document.bounds.height - tolerance
+            return (top, bottom)
+        }
+
+        /// Light rubber-band resistance so the pull grows quickly and the low
+        /// commit threshold is reached with a gentle overscroll.
         private func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 240) -> CGFloat {
             guard distance > 0 else { return 0 }
             return limit * distance / (distance + softness)
@@ -268,18 +288,19 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
 
         /// Returns true to consume the event (we're driving the pull).
         private func handle(_ event: NSEvent) -> Bool {
-            guard let view, let window = view.window, event.window === window else { return false }
+            guard let probe, let window = probe.window, event.window === window else { return false }
             // Only act when the pointer is over the reader, so scrolling the
             // sidebar or article list never drives article navigation.
-            let point = view.convert(event.locationInWindow, from: nil)
-            let overReader = view.bounds.contains(point)
+            let point = probe.convert(event.locationInWindow, from: nil)
+            let overReader = probe.bounds.contains(point)
             let delta = event.scrollingDeltaY
 
-            // Record, at the start of each gesture, whether it began resting at
-            // an edge. Only such a gesture may drive navigation.
+            // Record, at the start of each gesture, whether it began resting at an
+            // edge — read live from the scroll view, so it's correct at rest.
             if event.phase.contains(.began) {
-                beganAtTop = atTop
-                beganAtBottom = atBottom
+                let atEdge = edges()
+                beganAtTop = atEdge.top
+                beganAtBottom = atEdge.bottom
             }
 
             if engaged == nil {
@@ -287,10 +308,10 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
                 // momentum, and is over the reader — so scrolling through the body
                 // (or a legacy mouse wheel with no gesture end) never engages.
                 guard overReader, event.momentumPhase == [], !event.phase.isEmpty else { return false }
-                if atTop, delta > 0, beganAtTop {
+                if delta > 0, beganAtTop {
                     engaged = .top
                     raw = 0
-                } else if atBottom, delta < 0, beganAtBottom {
+                } else if delta < 0, beganAtBottom {
                     engaged = .bottom
                     raw = 0
                 } else {
