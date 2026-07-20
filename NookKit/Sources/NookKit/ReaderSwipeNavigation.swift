@@ -43,11 +43,33 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let onNext: () -> Void
     let onPrevious: () -> Void
 
-    /// Pull distance, past an edge, needed to commit to a navigation. Matches the
-    /// web reader's `nextThreshold` so the two surfaces feel the same.
-    static let threshold = BottomPullAffordance.nextThreshold
+    /// Pull distance (amplified, see `amplification`) past an edge needed to
+    /// commit to a navigation. Kept low so a modest pull triggers reliably —
+    /// native elastic overscroll is heavily damped, especially on macOS.
+    static let threshold: CGFloat = 70
+
+    /// The platform's elastic overscroll is small and stiff, so the raw distance
+    /// is scaled up before it drives the affordance and the decision. This makes
+    /// the indicator appear immediately and the threshold reachable with a normal
+    /// pull instead of a very hard one.
+    private static let amplification: CGFloat = 3.0
+
+    /// The pull distance below which the affordance stays hidden.
+    private static let revealThreshold: CGFloat = 4
 
     @State private var pull = EdgePull()
+    /// The greatest pull reached while the finger is down. Decisions use this
+    /// peak (not the value at lift-off), so both a slow pull-and-hold and a quick
+    /// flick past the edge commit reliably; momentum-only overscroll after
+    /// lift-off is ignored because it isn't tracked.
+    @State private var peak = EdgePull()
+    @State private var isDragging = false
+    // Whether the drag began already resting at an edge. A pull only navigates
+    // when it started at that edge, so scrolling down through the article (which
+    // ends by momentarily touching the bottom) never flips to the next article —
+    // the user must deliberately pull from the edge, like the web reader.
+    @State private var beganAtTop = false
+    @State private var beganAtBottom = false
 
     func body(content: Content) -> some View {
         content
@@ -58,29 +80,45 @@ private struct ReaderSwipeNavigation: ViewModifier {
                 Self.pull(from: geometry)
             } action: { _, newValue in
                 pull = newValue
+                if isDragging {
+                    peak = EdgePull(top: max(peak.top, newValue.top), bottom: max(peak.bottom, newValue.bottom))
+                }
             }
             .onScrollPhaseChange { oldPhase, newPhase, context in
-                // Decide the instant the finger lifts after a drag — using the
-                // geometry at that transition, so a settle-back bounce can't
-                // retrigger and a flick is judged by where it was released.
-                if oldPhase == .interacting, newPhase == .decelerating || newPhase == .idle {
-                    let released = Self.pull(from: context.geometry)
-                    if released.bottom >= Self.threshold, nextTitle != nil {
-                        onNext()
-                    } else if released.top >= Self.threshold, previousTitle != nil {
-                        onPrevious()
+                switch newPhase {
+                case .tracking, .interacting:
+                    // A new touch begins: start tracking the peak fresh and note
+                    // which edge (if any) the content was resting at.
+                    if !isDragging {
+                        peak = EdgePull()
+                        let edges = Self.edges(context.geometry)
+                        beganAtTop = edges.atTop
+                        beganAtBottom = edges.atBottom
                     }
+                    isDragging = true
+                default:
+                    // The finger lifted: commit from the peak reached while
+                    // dragging, but only for an edge the drag actually began at.
+                    if oldPhase == .interacting || oldPhase == .tracking {
+                        if beganAtBottom, peak.bottom >= Self.threshold, nextTitle != nil {
+                            onNext()
+                        } else if beganAtTop, peak.top >= Self.threshold, previousTitle != nil {
+                            onPrevious()
+                        }
+                    }
+                    isDragging = false
+                    peak = EdgePull()
                 }
                 if newPhase == .idle { pull = EdgePull() }
             }
             .overlay(alignment: .bottom) {
-                if pull.bottom > 6 {
+                if pull.bottom > Self.revealThreshold {
                     ReaderEdgePullAffordance(edge: .bottom, pull: pull.bottom, title: nextTitle)
                         .transition(.opacity)
                 }
             }
             .overlay(alignment: .top) {
-                if pull.top > 6 {
+                if pull.top > Self.revealThreshold {
                     ReaderEdgePullAffordance(edge: .top, pull: pull.top, title: previousTitle)
                         .transition(.opacity)
                 }
@@ -100,14 +138,22 @@ private struct ReaderSwipeNavigation: ViewModifier {
     }
 
     /// Overscroll past each edge from a scroll geometry, using the same offset
-    /// math (offset vs. inset-adjusted min/max) the web reader uses on iOS, so
-    /// the reading is consistent.
+    /// math (offset vs. inset-adjusted min/max) the web reader uses on iOS, then
+    /// amplified so the stiff native elastic distance is easy to act on.
     private static func pull(from geometry: ScrollGeometry) -> EdgePull {
         let minY = -geometry.contentInsets.top
         let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
-        let top = max(0, minY - geometry.contentOffset.y)
-        let bottom = max(0, geometry.contentOffset.y - maxY)
+        let top = max(0, minY - geometry.contentOffset.y) * amplification
+        let bottom = max(0, geometry.contentOffset.y - maxY) * amplification
         return EdgePull(top: top, bottom: bottom)
+    }
+
+    /// Whether the content is resting at (or within a hair of) each edge — used
+    /// at drag start to decide which edge, if any, a pull may navigate from.
+    private static func edges(_ geometry: ScrollGeometry) -> (atTop: Bool, atBottom: Bool) {
+        let minY = -geometry.contentInsets.top
+        let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
+        return (geometry.contentOffset.y <= minY + 2, geometry.contentOffset.y >= maxY - 2)
     }
 }
 
