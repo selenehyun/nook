@@ -179,7 +179,7 @@ public enum NaturalTranslator {
         for try await partial in stream {
             guard let translation = partial.content.translation else { continue }
             finalText = translation
-            if translation.count - lastEmittedLength >= 24 {
+            if translation.count - lastEmittedLength >= 12 {
                 lastEmittedLength = translation.count
                 onPartial(translation)
             }

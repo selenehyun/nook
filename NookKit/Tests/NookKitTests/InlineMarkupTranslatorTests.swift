@@ -93,4 +93,58 @@ struct InlineMarkupTranslatorTests {
         let segments = Engine.segments("just some text")
         #expect(segments == [Engine.Segment(raw: "just some text", translatable: true, open: "", inner: "just some text", close: "")])
     }
+
+    @Test("A short template is a single chunk left unchanged")
+    func chunkShort() {
+        let t = "Hello world. This stays whole."
+        #expect(Engine.chunk(t, maxChars: 600) == [t])
+    }
+
+    @Test("A long template splits at sentence boundaries, losslessly")
+    func chunkLongSplits() {
+        let t = "First sentence here. Second sentence here. Third sentence here. Fourth here."
+        let chunks = Engine.chunk(t, maxChars: 30)
+        #expect(chunks.count > 1)
+        // Cuts only partition the string; nothing is dropped or duplicated.
+        #expect(chunks.joined() == t)
+        // Every chunk but the last ends at a sentence boundary.
+        for c in chunks.dropLast() {
+            #expect(c.trimmingCharacters(in: .whitespaces).hasSuffix("."))
+        }
+        // No chunk exceeds a reasonable multiple of the budget.
+        #expect(chunks.allSatisfy { $0.count <= 60 })
+    }
+
+    @Test("Chunks never split an inline marker pair")
+    func chunkKeepsMarkersBalanced() {
+        let t = "See \u{27E6}0\u{27E7}one\u{27E6}/0\u{27E7} right now. See \u{27E6}1\u{27E7}two\u{27E6}/1\u{27E7} much later."
+        let chunks = Engine.chunk(t, maxChars: 25)
+        #expect(chunks.joined() == t)
+        for c in chunks {
+            let balance = markerBalance(c)
+            #expect(balance.open == balance.close)
+        }
+    }
+
+    @Test("A single over-long sentence falls back to word breaks")
+    func chunkOverLongSentence() {
+        let t = "one two three four five six seven eight nine ten eleven twelve thirteen"
+        let chunks = Engine.chunk(t, maxChars: 20)
+        #expect(chunks.count > 1)
+        #expect(chunks.joined() == t)
+    }
+
+    /// Counts opening vs closing inline markers so a test can assert a chunk's
+    /// markers are balanced (no pair straddles a cut).
+    private func markerBalance(_ s: String) -> (open: Int, close: Int) {
+        var open = 0, close = 0
+        let chars = Array(s)
+        for (i, ch) in chars.enumerated() where ch == "\u{27E6}" {
+            let next = i + 1 < chars.count ? chars[i + 1] : " "
+            if next == "/" { close += 1 }
+            else if next == "=" { /* opaque void marker: self-balanced */ }
+            else if next.isNumber { open += 1 }
+        }
+        return (open, close)
+    }
 }

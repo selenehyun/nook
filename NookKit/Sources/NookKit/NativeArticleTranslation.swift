@@ -134,6 +134,80 @@ enum InlineMarkupTranslator {
         )
     }
 
+    /// Approximate upper bound on the characters of a marked template sent to the
+    /// on-device model in one call. A longer fragment silently fails to translate
+    /// (the model's context is bounded), leaving the original text in place, so
+    /// long fragments are split into chunks near this size — see `chunk`.
+    static let maxChunkChars = 600
+
+    /// Splits a marked template into sequential chunks no larger than ~`maxChars`,
+    /// cutting only at sentence boundaries where the inline-marker depth is 0 — so
+    /// every chunk carries balanced markers and the concatenated translations
+    /// still rebuild. Falls back to depth-0 word breaks for a single over-long
+    /// sentence, and to the whole remainder when there is no boundary at all.
+    static func chunk(_ template: String, maxChars: Int = maxChunkChars) -> [String] {
+        let ns = template as NSString
+        guard ns.length > maxChars else { return [template] }
+
+        var markerByStart: [Int: NSTextCheckingResult] = [:]
+        for m in markerRegex.matches(in: template, range: NSRange(location: 0, length: ns.length)) {
+            markerByStart[m.range.location] = m
+        }
+
+        // Single scan tracking marker depth: record cut points (right after a
+        // boundary) only at depth 0. `hard` follows sentence enders; `soft`
+        // follows any whitespace, used only when no sentence boundary fits.
+        let enders: Set<Unicode.Scalar> = Set(".!?。！？…".unicodeScalars)
+        var hardCuts: [Int] = []
+        var softCuts: [Int] = []
+        var depth = 0
+        var i = 0
+        while i < ns.length {
+            if let m = markerByStart[i] {
+                let kind = m.range(at: 1).location == NSNotFound ? "" : ns.substring(with: m.range(at: 1))
+                switch kind {
+                case "/": depth = max(0, depth - 1)
+                case "=": break
+                default: depth += 1
+                }
+                i = m.range.location + m.range.length
+                continue
+            }
+            if depth == 0, let scalar = Unicode.Scalar(ns.character(at: i)) {
+                if CharacterSet.whitespacesAndNewlines.contains(scalar), i > 0 {
+                    softCuts.append(i + 1)
+                    if let prev = Unicode.Scalar(ns.character(at: i - 1)), enders.contains(prev) {
+                        hardCuts.append(i + 1)
+                    }
+                } else if enders.contains(scalar) {
+                    // CJK enders often have no trailing space.
+                    hardCuts.append(i + 1)
+                }
+            }
+            i += 1
+        }
+
+        // Greedily pack: from each start, prefer the furthest hard cut within
+        // budget, then the furthest soft cut, then the nearest cut beyond budget.
+        var chunks: [String] = []
+        var start = 0
+        while start < ns.length {
+            if ns.length - start <= maxChars {
+                chunks.append(ns.substring(from: start))
+                break
+            }
+            let limit = start + maxChars
+            let cut = hardCuts.last(where: { $0 > start && $0 <= limit })
+                ?? softCuts.last(where: { $0 > start && $0 <= limit })
+                ?? hardCuts.first(where: { $0 > start })
+                ?? softCuts.first(where: { $0 > start })
+                ?? ns.length
+            chunks.append(ns.substring(with: NSRange(location: start, length: cut - start)))
+            start = cut
+        }
+        return chunks
+    }
+
     /// One translatable unit of a `.text` block. Paragraph-level so a long body
     /// (which the parser keeps as one `.text` block) is translated and streamed
     /// paragraph by paragraph instead of in a single oversized model call.
@@ -441,15 +515,37 @@ public final class NativeArticleTranslator {
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        guard let result = try? await NaturalTranslator.streamTranslateBlock(template, into: language, domain: conceptDomain, onPartial: { partial in
-            onPartial(InlineMarkupTranslator.stripMarkers(partial))
-        }) else {
-            return nil
+        // Split long fragments so no single model call exceeds the on-device
+        // context (which would silently fail and leave the text untranslated).
+        // Chunks translate in order; the live text shows finished chunks plus the
+        // one currently streaming.
+        let chunks = InlineMarkupTranslator.chunk(template)
+        var translatedParts: [String] = []
+        var finishedStripped = ""
+        for chunk in chunks {
+            guard token == generation else { return nil }
+            let prefix = finishedStripped   // immutable snapshot for the closure
+            let piece: String
+            if let result = try? await NaturalTranslator.streamTranslateBlock(
+                chunk, into: language, domain: conceptDomain,
+                onPartial: { partial in
+                    guard token == self.generation else { return }
+                    onPartial(prefix + InlineMarkupTranslator.stripMarkers(partial))
+                }
+            ) {
+                piece = result.translation
+            } else {
+                piece = chunk   // keep this chunk untranslated rather than lose the rest
+            }
+            translatedParts.append(piece)
+            finishedStripped += InlineMarkupTranslator.stripMarkers(piece)
+            if !finishedStripped.hasSuffix(" ") { finishedStripped += " " }
         }
         guard token == generation else { return nil }
-        let rebuilt = InlineMarkupTranslator.rebuild(result.translation, entries: entries)
-            ?? InlineMarkupTranslator.plainFallback(result.translation)
-        return (rebuilt, result.context)
+        let combined = translatedParts.joined(separator: " ")
+        let rebuilt = InlineMarkupTranslator.rebuild(combined, entries: entries)
+            ?? InlineMarkupTranslator.plainFallback(combined)
+        return (rebuilt, "")
     }
 
     /// Translates a nested block (inside a blockquote) without its own override.
@@ -520,12 +616,22 @@ public final class NativeArticleTranslator {
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        guard let result = try? await NaturalTranslator.translateBlock(template, into: language, context: context, domain: conceptDomain) else {
-            return nil
+        // Same chunking as the streaming path so long cells/quotes don't overflow
+        // the model and silently stay untranslated.
+        let chunks = InlineMarkupTranslator.chunk(template)
+        var parts: [String] = []
+        for chunk in chunks {
+            guard token == generation else { return nil }
+            if let result = try? await NaturalTranslator.translateBlock(chunk, into: language, context: context, domain: conceptDomain) {
+                parts.append(result.translation)
+            } else {
+                parts.append(chunk)   // keep this chunk untranslated rather than lose the rest
+            }
         }
         guard token == generation else { return nil }
-        let rebuilt = InlineMarkupTranslator.rebuild(result.translation, entries: entries)
-            ?? InlineMarkupTranslator.plainFallback(result.translation)
-        return (rebuilt, result.context)
+        let combined = parts.joined(separator: " ")
+        let rebuilt = InlineMarkupTranslator.rebuild(combined, entries: entries)
+            ?? InlineMarkupTranslator.plainFallback(combined)
+        return (rebuilt, "")
     }
 }

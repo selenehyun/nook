@@ -1231,16 +1231,53 @@ private struct NativeMixedText: View {
                 case .html(let html):
                     HTMLContentText(html: html, selectable: selectable)
                 case .plain(let text):
-                    plainText(text)
+                    // A `.plain` part is only ever the segment currently being
+                    // translated (it settles to `.html` once done), so it always
+                    // shows the live typing effect.
+                    StreamingText(text: text, selectable: selectable)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+/// The actively streaming segment of a translation: characters reveal
+/// progressively (typewriter) with a blinking caret at the end, ChatGPT/Claude
+/// style. The model emits text in coarse ~12-char snapshots; this view reveals
+/// each snapshot a couple of characters at a time so growth reads as smooth
+/// typing rather than jumps.
+private struct StreamingText: View {
+    let text: String
+    let selectable: Bool
+    @State private var shown = 0
+
+    // ▏ (thin left block) as a caret; blinks by toggling its color, so its width
+    // is always reserved and the text never reflows as it blinks.
+    private let caret = "\u{258F}"
+    private let blinkPeriod = 0.5
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: blinkPeriod)) { context in
+            let caretOn = Int(context.date.timeIntervalSinceReferenceDate / blinkPeriod).isMultiple(of: 2)
+            content(visible: String(text.prefix(shown)), caretOn: caretOn)
+        }
+        .task(id: text) {
+            // Catch up to the latest snapshot a few characters at a time. `.task`
+            // restarts on each new snapshot, so reveal continues seamlessly.
+            if shown > text.count { shown = text.count }
+            while shown < text.count {
+                shown = min(text.count, shown + 2)
+                try? await Task.sleep(for: .milliseconds(14))
+                if Task.isCancelled { return }
+            }
+        }
+    }
 
     @ViewBuilder
-    private func plainText(_ text: String) -> some View {
-        let rendered = Text(text).lineSpacing(4)
+    private func content(visible: String, caretOn: Bool) -> some View {
+        let rendered = (Text(visible) + Text(caret).foregroundColor(caretOn ? .secondary : .clear))
+            .lineSpacing(4)
         if selectable {
             rendered.textSelection(.enabled)
         } else {
