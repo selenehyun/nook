@@ -81,10 +81,18 @@ struct ContentView: View {
                 Button {
                     store.refreshAll()
                 } label: {
-                    Label("Refresh All", systemImage: "arrow.clockwise")
+                    // Swap the icon for a spinner while any refresh (including an
+                    // automatic one) runs, so the disabled button reads as "busy"
+                    // rather than broken.
+                    if store.isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Refresh All", systemImage: "arrow.clockwise")
+                    }
                 }
                 .disabled(store.feeds.isEmpty || store.isRefreshing)
-                .help("Refresh All Feeds")
+                .help(store.isRefreshing ? "Refreshing…" : "Refresh All Feeds")
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -675,7 +683,7 @@ private struct FeedSidebar: View {
             iconImage: store.faviconImage(for: feed),
             isRefreshing: store.isRefreshing(feedID: feed.id),
             isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
-            isUpdated: store.isRecentlyUpdated(feedID: feed.id),
+            updateToken: store.feedUpdateToken(feedID: feed.id),
             count: store.unreadCount(feedID: feed.id)
         )
         .tag(feed.id)
@@ -979,7 +987,7 @@ private struct SourceRow: View {
     var iconImage: Image?
     var isRefreshing: Bool
     var isUnhealthy: Bool
-    var isUpdated: Bool
+    var updateToken: Int
     var count: Int
 
     init(
@@ -989,7 +997,7 @@ private struct SourceRow: View {
         iconImage: Image? = nil,
         isRefreshing: Bool = false,
         isUnhealthy: Bool = false,
-        isUpdated: Bool = false,
+        updateToken: Int = 0,
         count: Int
     ) {
         self.title = title
@@ -998,7 +1006,7 @@ private struct SourceRow: View {
         self.iconImage = iconImage
         self.isRefreshing = isRefreshing
         self.isUnhealthy = isUnhealthy
-        self.isUpdated = isUpdated
+        self.updateToken = updateToken
         self.count = count
     }
 
@@ -1053,7 +1061,7 @@ private struct SourceRow: View {
             }
             .frame(width: 16, height: 16)
             .animation(.easeInOut(duration: 0.18), value: isRefreshing)
-            .feedActivityFlash(active: isUpdated)
+            .feedActivityFlash(trigger: updateToken)
         }
     }
 }
@@ -1198,7 +1206,7 @@ private struct ArticleListStatusBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            if store.isVisiblyRefreshing {
+            if store.isRefreshing {
                 ProgressView()
                     .controlSize(.small)
                 Text("Refreshing")

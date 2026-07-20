@@ -131,7 +131,7 @@ public final class ReaderStore {
         /// user-initiated refreshes; automatic (ambient/background) refreshes stay
         /// visually silent so returning to Nook or a periodic tick doesn't flip
         /// every feed icon to a spinner. New content is signalled by a brief
-        /// per-feed flash instead (see `recentlyUpdatedFeedIDs`).
+        /// per-feed flash instead (see `feedUpdateTokens`).
         var showsSpinner: Bool {
             switch self {
             case .interactive: true
@@ -172,12 +172,10 @@ public final class ReaderStore {
     // (interactive) refreshes, so automatic ones update content without flipping
     // feed icons to a spinner on every tick.
     private var spinningFeedIDs: Set<Feed.ID> = []
-    // Feeds that just received new articles; the sidebar briefly flashes these,
-    // then they clear (see `flashFeedUpdate`).
-    private(set) var recentlyUpdatedFeedIDs: Set<Feed.ID> = []
-    // Per-feed timers that clear the flash flag; kept so a fresh update reschedules
-    // its own feed's clear instead of an older one cutting the flash short.
-    private var flashClearTasks: [Feed.ID: Task<Void, Never>] = [:]
+    // A per-feed counter bumped every time a refresh brings in new articles. The
+    // sidebar animates a flash whenever a feed's token changes; a refresh that
+    // adds nothing leaves the token — and the UI — untouched.
+    private(set) var feedUpdateTokens: [Feed.ID: Int] = [:]
 
     // Article bodies live in a separate sidecar so the launch baseline stays
     // small. This in-memory cache lets a re-merge (which reloads the light
@@ -231,13 +229,6 @@ public final class ReaderStore {
 
     public var isRefreshing: Bool {
         !refreshingFeedIDs.isEmpty
-    }
-
-    /// Whether a user-initiated refresh is visibly in progress. Drives the
-    /// "Refreshing" status bar / toolbar spinner so automatic (ambient/background)
-    /// refreshes stay silent, while `isRefreshing` still coalesces all refreshes.
-    public var isVisiblyRefreshing: Bool {
-        !spinningFeedIDs.isEmpty
     }
 
     public var selectedArticle: Article? {
@@ -801,10 +792,11 @@ public final class ReaderStore {
         spinningFeedIDs.contains(feedID)
     }
 
-    /// Whether the feed just received new articles and should flash in the
-    /// sidebar. Held true briefly after a refresh brings in new content.
-    public func isRecentlyUpdated(feedID: Feed.ID) -> Bool {
-        recentlyUpdatedFeedIDs.contains(feedID)
+    /// A value that changes each time the feed gains new articles. The sidebar
+    /// uses it as an animation trigger to flash the feed; a stable token means no
+    /// new content, so no flash.
+    public func feedUpdateToken(feedID: Feed.ID) -> Int {
+        feedUpdateTokens[feedID] ?? 0
     }
 
     /// Marks a feed's fetch as in flight. `spinner` shows the per-feed spinner;
@@ -819,18 +811,11 @@ public final class ReaderStore {
         spinningFeedIDs.remove(id)
     }
 
-    /// Briefly flags a feed as freshly updated so the sidebar can flash it, then
-    /// clears the flag after the flash window. Reschedules that feed's own clear
-    /// on a repeat update so the flash always plays in full.
+    /// Bumps a feed's update token so the sidebar flashes it once. The token only
+    /// moves when real new content arrives, so the flash never repeats on an
+    /// unchanged refresh and needs no timer to clear.
     private func flashFeedUpdate(_ feedID: Feed.ID) {
-        recentlyUpdatedFeedIDs.insert(feedID)
-        flashClearTasks[feedID]?.cancel()
-        flashClearTasks[feedID] = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(1800))
-            guard !Task.isCancelled else { return }
-            self?.recentlyUpdatedFeedIDs.remove(feedID)
-            self?.flashClearTasks[feedID] = nil
-        }
+        feedUpdateTokens[feedID, default: 0] += 1
     }
 
     /// Sets the per-feed reading-view override (`nil` = follow the global
@@ -1282,9 +1267,7 @@ public final class ReaderStore {
         articles.removeAll { $0.feedID == feedID }
         feedIcons[feedID] = nil
         endFeedFetch(feedID)
-        flashClearTasks[feedID]?.cancel()
-        flashClearTasks[feedID] = nil
-        recentlyUpdatedFeedIDs.remove(feedID)
+        feedUpdateTokens[feedID] = nil
 
         feedSelection.remove(feedID)
 
