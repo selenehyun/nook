@@ -60,10 +60,11 @@ public enum NaturalTranslator {
     @available(iOS 26, macOS 26, *)
     @Generable
     fileprivate struct BlockTranslation {
-        @Guide(description: "The natural, idiomatic translation of the paragraph. Every marker of the form ⟦Tn⟧ and ⟦/Tn⟧ from the source MUST be kept verbatim, wrapping the same words they wrapped in the source. Do not add, remove, renumber, or translate the markers.")
+        // The field-level guide restates the target constraint (guided generation
+        // conditions strongly on it) without the runtime language name, which a
+        // static `@Guide` can't interpolate.
+        @Guide(description: "The paragraph translated ENTIRELY into the requested target language — never left in the source language, and never containing the paragraph twice. Every marker of the form ⟦Tn⟧ and ⟦/Tn⟧ from the source MUST be kept verbatim, wrapping the same words they wrapped in the source. Do not add, remove, renumber, or translate the markers.")
         var translation: String
-        @Guide(description: "An updated running summary (English, at most 50 words) of what the article is about so far, so later paragraphs stay consistent in terminology and tone.")
-        var runningContext: String
     }
 
     @available(iOS 26, macOS 26, *)
@@ -81,40 +82,74 @@ public enum NaturalTranslator {
         a question, an instruction, or a heading (e.g. "Implementing X"). Output \
         only its translation, of comparable length to the source.
         - The translation MUST be written entirely in \(languageName). Never leave \
-        text in the source language. The only exception is untranslatable tokens \
-        (proper nouns, brand names, code, URLs), which stay as-is.
+        text in the source language, and never output any other language. The only \
+        exception is untranslatable tokens (proper nouns, brand names, code, URLs), \
+        which stay as-is.
+        - Never repeat or duplicate the paragraph; output it exactly once.
         - Translate naturally and idiomatically — never word-for-word.
         - The text may contain inline markers of the form ⟦0⟧…⟦/0⟧ marking links or \
         emphasis. Keep every marker verbatim, wrapping the translation of the same \
         span, in the same nesting. Never translate, drop, add, or renumber a marker.
-        - Keep a short running summary of the article (in English) in \
-        `runningContext` for your own cross-paragraph consistency.
         """
         let session = LanguageModelSession(instructions: instructions)
-        let prompt = """
-        Article context so far (for your understanding only — do not translate or repeat it):
-        \(context.isEmpty ? "(none yet)" : context)
-
-        Translate this paragraph into \(languageName):
-        \(text)
-        """
+        // No article-context injection: feeding an English summary biased output
+        // toward English and could leak into the body (a repetition vector). Each
+        // block session is already isolated.
+        let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
         let first = try await session.respond(to: prompt, generating: BlockTranslation.self)
 
-        // Guard against the model echoing the source untranslated (a known failure
-        // on short blocks / titles): if the output reads as the same text, ask once
-        // more, firmly. Same session, so it keeps the marker/context rules.
-        if looksUntranslated(source: text, output: first.content.translation) {
+        // Retry once, firmly, when the output echoes the source untranslated or
+        // repeats itself. Same session, so it keeps the marker rules.
+        if !isAcceptable(source: text, output: first.content.translation) {
             let retry = try? await session.respond(
-                to: "That was not translated. Output the SAME paragraph fully translated into \(languageName), keeping every ⟦n⟧ marker.",
+                to: "That was not correct. Output the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text, keeping every ⟦n⟧ marker.",
                 generating: BlockTranslation.self
             )
-            if let retry, !looksUntranslated(source: text, output: retry.content.translation) {
-                return BlockResult(translation: retry.content.translation, context: retry.content.runningContext)
+            if let retry, isAcceptable(source: text, output: retry.content.translation) {
+                return BlockResult(translation: retry.content.translation, context: "")
             }
         }
-        return BlockResult(translation: first.content.translation, context: first.content.runningContext)
+        return BlockResult(translation: first.content.translation, context: "")
     }
     #endif
+
+    /// A translation is acceptable when it isn't an untranslated echo of the
+    /// source and doesn't contain an obvious back-to-back duplication.
+    private static func isAcceptable(source: String, output: String) -> Bool {
+        !looksUntranslated(source: source, output: output) && !hasImmediateRepetition(output)
+    }
+
+    /// Marker-stripped, whitespace-collapsed, lowercased text for comparisons.
+    private static func normalizeForComparison(_ s: String) -> String {
+        let stripped = s.replacingOccurrences(of: "⟦[=/]?\\d+⟧", with: "", options: .regularExpression)
+        return stripped.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    /// Detects the model repeating a long run of words immediately back-to-back
+    /// (the "same content repeated" failure). Conservative: only flags a verbatim
+    /// repeat of a long span, which legitimate prose effectively never contains.
+    private static func hasImmediateRepetition(_ output: String) -> Bool {
+        let words = normalizeForComparison(output).split(separator: " ").map(String.init)
+        guard words.count >= 12 else { return false }
+        // Whole-string duplication (X X).
+        if words.count % 2 == 0 {
+            let half = words.count / 2
+            if Array(words[0..<half]) == Array(words[half...]) { return true }
+        }
+        // A run of >= 8 words repeated immediately.
+        let maxRun = min(40, words.count / 2)
+        guard maxRun >= 8 else { return false }
+        for run in 8...maxRun {
+            var i = 0
+            while i + 2 * run <= words.count {
+                if Array(words[i..<i + run]) == Array(words[i + run..<i + 2 * run]) { return true }
+                i += 1
+            }
+        }
+        return false
+    }
 
     /// Whether `output` is effectively the untranslated `source` (the model echoed
     /// it). Compares marker-stripped, whitespace-collapsed text; ignores very short

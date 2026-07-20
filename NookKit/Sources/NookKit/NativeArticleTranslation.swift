@@ -301,12 +301,47 @@ public final class NativeArticleTranslator {
                 context = newContext
                 if let replacement {
                     translatedInner[childIndex] = replacement
+                    guard token == generation else { return context }
                     overrides[index] = .blockquote(translatedInner)
                 }
             }
             return context
+        case .list(let ordered, let items):
+            var context = context
+            var translatedItems = items
+            for (itemIndex, itemBlocks) in items.enumerated() {
+                var translatedBlocks = itemBlocks
+                for (childIndex, child) in itemBlocks.enumerated() {
+                    guard token == generation else { return context }
+                    let (replacement, newContext) = await translateNested(child, language: language, context: context, token: token)
+                    context = newContext
+                    if let replacement {
+                        translatedBlocks[childIndex] = replacement
+                        translatedItems[itemIndex] = translatedBlocks
+                        guard token == generation else { return context }
+                        overrides[index] = .list(ordered: ordered, items: translatedItems)
+                    }
+                }
+            }
+            return context
+        case .table(let table):
+            var context = context
+            var rows = table.rows
+            for (rowIndex, row) in table.rows.enumerated() {
+                var cells = row.cells
+                for (cellIndex, cell) in row.cells.enumerated() {
+                    guard token == generation else { return context }
+                    guard let (translatedCell, newContext) = await translateFragment(cell, language: language, context: context, token: token) else { continue }
+                    context = newContext
+                    cells[cellIndex] = translatedCell
+                    rows[rowIndex] = HTMLTable.Row(cells: cells, isHeader: row.isHeader)
+                    guard token == generation else { return context }
+                    overrides[index] = .table(HTMLTable(rows: rows))
+                }
+            }
+            return context
         default:
-            return context   // code, tables, media, rules: keep the original
+            return context   // code, media, rules: keep the original
         }
     }
 
@@ -359,6 +394,36 @@ public final class NativeArticleTranslator {
                 return (nil, context)
             }
             return (.heading(level: level, html: fragment), newContext)
+        case .list(let ordered, let items):
+            var context = context
+            var translatedItems = items
+            for (itemIndex, itemBlocks) in items.enumerated() {
+                var translatedBlocks = itemBlocks
+                for (childIndex, child) in itemBlocks.enumerated() {
+                    guard token == generation else { return (nil, context) }
+                    let (replacement, newContext) = await translateNested(child, language: language, context: context, token: token)
+                    context = newContext
+                    if let replacement {
+                        translatedBlocks[childIndex] = replacement
+                        translatedItems[itemIndex] = translatedBlocks
+                    }
+                }
+            }
+            return (.list(ordered: ordered, items: translatedItems), context)
+        case .table(let table):
+            var context = context
+            var rows = table.rows
+            for (rowIndex, row) in table.rows.enumerated() {
+                var cells = row.cells
+                for (cellIndex, cell) in row.cells.enumerated() {
+                    guard token == generation else { return (nil, context) }
+                    guard let (translatedCell, newContext) = await translateFragment(cell, language: language, context: context, token: token) else { continue }
+                    context = newContext
+                    cells[cellIndex] = translatedCell
+                    rows[rowIndex] = HTMLTable.Row(cells: cells, isHeader: row.isHeader)
+                }
+            }
+            return (.table(HTMLTable(rows: rows)), context)
         default:
             return (nil, context)
         }

@@ -1487,6 +1487,12 @@ private struct InAppBrowserPanel: View {
     }
 
     private var targetLanguageName: String {
+        // Give the model the script for Chinese so it doesn't guess Simplified vs
+        // Traditional; other languages use their plain English name.
+        if let script = targetLanguage.script?.identifier {
+            if script == "Hans" { return "Simplified Chinese" }
+            if script == "Hant" { return "Traditional Chinese" }
+        }
         let code = targetLanguage.languageCode?.identifier ?? "en"
         return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
     }
@@ -1497,7 +1503,11 @@ private struct InAppBrowserPanel: View {
         guard NaturalTranslator.isAvailable,
               let detected = ReaderDetailView.detectLanguage(for: article),
               let target = targetLanguage.languageCode?.identifier else { return false }
-        return detected != target
+        // Compare base languages: the detector returns script-qualified codes
+        // (e.g. "zh-Hans") while the target is the bare subtag ("zh"), so an
+        // unnormalized compare would offer a pointless same-language translation.
+        let detectedBase = Locale.Language(identifier: detected).languageCode?.identifier ?? detected
+        return detectedBase != target
     }
 
     var body: some View {
@@ -1643,6 +1653,12 @@ private struct ReaderDetailView: View {
     }
 
     private var targetLanguageName: String {
+        // Give the model the script for Chinese so it doesn't guess Simplified vs
+        // Traditional; other languages use their plain English name.
+        if let script = targetLanguage.script?.identifier {
+            if script == "Hans" { return "Simplified Chinese" }
+            if script == "Hant" { return "Traditional Chinese" }
+        }
         let code = targetLanguage.languageCode?.identifier ?? "en"
         return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
     }
@@ -1654,7 +1670,8 @@ private struct ReaderDetailView: View {
     private func canTranslate(_ article: Article) -> Bool {
         guard let detected = detectedLanguage,
               let target = targetLanguage.languageCode?.identifier else { return false }
-        return detected != target
+        let detectedBase = Locale.Language(identifier: detected).languageCode?.identifier ?? detected
+        return detectedBase != target
     }
 
     private static func translationText(for article: Article) -> String {
@@ -1670,8 +1687,19 @@ private struct ReaderDetailView: View {
         return recognizer.dominantLanguage?.rawValue
     }
 
+    /// The HTML the reader is actually showing: the reader-mode extraction when
+    /// ready, else the feed's own content HTML (nil = plain-paragraph body). The
+    /// translator must consume exactly this so its per-block overrides line up
+    /// with the rendered blocks.
+    private func renderedReaderHTML(for article: Article) -> String? {
+        if store.usesReaderContentByDefault, case .ready(let extracted) = store.readerContentState(for: article) {
+            return extracted
+        }
+        return article.contentHTML
+    }
+
     private func translationActive(_ article: Article) -> Bool {
-        article.contentHTML != nil ? nativeTranslator.isActive : isTranslated
+        renderedReaderHTML(for: article) != nil ? nativeTranslator.isActive : isTranslated
     }
 
     private var translationBusy: Bool {
@@ -1679,7 +1707,7 @@ private struct ReaderDetailView: View {
     }
 
     private func displayTitle(_ article: Article) -> String {
-        if article.contentHTML != nil {
+        if renderedReaderHTML(for: article) != nil {
             return nativeTranslator.isActive ? (nativeTranslator.translatedTitle ?? article.title) : article.title
         }
         return isTranslated ? (translatedTitle ?? article.title) : article.title
@@ -1689,7 +1717,7 @@ private struct ReaderDetailView: View {
     /// translate the whole body once. A length guard keeps an "answered"
     /// imperative title from replacing the real one.
     private func toggleTranslation(_ article: Article) {
-        if let html = article.contentHTML {
+        if let html = renderedReaderHTML(for: article) {
             if nativeTranslator.isActive {
                 nativeTranslator.stop()
             } else if NaturalTranslator.isAvailable {
@@ -1820,6 +1848,13 @@ private struct ReaderDetailView: View {
             let detected = await Task.detached { Self.detectLanguage(for: article) }.value
             if !Task.isCancelled { detectedLanguage = detected }
             await markReadAfterDwell(article)
+        }
+        // If reader-mode content finishes extracting AFTER translation was turned
+        // on, restart the translator against the now-rendered extracted HTML so
+        // its per-block overrides line up with what's shown.
+        .onChange(of: store.readerContentState(for: article)) { _, newValue in
+            guard nativeTranslator.isActive, case .ready(let extracted) = newValue else { return }
+            nativeTranslator.start(html: extracted, baseURL: article.url, title: article.title, into: targetLanguageName)
         }
         // Pull past the bottom for the next article, past the top for the
         // previous one. The web reader keeps its own bottom-only affordance.
