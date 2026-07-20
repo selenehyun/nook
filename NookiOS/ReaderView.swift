@@ -107,7 +107,12 @@ struct ReaderDetailView: View {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                reader(article)
+                // Only the scrollable content transitions on article change, so
+                // the push animation isn't suppressed by the toolbar/sheets/task
+                // (those live on the stable parent below).
+                articleContent(article)
+                    .id(article.id)
+                    .transition(.push(from: readerNavForward ? .bottom : .top))
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
@@ -115,9 +120,109 @@ struct ReaderDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color("ListBackground").ignoresSafeArea())
         .articleImageOverlay(imagePresenter)
+        .overlay {
+            Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
+                .font(.system(size: 104, weight: .bold))
+                .foregroundStyle(starBurstOn ? .yellow : .white)
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+                .scaleEffect(starBurstScale)
+                .opacity(starBurstOpacity)
+                .allowsHitTesting(false)
+        }
+        .overlay(alignment: .top) {
+            if translationBusy {
+                TranslationProgressBanner()
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: translationBusy)
+        .toolbar {
+            if let article = store.selectedArticle {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        openBrowser(for: article)
+                    } label: {
+                        Image(systemName: "doc.plaintext")
+                    }
+                    .help("Open Reader / Original")
+
+                    Button {
+                        store.toggleStarred(articleID: article.id)
+                    } label: {
+                        Image(systemName: article.isStarred ? "star.fill" : "star")
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+
+                    Menu {
+                        Button {
+                            isShowingInfo = true
+                        } label: {
+                            Label("Article Info", systemImage: "info.circle")
+                        }
+                        if canTranslate {
+                            Button {
+                                toggleTranslation(article)
+                            } label: {
+                                if translationBusy {
+                                    Label("Translating…", systemImage: "character.bubble")
+                                } else {
+                                    Label(
+                                        translationActive(article) ? "Show Original" : "Translate",
+                                        systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
+                                    )
+                                }
+                            }
+                            .disabled(translationBusy)
+                        }
+                        ShareLink(item: article.url) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        Link(destination: article.url) {
+                            Label("Open Original", systemImage: "safari")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+        }
+        .task(id: store.selectedArticleID) {
+            // Detect the article's language so translation is offered only when
+            // it differs from the app's language; reset any prior translation.
+            guard let article = store.selectedArticle else { return }
+            isShowingTranslation = false
+            isTranslated = false
+            translatedTitle = nil
+            translatedBody = nil
+            nativeTranslator.stop()
+            detectedLanguage = Self.detectLanguage(for: article)
+            // Start reader-mode extraction (experiment) for this article.
+            store.ensureReaderContent(for: article)
+        }
+        .translationPresentation(
+            isPresented: $isShowingTranslation,
+            text: store.selectedArticle.map(Self.translationText(for:)) ?? ""
+        )
+        .sheet(isPresented: $store.isBrowserPresented) {
+            if let article = store.selectedArticle {
+                InAppBrowserSheet(
+                    store: store,
+                    article: article,
+                    style: readerStyle,
+                    linkOpensInApp: readerLinkBehavior == .inApp
+                )
+            }
+        }
+        .sheet(isPresented: $isShowingInfo) {
+            if let article = store.selectedArticle {
+                ArticleInfoView(store: store, article: article)
+            }
+        }
     }
 
-    private func reader(_ article: Article) -> some View {
+    /// The scrollable article surface — the only part that transitions on an
+    /// article change (kept free of toolbar/sheet/task modifiers, which would
+    /// otherwise suppress the transition).
+    private func articleContent(_ article: Article) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header(article)
@@ -176,98 +281,6 @@ struct ReaderDetailView: View {
             onNext: { navigateReader(forward: true) },
             onPrevious: { navigateReader(forward: false) }
         )
-        .overlay {
-            Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
-                .font(.system(size: 104, weight: .bold))
-                .foregroundStyle(starBurstOn ? .yellow : .white)
-                .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
-                .scaleEffect(starBurstScale)
-                .opacity(starBurstOpacity)
-                .allowsHitTesting(false)
-        }
-        .overlay(alignment: .top) {
-            if translationBusy {
-                TranslationProgressBanner()
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: translationBusy)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    openBrowser(for: article)
-                } label: {
-                    Image(systemName: "doc.plaintext")
-                }
-                .help("Open Reader / Original")
-
-                Button {
-                    store.toggleStarred(articleID: article.id)
-                } label: {
-                    Image(systemName: article.isStarred ? "star.fill" : "star")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-
-                Menu {
-                    Button {
-                        isShowingInfo = true
-                    } label: {
-                        Label("Article Info", systemImage: "info.circle")
-                    }
-                    if canTranslate {
-                        Button {
-                            toggleTranslation(article)
-                        } label: {
-                            if translationBusy {
-                                Label("Translating…", systemImage: "character.bubble")
-                            } else {
-                                Label(
-                                    translationActive(article) ? "Show Original" : "Translate",
-                                    systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
-                                )
-                            }
-                        }
-                        .disabled(translationBusy)
-                    }
-                    ShareLink(item: article.url) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                    }
-                    Link(destination: article.url) {
-                        Label("Open Original", systemImage: "safari")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        }
-        .task(id: article.id) {
-            // Detect the article's language so translation is offered only when
-            // it differs from the app's language; reset any prior translation.
-            isShowingTranslation = false
-            isTranslated = false
-            translatedTitle = nil
-            translatedBody = nil
-            nativeTranslator.stop()
-            detectedLanguage = Self.detectLanguage(for: article)
-            // Start reader-mode extraction (experiment) for this article.
-            store.ensureReaderContent(for: article)
-        }
-        .translationPresentation(
-            isPresented: $isShowingTranslation,
-            text: Self.translationText(for: article)
-        )
-        .sheet(isPresented: $store.isBrowserPresented) {
-            InAppBrowserSheet(
-                store: store,
-                article: article,
-                style: readerStyle,
-                linkOpensInApp: readerLinkBehavior == .inApp
-            )
-        }
-        .sheet(isPresented: $isShowingInfo) {
-            ArticleInfoView(store: store, article: article)
-        }
-        .id(article.id)
-        .transition(.push(from: readerNavForward ? .bottom : .top))
     }
 
     /// Whether the last article change moved forward (next). Drives the push
