@@ -1762,27 +1762,7 @@ private struct ReaderDetailView: View {
 
                 Divider()
 
-                if let html = article.contentHTML {
-                    HTMLContentView(html: html, baseURL: article.url, translator: nativeTranslator)
-                } else if isTranslated, let translatedBody {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
-                            Text(paragraph)
-                                .font(.body)
-                                .lineSpacing(4)
-                                .textSelection(.enabled)
-                        }
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(article.bodyParagraphs, id: \.self) { paragraph in
-                            Text(paragraph)
-                                .font(.body)
-                                .lineSpacing(4)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
+                readerBody(article)
 
                 Divider()
 
@@ -1820,7 +1800,57 @@ private struct ReaderDetailView: View {
             translatedBody = nil
             isShowingTranslation = false
             detectedLanguage = Self.detectLanguage(for: article)
+            // Start reader-mode extraction (experiment) for this article.
+            store.ensureReaderContent(for: article)
             await markReadAfterDwell(article)
+        }
+    }
+
+    /// The reader body: reader-mode-extracted content when the experiment is on,
+    /// falling back to the original feed content (with a notice) on failure.
+    @ViewBuilder
+    private func readerBody(_ article: Article) -> some View {
+        if store.usesReaderContentByDefault {
+            switch store.readerContentState(for: article) {
+            case .ready(let html):
+                HTMLContentView(html: html, baseURL: article.url, translator: nativeTranslator)
+            case .failed:
+                VStack(alignment: .leading, spacing: 16) {
+                    ReaderFallbackNotice { store.retryReaderContent(for: article) }
+                    originalArticleBody(article)
+                }
+            case .loading, .none:
+                ReaderLoadingPlaceholder()
+            }
+        } else {
+            originalArticleBody(article)
+        }
+    }
+
+    /// The article's original feed content (HTML, translated paragraphs, or plain
+    /// paragraphs) — the pre-experiment reading surface.
+    @ViewBuilder
+    private func originalArticleBody(_ article: Article) -> some View {
+        if let html = article.contentHTML {
+            HTMLContentView(html: html, baseURL: article.url, translator: nativeTranslator)
+        } else if isTranslated, let translatedBody {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
+                    Text(paragraph)
+                        .font(.body)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(article.bodyParagraphs, id: \.self) { paragraph in
+                    Text(paragraph)
+                        .font(.body)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                }
+            }
         }
     }
 
@@ -2350,10 +2380,28 @@ struct ReaderSettingsView: View {
                 .tabItem { Label("Reader", systemImage: "textformat") }
             FeedsSettingsTab()
                 .tabItem { Label("Feeds", systemImage: "dot.radiowaves.up.forward") }
+            ExperimentalSettingsTab()
+                .tabItem { Label("Experimental", systemImage: "flask") }
             AboutSettingsTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 540, height: 430)
+    }
+}
+
+private struct ExperimentalSettingsTab: View {
+    @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
+
+    var body: some View {
+        Form {
+            Section("Reader View") {
+                Toggle("Show reader view content by default", isOn: $readerContentByDefault)
+                Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

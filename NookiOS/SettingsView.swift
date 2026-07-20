@@ -37,6 +37,11 @@ struct SettingsView: View {
                     Label("Feeds", systemImage: "dot.radiowaves.up.forward")
                 }
                 NavigationLink {
+                    ExperimentalSettingsScreen()
+                } label: {
+                    Label("Experimental", systemImage: "flask")
+                }
+                NavigationLink {
                     AboutSettingsScreen()
                 } label: {
                     Label("About", systemImage: "info.circle")
@@ -347,6 +352,25 @@ private struct FeedsSettingsScreen: View {
             get: { store.feed(for: feed.id)?.preferredViewMode },
             set: { store.setPreferredViewMode($0, feedIDs: [feed.id]) }
         )
+    }
+}
+
+// MARK: - Experimental
+
+private struct ExperimentalSettingsScreen: View {
+    @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
+
+    var body: some View {
+        Form {
+            Section("Reader View") {
+                Toggle("Show reader view content by default", isOn: $readerContentByDefault)
+                Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Experimental")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

@@ -177,6 +177,23 @@ public final class ReaderStore {
     // adds nothing leaves the token — and the UI — untouched.
     private(set) var feedUpdateTokens: [Feed.ID: Int] = [:]
 
+    /// The state of reader-mode extraction for an article, driving the native
+    /// reader when the "reader content by default" experiment is on.
+    public enum ReaderContentState: Equatable, Sendable {
+        case loading
+        case ready(String)
+        case failed
+    }
+
+    /// Per-article reader-mode extraction state, observed by the reader views.
+    /// Rebuilt per session; the durable results live in the CRDT reader shards.
+    private(set) var readerContentStates: [Article.ID: ReaderContentState] = [:]
+    /// The CRDT-synced cache of extracted reader content (separate from every
+    /// other store; see `ReaderContentStore`). Created with storage.
+    private var readerContentStore: ReaderContentStore?
+    /// Headless Readability extractor, created on first use.
+    private var readerModeExtractor: ReaderModeExtractor?
+
     // Article bodies live in a separate sidecar so the launch baseline stays
     // small. This in-memory cache lets a re-merge (which reloads the light
     // baseline) restore bodies without re-reading the sidecar each time.
@@ -420,6 +437,9 @@ public final class ReaderStore {
             lastKnownBodiesModDate = storage.bodiesDirectoryModificationDate
             startObservingLibrary()
             Task { await loadBodyCacheIfNeeded() }
+            let readerStore = ReaderContentStore(storage: storage, deviceID: deviceID)
+            readerContentStore = readerStore
+            Task { await readerStore.reload() }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -571,6 +591,10 @@ public final class ReaderStore {
     /// merge with our in-memory shard and the apply run on the main actor.
     private func reloadMerged() async {
         guard let storage else { return }
+
+        // Pull any peer's reader-mode extractions (CRDT-merged) so content a
+        // sibling device already extracted shows here without re-fetching.
+        await readerContentStore?.reload()
 
         guard let replicaStore else { return }
         let loaded = await Task.detached(priority: .userInitiated) { () -> (ReplicaSnapshot, [DeviceStateDocument])? in
@@ -1131,6 +1155,63 @@ public final class ReaderStore {
         UserDefaults.standard.object(forKey: Self.resolveMissingDatesKey) as? Bool ?? true
     }
 
+    // MARK: - Reader-mode content (experimental)
+
+    /// `UserDefaults` key for the "show reader-mode content by default"
+    /// experiment. Shared so both platforms read the same flag. Defaults on.
+    public static let readerContentByDefaultKey = "readerContentByDefault"
+
+    /// Whether the native reader should show reader-mode-extracted content
+    /// instead of the raw feed body by default.
+    public var usesReaderContentByDefault: Bool {
+        UserDefaults.standard.object(forKey: Self.readerContentByDefaultKey) as? Bool ?? true
+    }
+
+    /// The current reader-mode extraction state for an article (nil = not started).
+    public func readerContentState(for article: Article) -> ReaderContentState? {
+        readerContentStates[article.id]
+    }
+
+    /// Kicks off reader-mode extraction for an article when the experiment is on
+    /// and we haven't already started (or finished) it this session. Idempotent.
+    public func ensureReaderContent(for article: Article) {
+        guard usesReaderContentByDefault else { return }
+        guard readerContentStates[article.id] == nil else { return }
+        readerContentStates[article.id] = .loading
+        Task { await loadReaderContent(for: article, forceRefresh: false) }
+    }
+
+    /// Re-runs extraction for an article, bypassing the cache (the "Try Again"
+    /// action on the fallback notice).
+    public func retryReaderContent(for article: Article) {
+        readerContentStates[article.id] = .loading
+        Task { await loadReaderContent(for: article, forceRefresh: true) }
+    }
+
+    private func loadReaderContent(for article: Article, forceRefresh: Bool) async {
+        if readerContentStore == nil, let storage {
+            readerContentStore = ReaderContentStore(storage: storage, deviceID: deviceID)
+        }
+        // Serve a synced/cached result first (from this device or a peer), so a
+        // page already extracted anywhere isn't re-fetched.
+        if !forceRefresh, let cached = await readerContentStore?.value(for: article.id) {
+            readerContentStates[article.id] = cached.status == .success && !(cached.html ?? "").isEmpty
+                ? .ready(cached.html ?? "")
+                : .failed
+            return
+        }
+
+        if readerModeExtractor == nil { readerModeExtractor = ReaderModeExtractor() }
+        let html = await readerModeExtractor?.extract(url: article.url)
+        if let html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            readerContentStates[article.id] = .ready(html)
+            await readerContentStore?.record(ReaderContentValue(status: .success, html: html), for: article.id)
+        } else {
+            readerContentStates[article.id] = .failed
+            await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
+        }
+    }
+
     /// Starts (or restarts) a full refresh, replacing any in-flight one.
     private func startAllFeedsRefresh() {
         allFeedsRefreshTask?.cancel()
@@ -1403,6 +1484,9 @@ public final class ReaderStore {
             // The list is up from the light baseline; pull the (heavier) article
             // bodies in from the sidecar in the background so it never blocks.
             Task { await loadBodyCacheIfNeeded() }
+            let readerStore = ReaderContentStore(storage: storage, deviceID: deviceID)
+            readerContentStore = readerStore
+            Task { await readerStore.reload() }
         } catch {
             errorMessage = error.localizedDescription
             syncFolderDisplayPath = UserDefaults.standard.string(forKey: ReaderStorage.displayPathDefaultsKey)

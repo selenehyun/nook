@@ -29,6 +29,9 @@ public struct ReaderStorage: Sendable {
     private static let stateDirectoryName = ".nook/state"
     private static let contentDirectoryName = ".nook/content"
     private static let bodiesDirectoryName = ".nook/bodies"
+    // Reader-mode extraction shards. Separate from the body shards and additive,
+    // so the existing sync is untouched; synced conflict-free like the others.
+    private static let readerDirectoryName = ".nook/reader"
     private static let shardFileExtension = "json"
     private static let faviconTTL: TimeInterval = 24 * 60 * 60
 
@@ -60,6 +63,10 @@ public struct ReaderStorage: Sendable {
         directoryURL.appending(path: Self.bodiesDirectoryName, directoryHint: .isDirectory)
     }
 
+    public var readerDirectoryURL: URL {
+        directoryURL.appending(path: Self.readerDirectoryName, directoryHint: .isDirectory)
+    }
+
     private func shardURL(deviceID: String) -> URL {
         stateDirectoryURL.appending(path: "\(deviceID).\(Self.shardFileExtension)", directoryHint: .notDirectory)
     }
@@ -70,6 +77,10 @@ public struct ReaderStorage: Sendable {
 
     private func bodyShardURL(deviceID: String) -> URL {
         bodiesDirectoryURL.appending(path: "\(deviceID).\(Self.shardFileExtension)", directoryHint: .notDirectory)
+    }
+
+    private func readerShardURL(deviceID: String) -> URL {
+        readerDirectoryURL.appending(path: "\(deviceID).\(Self.shardFileExtension)", directoryHint: .notDirectory)
     }
 
     private var iconsDirectoryURL: URL {
@@ -360,6 +371,18 @@ public struct ReaderStorage: Sendable {
         try saveDocument(shard, at: bodyShardURL(deviceID: shard.deviceID), directory: bodiesDirectoryURL)
     }
 
+    public func loadReaderShards() -> [ReaderContentShardDocument] {
+        loadDocuments(in: readerDirectoryURL, as: ReaderContentShardDocument.self)
+    }
+
+    public func loadOwnReaderShard(deviceID: String) -> ReaderContentShardDocument? {
+        loadDocument(at: readerShardURL(deviceID: deviceID), as: ReaderContentShardDocument.self)
+    }
+
+    public func saveReaderShard(_ shard: ReaderContentShardDocument) throws {
+        try saveDocument(shard, at: readerShardURL(deviceID: shard.deviceID), directory: readerDirectoryURL)
+    }
+
     private func loadDocuments<T: Decodable>(in directory: URL, as type: T.Type) -> [T] {
         guard let entries = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
             return []
@@ -401,6 +424,7 @@ public struct ReaderStorage: Sendable {
         }
         startDownloadingDocuments(in: contentDirectoryURL)
         startDownloadingDocuments(in: bodiesDirectoryURL)
+        startDownloadingDocuments(in: readerDirectoryURL)
     }
 
     private func startDownloadingDocuments(in directory: URL) {

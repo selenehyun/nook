@@ -121,6 +121,48 @@ struct HTMLContentParserTests {
         #expect(audio.title == "Clip")
     }
 
+    @Test("Lists become native blocks, keeping nested lists and media inside items")
+    func parsesListsWithNesting() {
+        let html = """
+        <p>Intro.</p>
+        <ul>
+        <li>First item</li>
+        <li>Second with <img src="/in-list.png" alt="inline">
+        <ol><li>Nested one</li><li>Nested two</li></ol>
+        </li>
+        </ul>
+        <p>Outro.</p>
+        """
+
+        let blocks = HTMLContentParser.parse(html, baseURL: URL(string: "https://example.com/post")!)
+
+        // The top-level list must not be split by the nested list or the image.
+        guard case .text = blocks[0], case .list(let ordered, let items) = blocks[1], case .text = blocks[2] else {
+            Issue.record("Expected text, list, text: \(blocks)")
+            return
+        }
+        #expect(!ordered)
+        #expect(items.count == 2)
+
+        // First item is plain text.
+        guard case .text(let first) = items[0][0] else {
+            Issue.record("Expected text in the first item")
+            return
+        }
+        #expect(first.contains("First item"))
+
+        // Second item keeps its image and its nested ordered list inside it.
+        let second = items[1]
+        #expect(second.contains { if case .image = $0 { return true } else { return false } })
+        guard let nested = second.first(where: { if case .list = $0 { return true } else { return false } }),
+              case .list(let nestedOrdered, let nestedItems) = nested else {
+            Issue.record("Expected a nested list inside the second item: \(second)")
+            return
+        }
+        #expect(nestedOrdered)
+        #expect(nestedItems.count == 2)
+    }
+
     @Test("Decodes entities in code blocks without collapsing whitespace")
     func preservesCodeFormatting() {
         let html = "<pre><code>if (a &lt; b) {\n    return &amp;value;\n}</code></pre>"

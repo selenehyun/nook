@@ -124,29 +124,7 @@ struct ReaderDetailView: View {
                     header(article)
                     Divider()
 
-                    if let html = article.contentHTML {
-                        // Text selection is disabled so the double-tap /
-                        // long-press gestures below own the body. The translator
-                        // streams translated blocks in place when active.
-                        HTMLContentView(html: html, baseURL: article.url, selectable: false, translator: nativeTranslator)
-                    } else if isTranslated, let translatedBody {
-                        VStack(alignment: .leading, spacing: 14) {
-                            ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
-                                Text(paragraph)
-                                    .font(.body)
-                                    .lineSpacing(4)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 14) {
-                            ForEach(article.bodyParagraphs, id: \.self) { paragraph in
-                                Text(paragraph)
-                                    .font(.body)
-                                    .lineSpacing(4)
-                            }
-                        }
-                    }
+                    readerBody(article)
 
                     Spacer(minLength: 0)
                 }
@@ -255,6 +233,8 @@ struct ReaderDetailView: View {
             translatedBody = nil
             nativeTranslator.stop()
             detectedLanguage = Self.detectLanguage(for: article)
+            // Start reader-mode extraction (experiment) for this article.
+            store.ensureReaderContent(for: article)
         }
         .translationPresentation(
             isPresented: $isShowingTranslation,
@@ -270,6 +250,54 @@ struct ReaderDetailView: View {
         }
         .sheet(isPresented: $isShowingInfo) {
             ArticleInfoView(store: store, article: article)
+        }
+    }
+
+    /// The reader body: reader-mode-extracted content when the experiment is on,
+    /// falling back to the original feed content (with a notice) on failure.
+    @ViewBuilder
+    private func readerBody(_ article: Article) -> some View {
+        if store.usesReaderContentByDefault {
+            switch store.readerContentState(for: article) {
+            case .ready(let html):
+                HTMLContentView(html: html, baseURL: article.url, selectable: false, translator: nativeTranslator)
+            case .failed:
+                VStack(alignment: .leading, spacing: 14) {
+                    ReaderFallbackNotice { store.retryReaderContent(for: article) }
+                    originalArticleBody(article)
+                }
+            case .loading, .none:
+                ReaderLoadingPlaceholder()
+            }
+        } else {
+            originalArticleBody(article)
+        }
+    }
+
+    /// The article's original feed content — the pre-experiment reading surface.
+    @ViewBuilder
+    private func originalArticleBody(_ article: Article) -> some View {
+        if let html = article.contentHTML {
+            // Text selection is disabled so the double-tap / long-press gestures
+            // own the body. The translator streams translated blocks when active.
+            HTMLContentView(html: html, baseURL: article.url, selectable: false, translator: nativeTranslator)
+        } else if isTranslated, let translatedBody {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(translatedBody.enumerated()), id: \.offset) { _, paragraph in
+                    Text(paragraph)
+                        .font(.body)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(article.bodyParagraphs, id: \.self) { paragraph in
+                    Text(paragraph)
+                        .font(.body)
+                        .lineSpacing(4)
+                }
+            }
         }
     }
 

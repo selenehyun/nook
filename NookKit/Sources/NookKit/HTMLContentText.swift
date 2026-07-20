@@ -66,6 +66,8 @@ struct HTMLBlockList: View {
             NativeArticleTable(table: table, selectable: selectable)
         case .thematicBreak:
             Divider()
+        case .list(let ordered, let items):
+            NativeArticleList(ordered: ordered, items: items, selectable: selectable)
         case .image(let media):
             NativeArticleImage(media: media)
         case .video(let media):
@@ -85,6 +87,7 @@ indirect enum HTMLContentBlock: Equatable {
     case codeBlock(code: String, language: String?)
     case table(HTMLTable)
     case thematicBreak
+    case list(ordered: Bool, items: [[HTMLContentBlock]])
     case image(HTMLMedia)
     case video(HTMLMedia)
     case audio(HTMLMedia)
@@ -114,6 +117,8 @@ enum HTMLContentParser {
         #"<figure\b[^>]*>.*?</figure\s*>"#,
         #"<pre\b[^>]*>.*?</pre\s*>"#,
         #"<blockquote\b[^>]*>.*?</blockquote\s*>"#,
+        #"<ul\b[^>]*>.*?</ul\s*>"#,
+        #"<ol\b[^>]*>.*?</ol\s*>"#,
         #"<table\b[^>]*>.*?</table\s*>"#,
         #"<h([1-6])\b[^>]*>.*?</h\1\s*>"#,
         #"<iframe\b[^>]*>.*?</iframe\s*>"#,
@@ -141,14 +146,23 @@ enum HTMLContentParser {
             // Skip matches that overlap content already consumed (e.g. an <img>
             // that lives inside a <figure> we already emitted).
             guard range.lowerBound >= cursor else { continue }
-            appendText(String(html[cursor..<range.lowerBound]), to: &blocks)
-            let fragment = String(html[range])
+            // Lists nest, which the non-greedy regex truncates at the first close.
+            // Re-find the balanced close so a nested list (or media inside a list)
+            // stays inside its parent list block.
+            var fragmentRange = range
+            let name = tagName(of: String(html[range]))
+            if name == "ul" || name == "ol",
+               let balancedEnd = balancedEnd(of: name, in: html, from: range.lowerBound) {
+                fragmentRange = range.lowerBound..<balancedEnd
+            }
+            appendText(String(html[cursor..<fragmentRange.lowerBound]), to: &blocks)
+            let fragment = String(html[fragmentRange])
             if let block = classify(fragment, baseURL: baseURL) {
                 blocks.append(block)
             } else {
                 appendText(fragment, to: &blocks)
             }
-            cursor = range.upperBound
+            cursor = fragmentRange.upperBound
         }
 
         appendText(String(html[cursor...]), to: &blocks)
@@ -166,6 +180,8 @@ enum HTMLContentParser {
             let inner = firstTagContent(named: "blockquote", in: fragment) ?? ""
             let nested = parse(inner, baseURL: baseURL)
             return nested.isEmpty ? nil : .blockquote(nested)
+        case "ul", "ol":
+            return listBlock(from: fragment, baseURL: baseURL)
         case "table":
             let table = tableBlock(from: fragment, baseURL: baseURL)
             return table.rows.isEmpty ? nil : .table(table)
@@ -241,6 +257,63 @@ enum HTMLContentParser {
         let inner = firstTagContent(named: name, in: fragment) ?? fragment
         guard !plainText(inner).isEmpty else { return nil }
         return .heading(level: level, html: inner)
+    }
+
+    // MARK: List
+
+    /// Builds an ordered/unordered list block. Each `<li>` is parsed recursively
+    /// so nested lists, images, and inline formatting inside items all survive as
+    /// native content.
+    private static func listBlock(from fragment: String, baseURL: URL?) -> HTMLContentBlock? {
+        let ordered = tagName(of: fragment) == "ol"
+        let inner = firstTagContent(named: ordered ? "ol" : "ul", in: fragment) ?? fragment
+        let items = listItems(in: inner, baseURL: baseURL)
+        return items.isEmpty ? nil : .list(ordered: ordered, items: items)
+    }
+
+    /// Extracts the top-level `<li>` items of a list's inner HTML, skipping the
+    /// `<li>`s that belong to nested lists (they're captured inside their parent
+    /// item and handled by the recursive `parse`).
+    private static func listItems(in inner: String, baseURL: URL?) -> [[HTMLContentBlock]] {
+        guard let regex = try? NSRegularExpression(pattern: #"(?is)<li\b[^>]*>"#) else { return [] }
+        let full = NSRange(inner.startIndex..<inner.endIndex, in: inner)
+        var items: [[HTMLContentBlock]] = []
+        var cursor = inner.startIndex
+        for match in regex.matches(in: inner, range: full) {
+            guard let openRange = Range(match.range, in: inner), openRange.lowerBound >= cursor else { continue }
+            let end = balancedEnd(of: "li", in: inner, from: openRange.lowerBound) ?? inner.endIndex
+            let liFragment = String(inner[openRange.lowerBound..<end])
+            let liInner = firstTagContent(named: "li", in: liFragment) ?? ""
+            let blocks = parse(liInner, baseURL: baseURL)
+            if !blocks.isEmpty { items.append(blocks) }
+            cursor = end
+        }
+        return items
+    }
+
+    /// Finds the end index just past the balanced closing tag for `tag`, starting
+    /// at an opening tag at `from`. Counts nested opens/closes so nested lists (or
+    /// list items) are matched correctly — the non-greedy block regex can't.
+    private static func balancedEnd(of tag: String, in html: String, from start: String.Index) -> String.Index? {
+        guard let regex = try? NSRegularExpression(pattern: "(?is)<(/?)\(tag)\\b[^>]*>") else { return nil }
+        let range = NSRange(start..<html.endIndex, in: html)
+        var depth = 0
+        for match in regex.matches(in: html, range: range) {
+            guard let full = Range(match.range, in: html) else { continue }
+            let isClose: Bool
+            if let slash = Range(match.range(at: 1), in: html) {
+                isClose = !html[slash].isEmpty
+            } else {
+                isClose = false
+            }
+            if isClose {
+                depth -= 1
+                if depth == 0 { return full.upperBound }
+            } else {
+                depth += 1
+            }
+        }
+        return nil
     }
 
     // MARK: Code
@@ -1091,6 +1164,34 @@ private struct NativeArticleQuote: View {
                     .frame(width: 4)
             }
             .foregroundStyle(.secondary)
+    }
+}
+
+/// An ordered or unordered list: each item is a marker (number or bullet)
+/// beside its natively-rendered content, so nested lists, links, and media
+/// inside items all render.
+private struct NativeArticleList: View {
+    let ordered: Bool
+    let items: [[HTMLContentBlock]]
+    let selectable: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, blocks in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(marker(index))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .frame(minWidth: ordered ? 24 : 14, alignment: .trailing)
+                    HTMLBlockList(blocks: blocks, selectable: selectable)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    private func marker(_ index: Int) -> String {
+        ordered ? "\(index + 1)." : "•"
     }
 }
 
