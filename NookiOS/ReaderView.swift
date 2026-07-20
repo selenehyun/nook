@@ -118,57 +118,64 @@ struct ReaderDetailView: View {
     }
 
     private func reader(_ article: Article) -> some View {
-        GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header(article)
-                    Divider()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header(article)
+                Divider()
 
-                    readerBody(article)
+                readerBody(article)
 
-                    Spacer(minLength: 0)
-                }
-                .padding()
-                // Fill at least the whole viewport so the gestures also fire in
-                // the empty space below a short article, not only on the text.
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
-                .contentShape(Rectangle())
-                // Double-tap the body to star; press-and-hold to open the web
-                // view with a build-up of haptic taps ending in one deep pulse.
-                .onTapGesture(count: 2) {
-                    let willStar = !article.isStarred
-                    store.toggleStarred(articleID: article.id)
-                    haptics.star(on: willStar)
-                    triggerStarBurst(on: willStar)
-                }
-                .onLongPressGesture(minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration, maximumDistance: 10) {
+                Spacer(minLength: 0)
+            }
+            .padding()
+            // Fill at least the whole viewport so the gestures also fire in
+            // the empty space below a short article, not only on the text.
+            .frame(maxWidth: .infinity, minHeight: viewportHeight, alignment: .topLeading)
+            .contentShape(Rectangle())
+            // Double-tap the body to star; press-and-hold to open the web
+            // view with a build-up of haptic taps ending in one deep pulse.
+            .onTapGesture(count: 2) {
+                let willStar = !article.isStarred
+                store.toggleStarred(articleID: article.id)
+                haptics.star(on: willStar)
+                triggerStarBurst(on: willStar)
+            }
+            .onLongPressGesture(minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration, maximumDistance: 10) {
+                pendingBuildup?.cancel()
+                pendingBuildup = nil
+                openBrowser(for: article)
+            } onPressingChanged: { pressing in
+                if pressing {
+                    // Defer the haptic; if the finger moves (swipe/scroll),
+                    // the gesture cancels and pressing flips false first.
+                    pendingBuildup = Task {
+                        try? await Task.sleep(for: .seconds(hapticStartDelay))
+                        if !Task.isCancelled { haptics.startLongPressBuildup() }
+                    }
+                } else {
                     pendingBuildup?.cancel()
                     pendingBuildup = nil
-                    openBrowser(for: article)
-                } onPressingChanged: { pressing in
-                    if pressing {
-                        // Defer the haptic; if the finger moves (swipe/scroll),
-                        // the gesture cancels and pressing flips false first.
-                        pendingBuildup = Task {
-                            try? await Task.sleep(for: .seconds(hapticStartDelay))
-                            if !Task.isCancelled { haptics.startLongPressBuildup() }
-                        }
-                    } else {
-                        pendingBuildup?.cancel()
-                        pendingBuildup = nil
-                        haptics.cancelLongPressBuildup()
-                    }
+                    haptics.cancelLongPressBuildup()
                 }
             }
-            // Pull past the bottom for the next article, past the top for the
-            // previous one. The web reader keeps its own bottom-only affordance.
-            .readerSwipeNavigation(
-                nextTitle: store.article(after: article.id)?.title,
-                previousTitle: store.article(before: article.id)?.title,
-                onNext: { navigateReader(forward: true) },
-                onPrevious: { navigateReader(forward: false) }
-            )
         }
+        // Measure the viewport height in the background so the content fill above
+        // doesn't need a GeometryReader root (which suppresses the transition).
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { viewportHeight = proxy.size.height }
+                    .onChange(of: proxy.size.height) { _, newValue in viewportHeight = newValue }
+            }
+        }
+        // Pull past the bottom for the next article, past the top for the
+        // previous one. The web reader keeps its own bottom-only affordance.
+        .readerSwipeNavigation(
+            nextTitle: store.article(after: article.id)?.title,
+            previousTitle: store.article(before: article.id)?.title,
+            onNext: { navigateReader(forward: true) },
+            onPrevious: { navigateReader(forward: false) }
+        )
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
                 .font(.system(size: 104, weight: .bold))
@@ -266,6 +273,10 @@ struct ReaderDetailView: View {
     /// Whether the last article change moved forward (next). Drives the push
     /// transition direction so previous/next slide the natural way.
     @State private var readerNavForward = true
+    /// The reader viewport height, measured via a background reader so the
+    /// content can fill it without a `GeometryReader` root (which would suppress
+    /// the article-change push transition).
+    @State private var viewportHeight: CGFloat = 0
 
     /// Navigates to the adjacent article with a directional push animation.
     private func navigateReader(forward: Bool) {
