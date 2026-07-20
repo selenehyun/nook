@@ -449,7 +449,15 @@ public final class NativeArticleTranslator {
             var translatedInner = inner
             for (childIndex, child) in inner.enumerated() {
                 guard token == generation else { return context }
-                let (replacement, newContext) = await translateNested(child, language: language, context: context, token: token)
+                let (replacement, newContext) = await translateNested(
+                    child, language: language, context: context, token: token,
+                    onPartial: { [self] childBlock in
+                        guard token == generation else { return }
+                        var live = translatedInner
+                        live[childIndex] = childBlock
+                        overrides[index] = .blockquote(live)
+                    }
+                )
                 context = newContext
                 if let replacement {
                     translatedInner[childIndex] = replacement
@@ -465,7 +473,17 @@ public final class NativeArticleTranslator {
                 var translatedBlocks = itemBlocks
                 for (childIndex, child) in itemBlocks.enumerated() {
                     guard token == generation else { return context }
-                    let (replacement, newContext) = await translateNested(child, language: language, context: context, token: token)
+                    let (replacement, newContext) = await translateNested(
+                        child, language: language, context: context, token: token,
+                        onPartial: { [self] childBlock in
+                            guard token == generation else { return }
+                            var liveBlocks = translatedBlocks
+                            liveBlocks[childIndex] = childBlock
+                            var liveItems = translatedItems
+                            liveItems[itemIndex] = liveBlocks
+                            overrides[index] = .list(ordered: ordered, items: liveItems)
+                        }
+                    )
                     context = newContext
                     if let replacement {
                         translatedBlocks[childIndex] = replacement
@@ -497,47 +515,64 @@ public final class NativeArticleTranslator {
         }
     }
 
-    /// Translates a `.text`/`.heading` fragment paragraph by paragraph, updating
-    /// the override after each so the block fills in top-to-bottom.
+    /// Translates a top-level `.text`/`.heading` block, streaming into its own
+    /// override so it fills in top-to-bottom, then settling to the final block.
     private func translateTextBlock(
         _ html: String,
         at index: Int,
-        wrap: (String) -> HTMLContentBlock,
+        wrap: @escaping (String) -> HTMLContentBlock,
         language: String,
         context: String,
         token: Int
     ) async -> String {
+        let (settled, newContext) = await streamTextBlock(
+            html, wrap: wrap, language: language, context: context, token: token,
+            emit: { [self] partial in overrides[index] = partial }
+        )
+        guard token == generation else { return newContext }
+        // Collapse to the final single block so the settled layout/import path is
+        // identical to a non-streamed translation.
+        overrides[index] = settled
+        return newContext
+    }
+
+    /// Streams a `.text`/`.heading` fragment segment-by-segment, emitting each
+    /// intermediate `.mixedText` via `emit` — so a top-level block (writing its own
+    /// override) and a nested one inside a quote/list (rebuilding its parent) get
+    /// the identical typing/caret/overlay effect — and returns the settled block.
+    private func streamTextBlock(
+        _ html: String,
+        wrap: (String) -> HTMLContentBlock,
+        language: String,
+        context: String,
+        token: Int,
+        emit: @escaping (HTMLContentBlock) -> Void
+    ) async -> (HTMLContentBlock, String) {
         var context = context
         let segments = InlineMarkupTranslator.segments(html)
         var output = segments.map(\.raw)
         for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
-            guard token == generation else { return context }
+            guard token == generation else { return (wrap(output.joined()), context) }
             let active = segmentIndex
-            // Show the caret at the start of this segment the moment translation
-            // begins — before the first token arrives — so it's clear which block
-            // is being translated during the model's initial latency.
-            overrides[index] = .mixedText(mixedParts(output: output, activeIndex: active, activePartial: ""))
-            // Stream this segment token-by-token: show the growing plain text for
-            // the active segment while the others stay rendered as HTML.
+            // Caret at the segment start the moment translation begins — before the
+            // first token — so it's clear which block is being translated.
+            emit(.mixedText(mixedParts(output: output, activeIndex: active, activePartial: "")))
+            // Stream this segment token-by-token: the active segment overlays and
+            // erases its dimmed original while the others stay rendered as HTML.
             let result = await translateFragmentStreaming(
                 segment.inner, language: language, context: context, token: token
             ) { partial in
                 guard token == self.generation else { return }
-                self.overrides[index] = .mixedText(self.mixedParts(output: output, activeIndex: active, activePartial: partial))
+                emit(.mixedText(self.mixedParts(output: output, activeIndex: active, activePartial: partial)))
             }
             guard let (translatedInner, newContext) = result else { continue }
             context = newContext
             output[segmentIndex] = segment.open + translatedInner + segment.close
-            guard token == generation else { return context }
-            // Settle the finished segment; the next one re-emits (or the loop ends
-            // and the block collapses to a single importer-rendered block below).
-            overrides[index] = .mixedText(mixedParts(output: output, activeIndex: -1, activePartial: ""))
+            guard token == generation else { return (wrap(output.joined()), context) }
+            // Settle the finished segment; the next one re-emits.
+            emit(.mixedText(mixedParts(output: output, activeIndex: -1, activePartial: "")))
         }
-        guard token == generation else { return context }
-        // Collapse to the final single block so the settled layout/import path is
-        // identical to a non-streamed translation.
-        overrides[index] = wrap(output.joined())
-        return context
+        return (wrap(output.joined()), context)
     }
 
     /// Builds the streaming block's parts: the active segment lays its dimmed
@@ -662,29 +697,25 @@ public final class NativeArticleTranslator {
         return template
     }
 
-    /// Translates a nested block (inside a blockquote) without its own override.
+    /// Translates a nested block (inside a quote/list). `onPartial` receives the
+    /// child's intermediate states so the parent can rebuild its override live,
+    /// giving nested text the same streaming/caret/overlay effect as a top-level
+    /// block instead of popping in all at once.
     private func translateNested(
-        _ block: HTMLContentBlock, language: String, context: String, token: Int
+        _ block: HTMLContentBlock, language: String, context: String, token: Int,
+        onPartial: @escaping (HTMLContentBlock) -> Void
     ) async -> (HTMLContentBlock?, String) {
         switch block {
         case .text(let html):
-            let segments = InlineMarkupTranslator.segments(html)
-            var context = context
-            var output = segments.map(\.raw)
-            for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
-                guard token == generation else { return (nil, context) }
-                guard let (translatedInner, newContext) = await translateFragment(segment.inner, language: language, context: context, token: token) else {
-                    continue
-                }
-                context = newContext
-                output[segmentIndex] = segment.open + translatedInner + segment.close
-            }
-            return (.text(output.joined()), context)
+            let (settled, newContext) = await streamTextBlock(
+                html, wrap: { .text($0) }, language: language, context: context, token: token, emit: onPartial
+            )
+            return (settled, newContext)
         case .heading(let level, let html):
-            guard let (fragment, newContext) = await translateFragment(html, language: language, context: context, token: token) else {
-                return (nil, context)
-            }
-            return (.heading(level: level, html: fragment), newContext)
+            let (settled, newContext) = await streamTextBlock(
+                html, wrap: { .heading(level: level, html: $0) }, language: language, context: context, token: token, emit: onPartial
+            )
+            return (settled, newContext)
         case .list(let ordered, let items):
             var context = context
             var translatedItems = items
@@ -692,11 +723,21 @@ public final class NativeArticleTranslator {
                 var translatedBlocks = itemBlocks
                 for (childIndex, child) in itemBlocks.enumerated() {
                     guard token == generation else { return (nil, context) }
-                    let (replacement, newContext) = await translateNested(child, language: language, context: context, token: token)
+                    let (replacement, newContext) = await translateNested(
+                        child, language: language, context: context, token: token,
+                        onPartial: { childBlock in
+                            var liveBlocks = translatedBlocks
+                            liveBlocks[childIndex] = childBlock
+                            var liveItems = translatedItems
+                            liveItems[itemIndex] = liveBlocks
+                            onPartial(.list(ordered: ordered, items: liveItems))
+                        }
+                    )
                     context = newContext
                     if let replacement {
                         translatedBlocks[childIndex] = replacement
                         translatedItems[itemIndex] = translatedBlocks
+                        onPartial(.list(ordered: ordered, items: translatedItems))
                     }
                 }
             }
@@ -712,6 +753,7 @@ public final class NativeArticleTranslator {
                     context = newContext
                     cells[cellIndex] = translatedCell
                     rows[rowIndex] = HTMLTable.Row(cells: cells, isHeader: row.isHeader)
+                    onPartial(.table(HTMLTable(rows: rows)))
                 }
             }
             return (.table(HTMLTable(rows: rows)), context)
