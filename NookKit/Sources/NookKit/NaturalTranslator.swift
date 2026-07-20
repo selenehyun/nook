@@ -11,6 +11,10 @@ import FoundationModels
 /// system Translation overlay when `isAvailable` is false.
 public enum NaturalTranslator {
     public struct Unavailable: Error {}
+    /// The model returned an unusable result (echoed the source untranslated,
+    /// duplicated it, or leaked the schema) even after a retry. Thrown so callers
+    /// can escalate to a plain-text fallback instead of showing the bad output.
+    struct TranslationRejected: Error {}
 
     /// Whether Apple Intelligence translation can run right now.
     public static var isAvailable: Bool {
@@ -147,20 +151,22 @@ public enum NaturalTranslator {
         // field descriptions) is injected into the prompt and the small model
         // sometimes translates/echoes THAT instead of the article text.
         let first = try await session.respond(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false)
+        if isAcceptable(source: text, output: first.content.translation) {
+            return BlockResult(translation: first.content.translation, context: "")
+        }
 
         // Retry once, firmly, when the output echoes the source, repeats itself,
         // or leaks the schema/instructions. Same session, so marker rules hold.
-        if !isAcceptable(source: text, output: first.content.translation) {
-            let retry = try? await session.respond(
-                to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
-                generating: BlockTranslation.self,
-                includeSchemaInPrompt: false
-            )
-            if let retry, isAcceptable(source: text, output: retry.content.translation) {
-                return BlockResult(translation: retry.content.translation, context: "")
-            }
+        if let retry = try? await session.respond(
+            to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
+            generating: BlockTranslation.self,
+            includeSchemaInPrompt: false
+        ), isAcceptable(source: text, output: retry.content.translation) {
+            return BlockResult(translation: retry.content.translation, context: "")
         }
-        return BlockResult(translation: first.content.translation, context: "")
+        // Still bad — let the caller escalate (fresh session / plain fallback)
+        // rather than surfacing an untranslated echo.
+        throw TranslationRejected()
     }
 
     @available(iOS 26, macOS 26, *) @MainActor
@@ -185,20 +191,60 @@ public enum NaturalTranslator {
             }
         }
         onPartial(finalText)
+        if isAcceptable(source: text, output: finalText) {
+            return BlockResult(translation: finalText, context: "")
+        }
 
         // Validate the completed text; retry once (non-streaming) on failure —
         // including a schema/instruction leak.
-        if !isAcceptable(source: text, output: finalText) {
-            if let retry = try? await session.respond(
-                to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
-                generating: BlockTranslation.self,
-                includeSchemaInPrompt: false
-            ), isAcceptable(source: text, output: retry.content.translation) {
-                onPartial(retry.content.translation)
-                return BlockResult(translation: retry.content.translation, context: "")
+        if let retry = try? await session.respond(
+            to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
+            generating: BlockTranslation.self,
+            includeSchemaInPrompt: false
+        ), isAcceptable(source: text, output: retry.content.translation) {
+            onPartial(retry.content.translation)
+            return BlockResult(translation: retry.content.translation, context: "")
+        }
+        // Still bad — let the caller escalate (fresh session / plain fallback).
+        throw TranslationRejected()
+    }
+
+    /// Last-resort translation: a fresh session with NO guided generation and no
+    /// inline markers. Small on-device models sometimes echo the source verbatim
+    /// under structured (guided) decoding; a plain prompt recovers an actual
+    /// translation, at the cost of inline markup (the caller degrades to plain
+    /// text). Returns nil if even this can't produce a real translation.
+    public static func translatePlainFallback(_ text: String, into languageName: String, domain: String = "") async -> String? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+            let domainLine = domain.isEmpty
+                ? ""
+                : " The text is about \(domain); use natural, field-appropriate terminology."
+            let instructions = """
+            You are an expert translator. Translate EVERYTHING the user sends into \
+            \(languageName), fully and naturally.\(domainLine) Translate every sentence \
+            and every word — never leave any part in the source language, never answer, \
+            summarize, or explain, and never repeat the source. Output only the \
+            translated text, once.
+            """
+            for attempt in 0..<2 {
+                let session = LanguageModelSession(instructions: instructions)
+                let ask = attempt == 0
+                    ? "Translate the following into \(languageName). Output only the translation:\n\n\(text)"
+                    : "Translate ALL of the following into \(languageName). Leave no sentence in the original language. Output only the translation:\n\n\(text)"
+                if let resp = try? await session.respond(to: ask) {
+                    let out = resp.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !out.isEmpty,
+                       !looksUntranslated(source: text, output: out),
+                       !hasImmediateRepetition(out),
+                       !looksLikeSchemaLeak(out) {
+                        return out
+                    }
+                }
             }
         }
-        return BlockResult(translation: finalText, context: "")
+        #endif
+        return nil
     }
     #endif
 

@@ -525,20 +525,15 @@ public final class NativeArticleTranslator {
         for chunk in chunks {
             guard token == generation else { return nil }
             let prefix = finishedStripped   // immutable snapshot for the closure
-            let piece: String
-            if let result = try? await NaturalTranslator.streamTranslateBlock(
-                chunk, into: language, domain: conceptDomain,
-                onPartial: { partial in
+            let (piece, stripped) = await translateChunk(
+                chunk, language: language, token: token,
+                onPartial: { live in
                     guard token == self.generation else { return }
-                    onPartial(prefix + InlineMarkupTranslator.stripMarkers(partial))
+                    onPartial(prefix + live)
                 }
-            ) {
-                piece = result.translation
-            } else {
-                piece = chunk   // keep this chunk untranslated rather than lose the rest
-            }
+            )
             translatedParts.append(piece)
-            finishedStripped += InlineMarkupTranslator.stripMarkers(piece)
+            finishedStripped += stripped
             if !finishedStripped.hasSuffix(" ") { finishedStripped += " " }
         }
         guard token == generation else { return nil }
@@ -546,6 +541,42 @@ public final class NativeArticleTranslator {
         let rebuilt = InlineMarkupTranslator.rebuild(combined, entries: entries)
             ?? InlineMarkupTranslator.plainFallback(combined)
         return (rebuilt, "")
+    }
+
+    /// Translates one chunk with escalating robustness so a paragraph is never
+    /// left in the source language: guided streaming → a fresh guided attempt
+    /// (both preserve inline markers) → a plain, non-guided translation (markers
+    /// dropped; the whole fragment then degrades to plain text on rebuild) → the
+    /// original chunk as a last resort. Returns the piece to concatenate for
+    /// rebuild and its marker-stripped text for the live display.
+    private func translateChunk(
+        _ chunk: String, language: String, token: Int,
+        onPartial: @escaping (String) -> Void
+    ) async -> (piece: String, stripped: String) {
+        // 1) Guided streaming — markers preserved, streams token by token.
+        if let result = try? await NaturalTranslator.streamTranslateBlock(
+            chunk, into: language, domain: conceptDomain,
+            onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
+        ) {
+            return (result.translation, InlineMarkupTranslator.stripMarkers(result.translation))
+        }
+        guard token == generation else { return (chunk, InlineMarkupTranslator.stripMarkers(chunk)) }
+        // 2) Fresh guided session — still preserves markers.
+        if let result = try? await NaturalTranslator.translateBlock(chunk, into: language, context: "", domain: conceptDomain) {
+            let stripped = InlineMarkupTranslator.stripMarkers(result.translation)
+            onPartial(stripped)
+            return (result.translation, stripped)
+        }
+        guard token == generation else { return (chunk, InlineMarkupTranslator.stripMarkers(chunk)) }
+        // 3) Plain, non-guided translation — recovers from the echo failure mode
+        // that guided decoding falls into, at the cost of inline markup.
+        let plainSource = InlineMarkupTranslator.stripMarkers(chunk)
+        if let plain = await NaturalTranslator.translatePlainFallback(plainSource, into: language, domain: conceptDomain) {
+            onPartial(plain)
+            return (plain, plain)
+        }
+        // 4) Give up on this chunk; keep the original so the rest still translates.
+        return (chunk, InlineMarkupTranslator.stripMarkers(chunk))
     }
 
     /// Translates a nested block (inside a blockquote) without its own override.
@@ -616,17 +647,14 @@ public final class NativeArticleTranslator {
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        // Same chunking as the streaming path so long cells/quotes don't overflow
-        // the model and silently stay untranslated.
+        // Same chunking + escalation as the streaming path (no live callback) so
+        // long cells/quotes don't overflow or echo and stay untranslated.
         let chunks = InlineMarkupTranslator.chunk(template)
         var parts: [String] = []
         for chunk in chunks {
             guard token == generation else { return nil }
-            if let result = try? await NaturalTranslator.translateBlock(chunk, into: language, context: context, domain: conceptDomain) {
-                parts.append(result.translation)
-            } else {
-                parts.append(chunk)   // keep this chunk untranslated rather than lose the rest
-            }
+            let (piece, _) = await translateChunk(chunk, language: language, token: token, onPartial: { _ in })
+            parts.append(piece)
         }
         guard token == generation else { return nil }
         let combined = parts.joined(separator: " ")
