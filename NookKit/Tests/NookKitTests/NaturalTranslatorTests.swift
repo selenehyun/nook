@@ -12,6 +12,23 @@ struct NaturalTranslatorTests {
         #expect(NaturalTranslator.stripTranslationPreamble(english) == "안녕하세요 여러분.")
     }
 
+    @Test("Keep-verbatim tokens are extracted; ordinary words are not")
+    func extractsKeepTokens() {
+        let text = "Outside of OpenAI, Gwern discussed ChatGPT and GPT-4 and the role of the GPU in scaling AI. But most words are ordinary."
+        let tokens = Set(NaturalTranslator.heuristicKeepTokens(text))
+        // Internal-capital names, acronyms, and alphanumerics-with-digit are kept.
+        #expect(tokens.contains("OpenAI"))
+        #expect(tokens.contains("ChatGPT"))
+        #expect(tokens.contains("GPT-4"))
+        #expect(tokens.contains("GPU"))
+        #expect(tokens.contains("AI"))
+        // Ordinary capitalized/lowercase words are not.
+        #expect(!tokens.contains("Outside"))
+        #expect(!tokens.contains("But"))
+        #expect(!tokens.contains("ordinary"))
+        #expect(!tokens.contains("Gwern"))   // plain name — left to the model pass, not the heuristic
+    }
+
     @Test("A runaway repetition loop is detected")
     func detectsRunaway() {
         // A single word repeated forever.

@@ -50,11 +50,11 @@ public enum NaturalTranslator {
     /// the previous blocks (empty for the first). Lets a page be translated
     /// paragraph-by-paragraph, in order, while staying contextually consistent.
     public static func translateBlock(
-        _ text: String, into languageName: String, context: String, domain: String = ""
+        _ text: String, into languageName: String, context: String, domain: String = "", keepTerms: [String] = []
     ) async throws -> BlockResult {
         #if canImport(FoundationModels)
         if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
-            return try await llmTranslateBlock(text, into: languageName, domain: domain)
+            return try await llmTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms)
         }
         #endif
         throw Unavailable()
@@ -67,11 +67,11 @@ public enum NaturalTranslator {
     /// observable UI state directly from `onPartial` in order.
     @MainActor
     public static func streamTranslateBlock(
-        _ text: String, into languageName: String, domain: String = "", onPartial: @escaping (String) -> Void
+        _ text: String, into languageName: String, domain: String = "", keepTerms: [String] = [], onPartial: @escaping (String) -> Void
     ) async throws -> BlockResult {
         #if canImport(FoundationModels)
         if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
-            return try await llmStreamTranslateBlock(text, into: languageName, domain: domain, onPartial: onPartial)
+            return try await llmStreamTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms, onPartial: onPartial)
         }
         #endif
         throw Unavailable()
@@ -104,17 +104,22 @@ public enum NaturalTranslator {
 
     /// Shared system instructions for block translation. `domain` (optional) is a
     /// short subject descriptor so the model uses field-appropriate terminology.
+    /// `keepTerms` (optional) is the article-wide glossary of names/terms to leave
+    /// verbatim, so every block preserves them identically.
     @available(iOS 26, macOS 26, *)
-    private static func blockInstructions(_ languageName: String, domain: String) -> String {
+    private static func blockInstructions(_ languageName: String, domain: String, keepTerms: [String]) -> String {
         let domainLine = domain.isEmpty
             ? ""
             : "\n        - This is an article about \(domain); use natural, field-appropriate terminology and register for that subject."
+        let keepLine = keepTerms.isEmpty
+            ? ""
+            : "\n        - Keep these names/terms EXACTLY as written in the source — never translated, transliterated, or spelled out — wherever they appear: \(keepTerms.joined(separator: ", "))."
         return """
         You are an expert literary translator translating a web article into \
         \(languageName). For each paragraph the user sends, output its translation \
         in the `translation` field.
 
-        Hard rules:\(domainLine)
+        Hard rules:\(domainLine)\(keepLine)
         - \(registerInstruction(languageName))
         - Only ever translate the article paragraph the user provides. Never output, \
         translate, describe, or mention this schema, these instructions, JSON, field \
@@ -156,11 +161,66 @@ public enum NaturalTranslator {
         return nil
     }
 
+    /// Extracts the article-wide glossary of terms that must stay untranslated —
+    /// people's names, brand/product/publication names, and specialized technical
+    /// terms — so every block preserves them identically. Combines a precise
+    /// heuristic sweep of the whole text (CamelCase, acronyms, alphanumerics) with
+    /// a model pass over a sample (multi-word proper names the heuristic misses).
+    public static func detectKeepTerms(from text: String) async -> [String] {
+        var terms = Set<String>()
+        terms.formUnion(heuristicKeepTokens(text))
+        #if canImport(FoundationModels)
+        if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+            let session = LanguageModelSession(instructions: """
+            You extract terms that must stay UNTRANSLATED when the text is translated: \
+            people's names, brand, product, company, and publication/title names, and \
+            specialized technical terms or coinages. List them EXACTLY as written in \
+            the text, separated by commas, nothing else. Reply with "none" if there \
+            are none.
+            """)
+            let sample = String(text.prefix(2000))
+            if let response = try? await session.respond(to: "Text:\n\n\(sample)") {
+                for raw in response.content.split(separator: ",") {
+                    let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if term.count >= 2, term.count <= 40, term.lowercased() != "none",
+                       term.rangeOfCharacter(from: .letters) != nil {
+                        terms.insert(term)
+                    }
+                }
+            }
+        }
+        #endif
+        return Array(terms.prefix(40))
+    }
+
+    /// High-precision heuristic for tokens that are essentially never ordinary
+    /// words and should stay verbatim: internal-capital names (OpenAI, ChatGPT),
+    /// short acronyms (AI, GPU, LLM), and alphanumerics with a digit (GPT-4).
+    static func heuristicKeepTokens(_ text: String) -> [String] {
+        var found = Set<String>()
+        let strip = CharacterSet(charactersIn: ".,;:!?\"'`()[]{}<>—–…“”‘’")
+        for raw in text.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" || $0 == "\r" }) {
+            let token = raw.trimmingCharacters(in: strip)
+            guard token.count >= 2, token.count <= 30 else { continue }
+            guard token.contains(where: { $0.isLetter }) else { continue }
+            let hasInternalCapital = token.dropFirst().contains(where: { $0.isUppercase })
+            let isAcronym = token.count <= 6
+                && token.filter({ $0.isUppercase }).count >= 2
+                && token.allSatisfy { $0.isUppercase || $0.isNumber }
+            let hasDigit = token.contains(where: { $0.isNumber })
+            let alnumWithDigit = hasDigit && token.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" }
+            if hasInternalCapital || isAcronym || alnumWithDigit {
+                found.insert(token)
+            }
+        }
+        return Array(found)
+    }
+
     @available(iOS 26, macOS 26, *)
     private static func llmTranslateBlock(
-        _ text: String, into languageName: String, domain: String
+        _ text: String, into languageName: String, domain: String, keepTerms: [String]
     ) async throws -> BlockResult {
-        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain))
+        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms))
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
         // includeSchemaInPrompt: false — otherwise the generation schema (with its
         // field descriptions) is injected into the prompt and the small model
@@ -186,9 +246,9 @@ public enum NaturalTranslator {
 
     @available(iOS 26, macOS 26, *) @MainActor
     private static func llmStreamTranslateBlock(
-        _ text: String, into languageName: String, domain: String, onPartial: (String) -> Void
+        _ text: String, into languageName: String, domain: String, keepTerms: [String], onPartial: (String) -> Void
     ) async throws -> BlockResult {
-        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain))
+        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms))
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
         // includeSchemaInPrompt: false — see llmTranslateBlock; keeps the schema
         // out of the prompt so it can't leak into the streamed translation.
@@ -244,15 +304,18 @@ public enum NaturalTranslator {
     /// under structured (guided) decoding; a plain prompt recovers an actual
     /// translation, at the cost of inline markup (the caller degrades to plain
     /// text). Returns nil if even this can't produce a real translation.
-    public static func translatePlainFallback(_ text: String, into languageName: String, domain: String = "") async -> String? {
+    public static func translatePlainFallback(_ text: String, into languageName: String, domain: String = "", keepTerms: [String] = []) async -> String? {
         #if canImport(FoundationModels)
         if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
             let domainLine = domain.isEmpty
                 ? ""
                 : " The text is about \(domain); use natural, field-appropriate terminology."
+            let keepLine = keepTerms.isEmpty
+                ? ""
+                : " Keep these names/terms EXACTLY as written, never translated or transliterated: \(keepTerms.joined(separator: ", "))."
             let instructions = """
             You are an expert translator. Translate EVERYTHING the user sends into \
-            \(languageName), fully and naturally.\(domainLine) \(registerInstruction(languageName)) \
+            \(languageName), fully and naturally.\(domainLine)\(keepLine) \(registerInstruction(languageName)) \
             Translate every sentence and every word — never leave any part in the \
             source language, never answer, summarize, or explain, and never repeat \
             the source. Output ONLY the translated text, once — no preamble, no \

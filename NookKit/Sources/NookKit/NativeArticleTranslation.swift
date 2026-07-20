@@ -348,6 +348,10 @@ public final class NativeArticleTranslator {
     /// The article's detected subject/field, passed to block translation so it
     /// reads with field-appropriate terminology. Empty until detected.
     private var conceptDomain = ""
+    /// Article-wide glossary of names/terms to keep verbatim (proper nouns, brands,
+    /// technical terms), so every block preserves them identically. Empty until
+    /// detected.
+    private var keepTerms: [String] = []
 
     public init() {}
 
@@ -381,6 +385,7 @@ public final class NativeArticleTranslator {
         overrides = [:]
         translatedTitle = nil
         conceptDomain = ""
+        keepTerms = []
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
@@ -388,7 +393,12 @@ public final class NativeArticleTranslator {
 
         // Detect the article's subject up front so each block is translated with
         // field-appropriate terminology (best-effort; empty if unavailable).
-        conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks)) ?? ""
+        conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks, limit: 1200)) ?? ""
+        guard token == generation else { return }
+
+        // Extract the article-wide glossary of names/terms to keep verbatim, from a
+        // larger sample, so preservation is consistent across every block.
+        keepTerms = await NaturalTranslator.detectKeepTerms(from: conceptSample(title: title, blocks: blocks, limit: 6000))
         guard token == generation else { return }
 
         // Title: a plain, bounded translation. Using the simple translator (not
@@ -413,7 +423,7 @@ public final class NativeArticleTranslator {
 
     /// A short plain-text sample (title + leading prose) used to detect the
     /// article's subject/field. Bounded so concept detection stays cheap.
-    private func conceptSample(title: String, blocks: [HTMLContentBlock]) -> String {
+    private func conceptSample(title: String, blocks: [HTMLContentBlock], limit: Int) -> String {
         var parts = [title.trimmingCharacters(in: .whitespacesAndNewlines)]
         for block in blocks {
             let plain: String
@@ -429,7 +439,7 @@ public final class NativeArticleTranslator {
             }
             let trimmed = plain.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { parts.append(trimmed) }
-            if parts.reduce(0, { $0 + $1.count }) > 1200 { break }
+            if parts.reduce(0, { $0 + $1.count }) > limit { break }
         }
         return parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -683,7 +693,7 @@ public final class NativeArticleTranslator {
     ) async -> String {
         // 1) Guided streaming — markers preserved, streams token by token.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain,
+            template, into: language, domain: conceptDomain, keepTerms: keepTerms,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
             return result.translation
@@ -693,7 +703,7 @@ public final class NativeArticleTranslator {
         // loop or echo the first attempt hit, and streams so it types in and can
         // be aborted early if it too runs away.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain,
+            template, into: language, domain: conceptDomain, keepTerms: keepTerms,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
             return result.translation
@@ -702,7 +712,7 @@ public final class NativeArticleTranslator {
         // 3) Plain, non-guided translation — recovers from the echo failure mode
         // guided decoding falls into, at the cost of this chunk's inline markup.
         if let plain = await NaturalTranslator.translatePlainFallback(
-            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain
+            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain, keepTerms: keepTerms
         ) {
             await paceEmit(plain, onPartial: onPartial, token: token)
             return plain
