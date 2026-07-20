@@ -50,10 +50,12 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let onNext: () -> Void
     let onPrevious: () -> Void
 
-    /// Pull distance past an edge needed to commit to a navigation.
-    static let threshold: CGFloat = 70
+    /// Pull distance past an edge needed to commit to a navigation. Deliberately
+    /// small — a pull only ever starts at an edge (never mid-scroll), so a light
+    /// overscroll is enough and there's no risk of an accidental trigger.
+    static let threshold: CGFloat = 15
     /// The pull distance below which the affordance stays hidden.
-    private static let revealThreshold: CGFloat = 4
+    private static let revealThreshold: CGFloat = 1
 
     @State private var pull = EdgePull()
 
@@ -250,9 +252,10 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             monitor = nil
         }
 
-        /// iOS-style rubber-band resistance so the pull grows ever more slowly —
-        /// same curve as the web reader.
-        private func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 620) -> CGFloat {
+        /// Light rubber-band resistance. Softer than the web reader's so the pull
+        /// grows quickly and the low commit threshold is reached with a gentle
+        /// overscroll rather than a hard one.
+        private func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 240) -> CGFloat {
             guard distance > 0 else { return 0 }
             return limit * distance / (distance + softness)
         }
