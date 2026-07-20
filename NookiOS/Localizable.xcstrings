@@ -2574,6 +2574,34 @@
         }
       }
     },
+    "Press and hold article to open browser": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press and hold article to open browser"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長押しでブラウザを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "길게 눌러 브라우저 열기"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长按文章打开浏览器"
+          }
+        }
+      }
+    },
     "Published": {
       "localizations": {
         "en": {
@@ -3900,6 +3928,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "版本"
+          }
+        }
+      }
+    },
+    "When on, press-and-hold the article body to open the in-app browser. The toolbar button opens it either way.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, press-and-hold the article body to open the in-app browser. The toolbar button opens it either way."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンにすると、記事本文を長押しでアプリ内ブラウザを開けます。ツールバーのボタンではどちらでも開けます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "켜면 기사 본문을 길게 눌러 인앱 브라우저를 열 수 있습니다. 툴바 버튼으로는 언제든 열 수 있습니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启后，长按文章正文即可打开应用内浏览器。工具栏按钮始终可打开。"
           }
         }
       }
