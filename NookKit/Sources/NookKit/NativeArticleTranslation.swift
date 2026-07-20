@@ -473,6 +473,10 @@ public final class NativeArticleTranslator {
         for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
             guard token == generation else { return context }
             let active = segmentIndex
+            // Show the caret at the start of this segment the moment translation
+            // begins — before the first token arrives — so it's clear which block
+            // is being translated during the model's initial latency.
+            overrides[index] = .mixedText(mixedParts(output: output, activeIndex: active, activePartial: ""))
             // Stream this segment token-by-token: show the growing plain text for
             // the active segment while the others stay rendered as HTML.
             let result = await translateFragmentStreaming(
@@ -497,12 +501,14 @@ public final class NativeArticleTranslator {
     }
 
     /// Builds the streaming block's parts: the active segment as plain streaming
-    /// text (no importer), every other non-empty segment as its HTML.
+    /// text (no importer) — always plain, even while empty, so the caret shows at
+    /// its start before the first token — and every other non-empty segment as
+    /// its HTML.
     private func mixedParts(output: [String], activeIndex: Int, activePartial: String) -> [HTMLContentBlock.TextPart] {
         var parts: [HTMLContentBlock.TextPart] = []
         for (i, segment) in output.enumerated() {
             if i == activeIndex {
-                parts.append(activePartial.isEmpty ? .html(segment) : .plain(activePartial))
+                parts.append(.plain(activePartial))
             } else if !segment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append(.html(segment))
             }
