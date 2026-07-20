@@ -872,13 +872,22 @@ public final class ReaderStore {
         var today = 0
         var starred = 0
         let calendar = Calendar.current
+        // Compute today's [start, next-midnight) once instead of re-deriving
+        // calendar components per article via isDateInToday. Half-open interval
+        // matches isDateInToday exactly (and the .today filter at line ~359).
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)
         for article in articles {
             if !article.isRead {
                 byFeed[article.feedID, default: 0] += 1
                 total += 1
             }
             if article.isStarred { starred += 1 }
-            if calendar.isDateInToday(article.publishedAt) { today += 1 }
+            if let startOfTomorrow {
+                if article.publishedAt >= startOfToday && article.publishedAt < startOfTomorrow { today += 1 }
+            } else if calendar.isDateInToday(article.publishedAt) {
+                today += 1
+            }
         }
         unreadByFeed = byFeed
         totalUnread = total
@@ -1195,21 +1204,42 @@ public final class ReaderStore {
         // Serve a synced/cached result first (from this device or a peer), so a
         // page already extracted anywhere isn't re-fetched.
         if !forceRefresh, let cached = await readerContentStore?.value(for: article.id) {
-            readerContentStates[article.id] = cached.status == .success && !(cached.html ?? "").isEmpty
-                ? .ready(cached.html ?? "")
-                : .failed
+            if cached.status == .success, let html = cached.html, !html.isEmpty {
+                await warmReaderBlocks(html: html, baseURL: article.url)
+                readerContentStates[article.id] = .ready(html)
+            } else {
+                readerContentStates[article.id] = .failed
+            }
             return
         }
 
         if readerModeExtractor == nil { readerModeExtractor = ReaderModeExtractor() }
         let html = await readerModeExtractor?.extract(url: article.url)
         if let html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Parse into native blocks off-main and cache them BEFORE flipping to
+            // .ready, so the reader renders from a warm cache (no main-thread
+            // parse during the transition frame).
+            await warmReaderBlocks(html: html, baseURL: article.url)
             readerContentStates[article.id] = .ready(html)
             await readerContentStore?.record(ReaderContentValue(status: .success, html: html), for: article.id)
         } else {
             readerContentStates[article.id] = .failed
             await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
         }
+    }
+
+    /// Parses reader HTML into native blocks off the main actor and stores them in
+    /// the shared block cache, so `HTMLContentView` renders from a synchronous
+    /// cache hit instead of parsing on the render/transition frame.
+    private func warmReaderBlocks(html: String, baseURL: URL?) async {
+        await Task.detached(priority: .userInitiated) {
+            if HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL) == nil {
+                HTMLBlockCache.shared.store(
+                    HTMLContentParser.parse(html, baseURL: baseURL),
+                    html: html, baseURL: baseURL
+                )
+            }
+        }.value
     }
 
     /// Starts (or restarts) a full refresh, replacing any in-flight one.

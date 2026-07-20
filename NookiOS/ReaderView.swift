@@ -240,9 +240,14 @@ struct ReaderDetailView: View {
             translatedTitle = nil
             translatedBody = nil
             nativeTranslator.stop()
-            detectedLanguage = Self.detectLanguage(for: article)
-            // Start reader-mode extraction (experiment) for this article.
+            detectedLanguage = nil
+            // Start reader-mode extraction first so it isn't delayed behind
+            // language detection.
             store.ensureReaderContent(for: article)
+            // Detect the language off the main actor so the recognizer doesn't
+            // run on the transition frame.
+            let detected = await Task.detached { Self.detectLanguage(for: article) }.value
+            if !Task.isCancelled { detectedLanguage = detected }
         }
         .translationPresentation(
             isPresented: $isShowingTranslation,
@@ -381,7 +386,7 @@ struct ReaderDetailView: View {
     // MARK: - Translation
 
     /// Detects the dominant language of an article's text (e.g. "en", "ko").
-    static func detectLanguage(for article: Article) -> String? {
+    nonisolated static func detectLanguage(for article: Article) -> String? {
         let sample = (article.bodyParagraphs.prefix(4).joined(separator: " ") + " " + article.title)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sample.isEmpty else { return nil }

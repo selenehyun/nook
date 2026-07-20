@@ -1661,7 +1661,7 @@ private struct ReaderDetailView: View {
         ([article.title] + article.bodyParagraphs).joined(separator: "\n\n")
     }
 
-    static func detectLanguage(for article: Article) -> String? {
+    nonisolated static func detectLanguage(for article: Article) -> String? {
         let sample = (article.bodyParagraphs.prefix(4).joined(separator: " ") + " " + article.title)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sample.isEmpty else { return nil }
@@ -1811,9 +1811,14 @@ private struct ReaderDetailView: View {
             translatedTitle = nil
             translatedBody = nil
             isShowingTranslation = false
-            detectedLanguage = Self.detectLanguage(for: article)
-            // Start reader-mode extraction (experiment) for this article.
+            detectedLanguage = nil
+            // Start reader-mode extraction first so it isn't delayed behind
+            // language detection.
             store.ensureReaderContent(for: article)
+            // Detect the language off the main actor so the recognizer doesn't
+            // run on the transition frame.
+            let detected = await Task.detached { Self.detectLanguage(for: article) }.value
+            if !Task.isCancelled { detectedLanguage = detected }
             await markReadAfterDwell(article)
         }
         // Pull past the bottom for the next article, past the top for the

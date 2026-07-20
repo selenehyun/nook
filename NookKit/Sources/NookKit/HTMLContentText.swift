@@ -22,13 +22,25 @@ public struct HTMLContentView: View {
         selectable: Bool = true,
         translator: NativeArticleTranslator? = nil
     ) {
-        blocks = HTMLContentParser.parse(html, baseURL: baseURL)
+        // A cache hit (warmed off-main by the store, or a revisit) skips the
+        // synchronous parse entirely. On a miss we parse synchronously exactly as
+        // before — so cold paths (feed-original body, failed fallback) are
+        // unchanged — and populate the cache for next time.
+        if let cached = HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL) {
+            blocks = cached
+        } else {
+            let parsed = HTMLContentParser.parse(html, baseURL: baseURL)
+            HTMLBlockCache.shared.store(parsed, html: html, baseURL: baseURL)
+            blocks = parsed
+        }
         self.selectable = selectable
         self.translator = translator
     }
 
     public var body: some View {
-        HTMLBlockList(blocks: blocks, selectable: selectable, translator: translator)
+        // Lazy at the top level so off-screen blocks defer their HTML import /
+        // syntax highlight / image load instead of all firing at once on entry.
+        HTMLBlockList(blocks: blocks, selectable: selectable, lazy: true, translator: translator)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -38,16 +50,27 @@ public struct HTMLContentView: View {
 struct HTMLBlockList: View {
     let blocks: [HTMLContentBlock]
     let selectable: Bool
+    /// Lazy only for the top-level article list, so off-screen blocks defer their
+    /// heavy per-block work. Nested lists/quotes stay eager (small, bounded, and
+    /// nested-lazy layout is unreliable).
+    var lazy: Bool = false
     /// When set (top-level list only), each block is replaced by its streamed
     /// translation as it arrives; nested lists don't take a translator because a
     /// translated blockquote already carries its translated children.
     var translator: NativeArticleTranslator?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
-                blockView(translator?.translatedBlock(at: index) ?? block)
-            }
+        if lazy {
+            LazyVStack(alignment: .leading, spacing: 18) { rows }
+        } else {
+            VStack(alignment: .leading, spacing: 18) { rows }
+        }
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+            blockView(translator?.translatedBlock(at: index) ?? block)
         }
     }
 
@@ -80,7 +103,7 @@ struct HTMLBlockList: View {
     }
 }
 
-indirect enum HTMLContentBlock: Equatable {
+indirect enum HTMLContentBlock: Equatable, Sendable {
     case text(String)
     case heading(level: Int, html: String)
     case blockquote([HTMLContentBlock])
@@ -94,7 +117,7 @@ indirect enum HTMLContentBlock: Equatable {
     case embed(HTMLMedia)
 }
 
-struct HTMLMedia: Equatable {
+struct HTMLMedia: Equatable, Sendable {
     let url: URL
     let title: String?
     let caption: String?
@@ -102,12 +125,68 @@ struct HTMLMedia: Equatable {
     let aspectRatio: CGFloat?
 }
 
-struct HTMLTable: Equatable {
-    struct Row: Equatable {
+struct HTMLTable: Equatable, Sendable {
+    struct Row: Equatable, Sendable {
         let cells: [String]
         let isHeader: Bool
     }
     let rows: [Row]
+}
+
+// MARK: - Render caches
+
+/// A reference wrapper so value types can be stored in `NSCache`.
+private final class CacheBox<T: Sendable>: Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
+/// Process-wide cache of parsed blocks so re-entering or navigating to an
+/// article doesn't re-run the HTML parse (which otherwise runs synchronously in
+/// `HTMLContentView.init` on every `.id`-driven rebuild). Thread-safe, so the
+/// store can warm it off the main actor before the view is built. Keyed by the
+/// full baseURL+html (never a hash — a collision would render the wrong article).
+final class HTMLBlockCache: @unchecked Sendable {
+    static let shared = HTMLBlockCache()
+    private let cache = NSCache<NSString, CacheBox<[HTMLContentBlock]>>()
+    private init() { cache.countLimit = 64 }
+
+    private static func key(html: String, baseURL: URL?) -> NSString {
+        ((baseURL?.absoluteString ?? "") + "\n" + html) as NSString
+    }
+
+    func blocks(html: String, baseURL: URL?) -> [HTMLContentBlock]? {
+        cache.object(forKey: Self.key(html: html, baseURL: baseURL))?.value
+    }
+
+    func store(_ blocks: [HTMLContentBlock], html: String, baseURL: URL?) {
+        cache.setObject(CacheBox(blocks), forKey: Self.key(html: html, baseURL: baseURL))
+    }
+}
+
+/// Caches imported `AttributedString`s (the WebKit HTML importer must run on the
+/// main thread, so it can't move off-main — but its result can be reused across
+/// navigation instead of re-imported for every block every time). Main-actor
+/// isolated because the importer and all reads run on the main actor.
+@MainActor
+private final class HTMLAttributedCache {
+    static let shared = HTMLAttributedCache()
+    private let cache = NSCache<NSString, CacheBox<AttributedString>>()
+    private init() { cache.countLimit = 600 }
+
+    func value(forKey key: String) -> AttributedString? { cache.object(forKey: key as NSString)?.value }
+    func store(_ value: AttributedString, forKey key: String) { cache.setObject(CacheBox(value), forKey: key as NSString) }
+}
+
+/// Caches syntax-highlighted code so re-navigation is a hit and the highlight
+/// work (safe off-main, unlike the HTML importer) isn't redone. Thread-safe.
+private final class SyntaxHighlightCache: @unchecked Sendable {
+    static let shared = SyntaxHighlightCache()
+    private let cache = NSCache<NSString, CacheBox<AttributedString>>()
+    private init() { cache.countLimit = 200 }
+
+    func value(forKey key: String) -> AttributedString? { cache.object(forKey: key as NSString)?.value }
+    func store(_ value: AttributedString, forKey key: String) { cache.setObject(CacheBox(value), forKey: key as NSString) }
 }
 
 enum HTMLContentParser {
@@ -128,13 +207,14 @@ enum HTMLContentParser {
         #"<img\b[^>]*>"#,
     ].joined(separator: "|")
 
+    /// Compiled once — the block regex is the single biggest per-parse cost.
+    private static let blockRegex = try! NSRegularExpression(
+        pattern: blockPattern,
+        options: [.caseInsensitive, .dotMatchesLineSeparators]
+    )
+
     static func parse(_ html: String, baseURL: URL?) -> [HTMLContentBlock] {
-        guard let regex = try? NSRegularExpression(
-            pattern: blockPattern,
-            options: [.caseInsensitive, .dotMatchesLineSeparators]
-        ) else {
-            return [.text(html)]
-        }
+        let regex = blockRegex
 
         let fullRange = NSRange(html.startIndex..<html.endIndex, in: html)
         let matches = regex.matches(in: html, range: fullRange)
@@ -605,13 +685,11 @@ private struct NativeArticleVideo: View {
 /// empty video surface that `VideoPlayer` would show for audio-only media.
 private struct NativeArticleAudio: View {
     let media: HTMLMedia
-    @State private var player: AVPlayer
+    // Created on first play, not during view construction — building an AVPlayer
+    // (asset load + KVO) in init stalls article entry/navigation. Mirrors
+    // NativeArticleVideo.
+    @State private var player: AVPlayer?
     @State private var isPlaying = false
-
-    init(media: HTMLMedia) {
-        self.media = media
-        _player = State(initialValue: AVPlayer(url: media.url))
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -643,13 +721,18 @@ private struct NativeArticleAudio: View {
             }
         }
         .onDisappear {
-            player.pause()
+            player?.pause()
             isPlaying = false
         }
     }
 
     private func toggle() {
-        if isPlaying { player.pause() } else { player.play() }
+        if isPlaying {
+            player?.pause()
+        } else {
+            if player == nil { player = AVPlayer(url: media.url) }
+            player?.play()
+        }
         isPlaying.toggle()
     }
 }
@@ -1224,7 +1307,22 @@ private struct NativeArticleCode: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(.quaternary, lineWidth: 1)
         )
-        .task(id: code) { highlighted = SyntaxHighlighter.attributed(code, language: language) }
+        .task(id: code) {
+            let key = "\(language ?? "")\n\(code)"
+            if let cached = SyntaxHighlightCache.shared.value(forKey: key) {
+                highlighted = cached
+                return
+            }
+            // Show the new plain code while (re)computing, never the previous
+            // block's highlighting; run the regex passes off the main thread.
+            highlighted = nil
+            let result = await Task.detached(priority: .userInitiated) {
+                SyntaxHighlighter.attributed(code, language: language)
+            }.value
+            guard !Task.isCancelled else { return }
+            SyntaxHighlightCache.shared.store(result, forKey: key)
+            highlighted = result
+        }
     }
 
     @ViewBuilder
@@ -1307,19 +1405,27 @@ enum SyntaxHighlighter {
         "with", "and", "or", "not", "typeof", "namespace", "using", "package", "module"
     ]
 
+    // Patterns compiled once (not per code block). Order matters at apply time:
+    // later passes override earlier colours (strings over keywords, comments
+    // over everything).
+    private static let typeRegex = try! NSRegularExpression(pattern: #"\b[A-Z][A-Za-z0-9_]*\b"#)
+    private static let keywordRegex = try! NSRegularExpression(pattern: "\\b(?:" + keywords.joined(separator: "|") + ")\\b")
+    private static let numberRegex = try! NSRegularExpression(pattern: #"\b\d[\d_]*(?:\.\d+)?\b"#)
+    private static let doubleQuoteRegex = try! NSRegularExpression(pattern: ##""(?:\\.|[^"\\])*""##)
+    private static let singleQuoteRegex = try! NSRegularExpression(pattern: ##"'(?:\\.|[^'\\])*'"##)
+    private static let blockCommentRegex = try! NSRegularExpression(pattern: #"/\*[\s\S]*?\*/"#)
+    private static let lineCommentRegex = try! NSRegularExpression(pattern: #"(?m)(?<!:)(?://|#).*$"#)
+
     static func attributed(_ code: String, language: String?) -> AttributedString {
         let mutable = NSMutableAttributedString(string: code)
-        let keywordPattern = "\\b(?:" + keywords.joined(separator: "|") + ")\\b"
 
-        // Applied in order; later passes override earlier colours so that
-        // strings win over keywords and comments win over everything.
-        apply(mutable, code, pattern: #"\b[A-Z][A-Za-z0-9_]*\b"#, color: typeColor)
-        apply(mutable, code, pattern: keywordPattern, color: keywordColor)
-        apply(mutable, code, pattern: #"\b\d[\d_]*(?:\.\d+)?\b"#, color: numberColor)
-        apply(mutable, code, pattern: ##""(?:\\.|[^"\\])*""##, color: stringColor)
-        apply(mutable, code, pattern: ##"'(?:\\.|[^'\\])*'"##, color: stringColor)
-        apply(mutable, code, pattern: #"/\*[\s\S]*?\*/"#, color: commentColor)
-        apply(mutable, code, pattern: #"(?m)(?<!:)(?://|#).*$"#, color: commentColor)
+        apply(mutable, code, regex: typeRegex, color: typeColor)
+        apply(mutable, code, regex: keywordRegex, color: keywordColor)
+        apply(mutable, code, regex: numberRegex, color: numberColor)
+        apply(mutable, code, regex: doubleQuoteRegex, color: stringColor)
+        apply(mutable, code, regex: singleQuoteRegex, color: stringColor)
+        apply(mutable, code, regex: blockCommentRegex, color: commentColor)
+        apply(mutable, code, regex: lineCommentRegex, color: commentColor)
 
         let range = NSRange(location: 0, length: mutable.length)
         #if canImport(AppKit)
@@ -1333,8 +1439,7 @@ enum SyntaxHighlighter {
         AttributedString(code)
     }
 
-    private static func apply(_ target: NSMutableAttributedString, _ source: String, pattern: String, color: PlatformColor) {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+    private static func apply(_ target: NSMutableAttributedString, _ source: String, regex: NSRegularExpression, color: PlatformColor) {
         let range = NSRange(source.startIndex..<source.endIndex, in: source)
         for match in regex.matches(in: source, range: range) {
             target.addAttribute(.foregroundColor, value: color, range: match.range)
@@ -1372,10 +1477,21 @@ public struct HTMLContentText: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: renderKey) {
+            // Reuse a prior import of the same fragment (revisits/rebuilds) so the
+            // main-thread WebKit importer doesn't re-run for every block.
+            if let cached = HTMLAttributedCache.shared.value(forKey: renderKey) {
+                attributed = cached
+                return
+            }
             // Falls back to plain text if the HTML importer yields nothing, so a
-            // failed import shows content instead of an endless spinner.
-            attributed = Self.render(html, baseSize: resolvedSize, bold: bold)
-                ?? AttributedString(Self.plainText(html))
+            // failed import shows content instead of an endless spinner. Only real
+            // imports are cached (a transient failure isn't pinned).
+            if let rendered = Self.render(html, baseSize: resolvedSize, bold: bold) {
+                HTMLAttributedCache.shared.store(rendered, forKey: renderKey)
+                attributed = rendered
+            } else {
+                attributed = AttributedString(Self.plainText(html))
+            }
         }
     }
 
