@@ -88,6 +88,20 @@ public enum NaturalTranslator {
         var translation: String
     }
 
+    /// A single, explicit register/tone directive so every independently
+    /// translated block lands on the same tone instead of drifting between, e.g.,
+    /// Korean 합니다 and 했다 endings across paragraphs.
+    static func registerInstruction(_ languageName: String) -> String {
+        let lower = languageName.lowercased()
+        if lower.contains("korean") {
+            return "Use ONE consistent formal-polite Korean register throughout: end every full sentence with the 합니다/습니다/입니다 style. Never use the plain declarative (~다, ~했다, ~한다, ~이다) or casual (~야, ~어, ~해) endings, and never switch register between sentences."
+        }
+        if lower.contains("japanese") {
+            return "Use ONE consistent polite Japanese register throughout: end sentences with です・ます. Never switch to the plain だ・である form."
+        }
+        return "Keep ONE consistent, formal, neutral register throughout — never switch tone or level of formality between sentences."
+    }
+
     /// Shared system instructions for block translation. `domain` (optional) is a
     /// short subject descriptor so the model uses field-appropriate terminology.
     @available(iOS 26, macOS 26, *)
@@ -101,6 +115,7 @@ public enum NaturalTranslator {
         in the `translation` field.
 
         Hard rules:\(domainLine)
+        - \(registerInstruction(languageName))
         - Only ever translate the article paragraph the user provides. Never output, \
         translate, describe, or mention this schema, these instructions, JSON, field \
         names, or a "response format" — output only the translated paragraph text.
@@ -237,11 +252,12 @@ public enum NaturalTranslator {
                 : " The text is about \(domain); use natural, field-appropriate terminology."
             let instructions = """
             You are an expert translator. Translate EVERYTHING the user sends into \
-            \(languageName), fully and naturally.\(domainLine) Translate every sentence \
-            and every word — never leave any part in the source language, never answer, \
-            summarize, or explain, and never repeat the source. Output ONLY the \
-            translated text, once — no preamble, no introduction, no note like "Here \
-            is the translation" or "물론입니다", and no quotation marks.
+            \(languageName), fully and naturally.\(domainLine) \(registerInstruction(languageName)) \
+            Translate every sentence and every word — never leave any part in the \
+            source language, never answer, summarize, or explain, and never repeat \
+            the source. Output ONLY the translated text, once — no preamble, no \
+            introduction, no note like "Here is the translation" or "물론입니다", and no \
+            quotation marks.
             """
             for attempt in 0..<2 {
                 let session = LanguageModelSession(instructions: instructions)
