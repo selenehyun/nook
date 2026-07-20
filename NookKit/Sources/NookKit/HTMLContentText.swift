@@ -1275,6 +1275,7 @@ private struct StreamingText: View {
             ZStack(alignment: .topLeading) {
                 if !original.isEmpty {
                     Text(original)
+                        .font(.system(size: HTMLContentText.platformBodySize))
                         .lineSpacing(4)
                         .foregroundStyle(.secondary)
                         .opacity(originalDim * (1 - progress))
@@ -1304,6 +1305,7 @@ private struct StreamingText: View {
     @ViewBuilder
     private func content(visible: String, caretOn: Bool) -> some View {
         let rendered = (Text(visible) + Text(caret).foregroundColor(caretOn ? .primary : .clear))
+            .font(.system(size: HTMLContentText.platformBodySize))
             .lineSpacing(4)
         if selectable {
             rendered.textSelection(.enabled)
@@ -1580,7 +1582,18 @@ public struct HTMLContentText: View {
                     text.textSelection(.disabled)
                 }
             } else {
-                ProgressView().controlSize(.small)
+                // While the importer runs, show plain text at the final size — not a
+                // spinner — so the block claims its real height immediately. This
+                // avoids the big layout jump when translation starts and a paragraph
+                // splits into segments that each re-import.
+                let placeholder = Text(Self.plainText(html))
+                    .font(.system(size: resolvedSize, weight: bold ? .semibold : .regular))
+                    .lineSpacing(4)
+                if selectable {
+                    placeholder.textSelection(.enabled)
+                } else {
+                    placeholder.textSelection(.disabled)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
