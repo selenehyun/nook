@@ -349,9 +349,11 @@ public final class NativeArticleTranslator {
     /// reads with field-appropriate terminology. Empty until detected.
     private var conceptDomain = ""
     /// Article-wide glossary of names/terms to keep verbatim (proper nouns, brands,
-    /// technical terms), so every block preserves them identically. Empty until
-    /// detected.
+    /// technical terms), grown block-by-block as translation proceeds so every
+    /// block is translated against every term seen so far.
     private var keepTerms: [String] = []
+    /// Lowercased keys of `keepTerms` for O(1) de-duplication across blocks.
+    private var keepTermsSeen: Set<String> = []
 
     public init() {}
 
@@ -386,6 +388,7 @@ public final class NativeArticleTranslator {
         translatedTitle = nil
         conceptDomain = ""
         keepTerms = []
+        keepTermsSeen = []
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
@@ -396,9 +399,9 @@ public final class NativeArticleTranslator {
         conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks, limit: 1200)) ?? ""
         guard token == generation else { return }
 
-        // Extract the article-wide glossary of names/terms to keep verbatim, from a
-        // larger sample, so preservation is consistent across every block.
-        keepTerms = await NaturalTranslator.detectKeepTerms(from: conceptSample(title: title, blocks: blocks, limit: 6000))
+        // Seed the keep-verbatim glossary from the title; it then grows per block
+        // below, before each block is translated.
+        mergeKeepTerms(await NaturalTranslator.detectKeepTerms(from: title))
         guard token == generation else { return }
 
         // Title: a plain, bounded translation. Using the simple translator (not
@@ -415,10 +418,56 @@ public final class NativeArticleTranslator {
 
         for (index, block) in blocks.enumerated() {
             guard token == generation, !Task.isCancelled else { return }
+            // Extract this block's keep-verbatim terms and add them to the glossary
+            // BEFORE translating it, so the block (and every later one) is
+            // translated against the full accumulated glossary.
+            await accumulateKeepTerms(from: block, token: token)
+            guard token == generation, !Task.isCancelled else { return }
             context = await translate(block, at: index, language: language, context: context, token: token)
         }
 
         if token == generation { isTranslating = false }
+    }
+
+    /// Extracts the keep-verbatim terms from one block's source text and folds them
+    /// into the running glossary before that block is translated.
+    private func accumulateKeepTerms(from block: HTMLContentBlock, token: Int) async {
+        let text = blockPlainText(block).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let terms = await NaturalTranslator.detectKeepTerms(from: text)
+        guard token == generation else { return }
+        mergeKeepTerms(terms)
+    }
+
+    /// De-duplicates (case-insensitively) new terms into the ordered glossary,
+    /// capped so the instruction stays bounded.
+    private func mergeKeepTerms(_ new: [String]) {
+        for term in new {
+            let key = term.lowercased()
+            guard !keepTermsSeen.contains(key) else { continue }
+            keepTermsSeen.insert(key)
+            keepTerms.append(term)
+        }
+        if keepTerms.count > 120 { keepTerms = Array(keepTerms.prefix(120)) }
+    }
+
+    /// Plain, tag-stripped text of a block including its nested content, for
+    /// term extraction.
+    private func blockPlainText(_ block: HTMLContentBlock) -> String {
+        switch block {
+        case .text(let html):
+            return plainText(html)
+        case .heading(_, let html):
+            return plainText(html)
+        case .blockquote(let inner):
+            return inner.map(blockPlainText).joined(separator: " ")
+        case .list(_, let items):
+            return items.flatMap { $0 }.map(blockPlainText).joined(separator: " ")
+        case .table(let table):
+            return table.rows.flatMap(\.cells).map(plainText).joined(separator: " ")
+        default:
+            return ""
+        }
     }
 
     /// A short plain-text sample (title + leading prose) used to detect the
