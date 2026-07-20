@@ -1433,6 +1433,16 @@ public final class ReaderStore {
         return visible[index + 1]
     }
 
+    /// The article shown right before `id` in the current visible list, or nil if
+    /// `id` is the first one. Lets the native reader preview "previous".
+    public func article(before id: Article.ID) -> Article? {
+        let visible = visibleArticles
+        guard let index = visible.firstIndex(where: { $0.id == id }), index > 0 else {
+            return nil
+        }
+        return visible[index - 1]
+    }
+
     public func selectPreviousArticle() {
         moveSelection(offset: -1)
         syncBrowserModeToSelection()

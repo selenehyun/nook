@@ -1388,6 +1388,9 @@
         }
       }
     },
+    "Experimental" : {
+
+    },
     "Export OPML" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1532,6 +1535,9 @@
           }
         }
       }
+    },
+    "Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice." : {
+
     },
     "Fill in missing article dates" : {
       "localizations" : {
@@ -3495,6 +3501,9 @@
         }
       }
     },
+    "Reader View" : {
+
+    },
     "Reading" : {
       "localizations" : {
         "en" : {
@@ -4395,6 +4404,9 @@
 
     },
     "Show Original Text" : {
+
+    },
+    "Show reader view content by default" : {
 
     },
     "Show unread count on app icon" : {

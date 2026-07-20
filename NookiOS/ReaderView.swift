@@ -160,6 +160,14 @@ struct ReaderDetailView: View {
                     }
                 }
             }
+            // Pull past the bottom for the next article, past the top for the
+            // previous one. The web reader keeps its own bottom-only affordance.
+            .readerSwipeNavigation(
+                nextTitle: store.article(after: article.id)?.title,
+                previousTitle: store.article(before: article.id)?.title,
+                onNext: { navigateReader(forward: true) },
+                onPrevious: { navigateReader(forward: false) }
+            )
         }
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
@@ -250,6 +258,20 @@ struct ReaderDetailView: View {
         }
         .sheet(isPresented: $isShowingInfo) {
             ArticleInfoView(store: store, article: article)
+        }
+        .id(article.id)
+        .transition(.push(from: readerNavForward ? .bottom : .top))
+    }
+
+    /// Whether the last article change moved forward (next). Drives the push
+    /// transition direction so previous/next slide the natural way.
+    @State private var readerNavForward = true
+
+    /// Navigates to the adjacent article with a directional push animation.
+    private func navigateReader(forward: Bool) {
+        readerNavForward = forward
+        withAnimation(.easeInOut(duration: 0.3)) {
+            if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
         }
     }
 

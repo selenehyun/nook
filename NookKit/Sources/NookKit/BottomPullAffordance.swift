@@ -202,7 +202,7 @@ public struct BottomPullAffordance: View {
 
 /// A capsule background using the system Liquid Glass material where available,
 /// falling back to a regular material on earlier OSes.
-private struct GlassPill: ViewModifier {
+struct GlassPill: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, macOS 26.0, *) {

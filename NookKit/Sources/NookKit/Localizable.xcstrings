@@ -366,6 +366,9 @@
         }
       }
     },
+    "Loading reader view…" : {
+
+    },
     "Match Appearance" : {
       "localizations" : {
         "en" : {
@@ -646,6 +649,9 @@
         }
       }
     },
+    "Reader view couldn't be loaded for this article." : {
+
+    },
     "Release for next article" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -730,6 +736,9 @@
           }
         }
       }
+    },
+    "Showing original content" : {
+
     },
     "Starred" : {
       "localizations" : {
@@ -926,6 +935,9 @@
           }
         }
       }
+    },
+    "Try Again" : {
+
     },
     "Ungrouped" : {
       "localizations" : {
