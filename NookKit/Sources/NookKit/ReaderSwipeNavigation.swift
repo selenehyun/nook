@@ -50,12 +50,13 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let onNext: () -> Void
     let onPrevious: () -> Void
 
-    /// Pull distance past an edge needed to commit to a navigation. Deliberately
-    /// small — a pull only ever starts at an edge (never mid-scroll), so a light
-    /// overscroll is enough and there's no risk of an accidental trigger.
-    static let threshold: CGFloat = 15
-    /// The pull distance below which the affordance stays hidden.
-    private static let revealThreshold: CGFloat = 1
+    /// Pull distance past an edge needed to commit to a navigation. A moderate,
+    /// deliberate pull — a pull only ever starts at an edge (never mid-scroll),
+    /// so this is purely about how far to pull, not about avoiding false hits.
+    static let threshold: CGFloat = 60
+    /// The pull distance below which the affordance stays hidden. Low, so the
+    /// indicator appears as soon as the pull starts and then fills toward commit.
+    private static let revealThreshold: CGFloat = 2
 
     @State private var pull = EdgePull()
 
