@@ -125,11 +125,11 @@ indirect enum HTMLContentBlock: Equatable, Sendable {
 
     enum TextPart: Equatable, Sendable {
         case html(String)
-        case plain(String)
-        /// The segment about to be translated: its original HTML, shown dimmed so
-        /// the block stays visible (never blanks) while the model works, then
-        /// crossfades to the streaming translation once the first token arrives.
-        case pending(String)
+        /// The segment being translated: its original plain text is laid underneath
+        /// (dimmed) and the streaming translation types on top, with the original
+        /// erased in proportion to how much has streamed — so the block never
+        /// blanks and the translation visibly overlays and replaces it in place.
+        case streaming(original: String, text: String)
     }
 }
 
@@ -1234,33 +1234,27 @@ private struct NativeMixedText: View {
                 switch part {
                 case .html(let html):
                     HTMLContentText(html: html, selectable: selectable)
-                        .transition(.opacity)
-                case .plain(let text):
-                    // A `.plain` part is only ever the segment currently being
-                    // translated (it settles to `.html` once done), so it always
-                    // shows the live typing effect.
-                    StreamingText(text: text, selectable: selectable)
-                        .transition(.opacity)
-                case .pending(let html):
-                    // The soon-to-be-translated segment: original text kept visible
-                    // but dimmed, so the block never blanks before typing starts.
-                    HTMLContentText(html: html, selectable: selectable)
-                        .opacity(0.35)
-                        .transition(.opacity)
+                case .streaming(let original, let text):
+                    // The segment currently being translated (settles to `.html`
+                    // once done): dimmed original underneath, translation typing on
+                    // top, original erased as the translation streams.
+                    StreamingText(original: original, text: text, selectable: selectable)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeInOut(duration: 0.28), value: parts)
     }
 }
 
-/// The actively streaming segment of a translation: characters reveal
-/// progressively (typewriter) with a blinking block caret at the end,
-/// ChatGPT/Claude style. The model emits text in coarse ~12-char snapshots; this
-/// view reveals it one character at a time (speeding up when it falls behind) so
-/// growth reads as smooth typing rather than jumps.
+/// The actively streaming segment of a translation. The dimmed original text is
+/// laid underneath and the translation types on top (typewriter, with a blinking
+/// block caret, ChatGPT/Claude style); the original fades out in proportion to
+/// how much of the translation has streamed, so it reads as the translation
+/// overlaying and erasing the source in place rather than the block blanking.
+/// The model emits text in coarse ~12-char snapshots; this reveals it a character
+/// at a time (speeding up when behind) so growth reads as smooth typing.
 private struct StreamingText: View {
+    let original: String
     let text: String
     let selectable: Bool
     @State private var shown = 0
@@ -1270,11 +1264,23 @@ private struct StreamingText: View {
     // never reflows as it blinks.
     private let caret = "\u{2588}"   // █ full block — clearly visible
     private let blinkPeriod = 0.55
+    private let originalDim = 0.4     // resting opacity of the not-yet-erased source
 
     var body: some View {
+        // Progress toward the current snapshot drives how much of the source is
+        // erased; use the revealed count so it tracks the visible typing.
+        let progress = text.isEmpty ? 0 : min(1, Double(shown) / Double(max(text.count, 1)))
         TimelineView(.periodic(from: .now, by: blinkPeriod)) { context in
             let caretOn = Int(context.date.timeIntervalSinceReferenceDate / blinkPeriod).isMultiple(of: 2)
-            content(visible: String(text.prefix(shown)), caretOn: caretOn)
+            ZStack(alignment: .topLeading) {
+                if !original.isEmpty {
+                    Text(original)
+                        .lineSpacing(4)
+                        .foregroundStyle(.secondary)
+                        .opacity(originalDim * (1 - progress))
+                }
+                content(visible: String(text.prefix(shown)), caretOn: caretOn)
+            }
         }
         .task(id: text) { await reveal() }
     }

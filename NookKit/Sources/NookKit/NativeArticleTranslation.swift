@@ -540,20 +540,31 @@ public final class NativeArticleTranslator {
         return context
     }
 
-    /// Builds the streaming block's parts: the active segment shows its dimmed
-    /// original (`.pending`) until the first token arrives, then streams as plain
-    /// text (`.plain`) — so the block never blanks and crossfades in place — while
-    /// every other non-empty segment renders as its HTML.
+    /// Builds the streaming block's parts: the active segment lays its dimmed
+    /// original text under the streaming translation (`.streaming`), which types on
+    /// top and erases the original as it grows — so the block never blanks and the
+    /// translation overlays it in place — while every other non-empty segment
+    /// renders as its HTML.
     private func mixedParts(output: [String], activeIndex: Int, activePartial: String) -> [HTMLContentBlock.TextPart] {
         var parts: [HTMLContentBlock.TextPart] = []
         for (i, segment) in output.enumerated() {
             if i == activeIndex {
-                parts.append(activePartial.isEmpty ? .pending(segment) : .plain(activePartial))
+                parts.append(.streaming(original: plainText(segment), text: activePartial))
             } else if !segment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append(.html(segment))
             }
         }
         return parts
+    }
+
+    /// Plain, tag-stripped text of an original HTML segment, for the dimmed
+    /// underlay behind the streaming translation.
+    private func plainText(_ html: String) -> String {
+        HTMLContentParser.decodeEntities(
+            html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        )
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Streaming counterpart to `translateFragment`: forwards each marker-stripped
