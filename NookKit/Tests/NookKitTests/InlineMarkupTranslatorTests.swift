@@ -114,6 +114,36 @@ struct InlineMarkupTranslatorTests {
         #expect(localEntries.isEmpty)
     }
 
+    @Test("Glossary terms are protected as opaque markers and restored verbatim")
+    func protectsTerms() {
+        let (marked, entries) = Engine.markify("OpenAI and Gwern discussed GPT-4.")
+        let (protectedTemplate, protectedEntries) = Engine.protectTerms(marked, entries: entries, terms: ["OpenAI", "Gwern", "GPT-4"])
+        // Each term is replaced by an opaque marker; the words no longer appear.
+        #expect(!protectedTemplate.contains("OpenAI"))
+        #expect(!protectedTemplate.contains("Gwern"))
+        #expect(!protectedTemplate.contains("GPT-4"))
+        // A translation that keeps the markers restores every term byte-for-byte.
+        let translated = protectedTemplate  // model kept markers, "translated" the gaps trivially
+        let rebuilt = Engine.rebuild(translated, entries: protectedEntries)
+        #expect(rebuilt == "OpenAI and Gwern discussed GPT-4.")
+    }
+
+    @Test("Term protection does not match inside larger words")
+    func protectTermsRespectsBoundaries() {
+        let (marked, entries) = Engine.markify("The airplane and the mainframe.")
+        // "AI" and "main" must not match inside airplane/mainframe.
+        let (template, _) = Engine.protectTerms(marked, entries: entries, terms: ["AI", "main"])
+        #expect(template == "The airplane and the mainframe.")
+    }
+
+    @Test("plainSource keeps protected terms but drops formatting markers")
+    func plainSourceKeepsTerms() {
+        let (marked, entries) = Engine.markify("Read <a href=\"/x\">OpenAI</a> docs")
+        let (template, protectedEntries) = Engine.protectTerms(marked, entries: entries, terms: ["OpenAI"])
+        // Formatting markers gone, the term kept as literal text.
+        #expect(Engine.plainSource(template, entries: protectedEntries) == "Read OpenAI docs")
+    }
+
     @Test("Corrupted markers are stripped, not leaked into the text")
     func stripsCorruptedMarkers() {
         // The model mangled a footnote marker into "⟦5⟦3" at the end of a sentence.

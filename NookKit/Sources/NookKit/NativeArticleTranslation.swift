@@ -254,6 +254,72 @@ enum InlineMarkupTranslator {
         return (out, localEntries)
     }
 
+    /// Replaces every occurrence of a glossary `term` in the template's text with
+    /// an opaque marker (its literal kept as an entry with an empty tag name), so
+    /// the model never sees — and thus can't translate, transliterate, or garble —
+    /// names/brands/technical terms; rebuild restores each one byte-for-byte. This
+    /// makes term preservation deterministic and identical across every block,
+    /// rather than depending on the model obeying an instruction. Case-insensitive
+    /// with alphanumeric boundaries; longer terms match first.
+    static func protectTerms(_ template: String, entries: [Entry], terms: [String]) -> (template: String, entries: [Entry]) {
+        let cleaned = terms
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 2 }
+            .sorted { $0.count > $1.count }
+        guard !cleaned.isEmpty else { return (template, entries) }
+        let alternation = cleaned.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
+        let pattern = "(?<![A-Za-z0-9])(?:\(alternation))(?![A-Za-z0-9])"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return (template, entries)
+        }
+        let ns = template as NSString
+        let matches = regex.matches(in: template, range: NSRange(location: 0, length: ns.length))
+        guard !matches.isEmpty else { return (template, entries) }
+
+        var out = ""
+        var newEntries = entries
+        var cursor = 0
+        for m in matches {
+            let r = m.range
+            guard r.location >= cursor else { continue }
+            if r.location > cursor {
+                out += ns.substring(with: NSRange(location: cursor, length: r.location - cursor))
+            }
+            let idx = newEntries.count
+            newEntries.append(Entry(raw: ns.substring(with: r), name: "", opaque: true))
+            out += "\u{27E6}=\(idx)\u{27E7}"
+            cursor = r.location + r.length
+        }
+        if cursor < ns.length { out += ns.substring(from: cursor) }
+        return (out, newEntries)
+    }
+
+    /// Plain text for the non-guided fallback: drops formatting and void-tag
+    /// markers but restores protected glossary terms (opaque entries with an empty
+    /// tag name) as their literal text, so the model still sees the terms and can
+    /// translate around them (plain `stripMarkers` would delete them entirely).
+    static func plainSource(_ template: String, entries: [Entry]) -> String {
+        let ns = template as NSString
+        let matches = markerRegex.matches(in: template, range: NSRange(location: 0, length: ns.length))
+        var out = ""
+        var cursor = 0
+        for m in matches {
+            let r = m.range
+            if r.location > cursor {
+                out += ns.substring(with: NSRange(location: cursor, length: r.location - cursor))
+            }
+            cursor = r.location + r.length
+            let kind = m.range(at: 1).location == NSNotFound ? "" : ns.substring(with: m.range(at: 1))
+            if kind == "=", let idx = Int(ns.substring(with: m.range(at: 2))),
+               idx >= 0, idx < entries.count, entries[idx].name.isEmpty {
+                out += entries[idx].raw   // a protected term: keep its literal text
+            }
+            // void tag (name != "") or formatting marker: dropped
+        }
+        if cursor < ns.length { out += ns.substring(from: cursor) }
+        return out
+    }
+
     /// One translatable unit of a `.text` block. Paragraph-level so a long body
     /// (which the parser keeps as one `.text` block) is translated and streamed
     /// paragraph by paragraph instead of in a single oversized model call.
@@ -678,7 +744,10 @@ public final class NativeArticleTranslator {
         _ html: String, language: String, context: String, token: Int,
         onPartial: @escaping (String) -> Void
     ) async -> (String, String)? {
-        let (template, entries) = InlineMarkupTranslator.markify(html)
+        let (marked, markedEntries) = InlineMarkupTranslator.markify(html)
+        // Protect glossary terms as opaque markers so they're preserved verbatim
+        // and identically everywhere, deterministically.
+        let (template, entries) = InlineMarkupTranslator.protectTerms(marked, entries: markedEntries, terms: keepTerms)
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
@@ -720,7 +789,7 @@ public final class NativeArticleTranslator {
         onPartial: @escaping (String) -> Void
     ) async -> (html: String, stripped: String) {
         let (local, localEntries) = InlineMarkupTranslator.localize(chunk, entries: entries)
-        let translated = await escalateTranslate(local, language: language, token: token, onPartial: onPartial)
+        let translated = await escalateTranslate(local, entries: localEntries, language: language, token: token, onPartial: onPartial)
         // Rebuild this chunk alone; on marker failure fall back to plain text for
         // just this chunk. When we gave up (translated == local, the untranslated
         // original), rebuild restores the original tags around the original text —
@@ -737,7 +806,7 @@ public final class NativeArticleTranslator {
     /// plain text) → the original chunk as a last resort (styles preserved, text
     /// untranslated).
     private func escalateTranslate(
-        _ template: String, language: String, token: Int,
+        _ template: String, entries: [InlineMarkupTranslator.Entry], language: String, token: Int,
         onPartial: @escaping (String) -> Void
     ) async -> String {
         // 1) Guided streaming — markers preserved, streams token by token.
@@ -760,8 +829,9 @@ public final class NativeArticleTranslator {
         guard token == generation else { return template }
         // 3) Plain, non-guided translation — recovers from the echo failure mode
         // guided decoding falls into, at the cost of this chunk's inline markup.
+        // Use plainSource (not stripMarkers) so protected terms survive as text.
         if let plain = await NaturalTranslator.translatePlainFallback(
-            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain, keepTerms: keepTerms
+            InlineMarkupTranslator.plainSource(template, entries: entries), into: language, domain: conceptDomain, keepTerms: keepTerms
         ) {
             await paceEmit(plain, onPartial: onPartial, token: token)
             return plain
@@ -862,7 +932,8 @@ public final class NativeArticleTranslator {
     private func translateFragment(
         _ html: String, language: String, context: String, token: Int
     ) async -> (String, String)? {
-        let (template, entries) = InlineMarkupTranslator.markify(html)
+        let (marked, markedEntries) = InlineMarkupTranslator.markify(html)
+        let (template, entries) = InlineMarkupTranslator.protectTerms(marked, entries: markedEntries, terms: keepTerms)
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
