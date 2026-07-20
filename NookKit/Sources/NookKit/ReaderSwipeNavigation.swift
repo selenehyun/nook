@@ -288,10 +288,6 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
         /// Returns true to consume the event (we're driving the pull).
         private func handle(_ event: NSEvent) -> Bool {
             guard let probe, let window = probe.window, event.window === window else { return false }
-            // Only act when the pointer is over the reader, so scrolling the
-            // sidebar or article list never drives article navigation.
-            let point = probe.convert(event.locationInWindow, from: nil)
-            let overReader = probe.bounds.contains(point)
             let delta = event.scrollingDeltaY
 
             // Record, at the start of each gesture, whether it began resting at an
@@ -303,10 +299,17 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             }
 
             if engaged == nil {
-                // Require a real (phased) gesture that began at the edge, isn't in
-                // momentum, and is over the reader — so scrolling through the body
-                // (or a legacy mouse wheel with no gesture end) never engages.
-                guard overReader, event.momentumPhase == [], !event.phase.isEmpty else { return false }
+                // Require a real (phased) gesture that isn't in momentum (a legacy
+                // mouse wheel has no gesture end to commit on).
+                guard event.momentumPhase == [], !event.phase.isEmpty else { return false }
+                // Only engage when the scroll actually targets the reader's scroll
+                // view — not the sidebar/article list, and not an overlay on top of
+                // the reader (e.g. the in-app browser web view, which may itself be
+                // non-scrollable). Hit-testing the top-most view under the pointer
+                // excludes anything covering the reader.
+                guard let scroll = scrollView(),
+                      let hit = window.contentView?.hitTest(event.locationInWindow),
+                      hit.isDescendant(of: scroll) else { return false }
                 // Engage only when the content is STILL at that edge right now AND
                 // the gesture began there. The live check stops a gesture that
                 // began at the top, scrolled down, then reversed back up (now away
