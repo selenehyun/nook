@@ -225,6 +225,9 @@ public final class NativeArticleTranslator {
     private var overrides: [Int: HTMLContentBlock] = [:]
     private var task: Task<Void, Never>?
     private var generation = 0
+    /// The article's detected subject/field, passed to block translation so it
+    /// reads with field-appropriate terminology. Empty until detected.
+    private var conceptDomain = ""
 
     public init() {}
 
@@ -257,10 +260,16 @@ public final class NativeArticleTranslator {
         isTranslating = false
         overrides = [:]
         translatedTitle = nil
+        conceptDomain = ""
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
         var context = ""
+
+        // Detect the article's subject up front so each block is translated with
+        // field-appropriate terminology (best-effort; empty if unavailable).
+        conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks)) ?? ""
+        guard token == generation else { return }
 
         // Title: a plain, bounded translation. Using the simple translator (not
         // the block/marker one) keeps a short title from ever ballooning into a
@@ -280,6 +289,29 @@ public final class NativeArticleTranslator {
         }
 
         if token == generation { isTranslating = false }
+    }
+
+    /// A short plain-text sample (title + leading prose) used to detect the
+    /// article's subject/field. Bounded so concept detection stays cheap.
+    private func conceptSample(title: String, blocks: [HTMLContentBlock]) -> String {
+        var parts = [title.trimmingCharacters(in: .whitespacesAndNewlines)]
+        for block in blocks {
+            let plain: String
+            switch block {
+            case .text(let html):
+                plain = InlineMarkupTranslator.stripMarkers(html)
+                    .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            case .heading(_, let html):
+                plain = InlineMarkupTranslator.stripMarkers(html)
+                    .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            default:
+                continue
+            }
+            let trimmed = plain.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { parts.append(trimmed) }
+            if parts.reduce(0, { $0 + $1.count }) > 1200 { break }
+        }
+        return parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Translates one top-level block, updating its override as results stream in
@@ -409,7 +441,7 @@ public final class NativeArticleTranslator {
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        guard let result = try? await NaturalTranslator.streamTranslateBlock(template, into: language, onPartial: { partial in
+        guard let result = try? await NaturalTranslator.streamTranslateBlock(template, into: language, domain: conceptDomain, onPartial: { partial in
             onPartial(InlineMarkupTranslator.stripMarkers(partial))
         }) else {
             return nil
@@ -488,7 +520,7 @@ public final class NativeArticleTranslator {
         guard !InlineMarkupTranslator.stripMarkers(template).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        guard let result = try? await NaturalTranslator.translateBlock(template, into: language, context: context) else {
+        guard let result = try? await NaturalTranslator.translateBlock(template, into: language, context: context, domain: conceptDomain) else {
             return nil
         }
         guard token == generation else { return nil }
