@@ -129,9 +129,15 @@ enum InlineMarkupTranslator {
     }
 
     static func stripMarkers(_ template: String) -> String {
-        template.replacingOccurrences(
-            of: "\u{27E6}[=/]?[0-9]+\u{27E7}", with: "", options: .regularExpression
-        )
+        // Well-formed markers first, then any corrupted leftovers: the model can
+        // mangle a marker (e.g. ⟦=5⟧ → "⟦5⟦3"), and since ⟦/⟧ never occur in real
+        // text, remove any opener with its index digits even when the closer is
+        // missing/misplaced, plus any stray delimiter — so nothing leaks into the
+        // displayed text or the plain fallback.
+        return template
+            .replacingOccurrences(of: "\u{27E6}[=/]?[0-9]+\u{27E7}", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\u{27E6}[=/]?[0-9]*\u{27E7}?", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "[\u{27E6}\u{27E7}]", with: "", options: .regularExpression)
     }
 
     /// Approximate upper bound on the characters of a marked template sent to the

@@ -1243,40 +1243,48 @@ private struct NativeMixedText: View {
 }
 
 /// The actively streaming segment of a translation: characters reveal
-/// progressively (typewriter) with a blinking caret at the end, ChatGPT/Claude
-/// style. The model emits text in coarse ~12-char snapshots; this view reveals
-/// each snapshot a couple of characters at a time so growth reads as smooth
-/// typing rather than jumps.
+/// progressively (typewriter) with a blinking block caret at the end,
+/// ChatGPT/Claude style. The model emits text in coarse ~12-char snapshots; this
+/// view reveals it one character at a time (speeding up when it falls behind) so
+/// growth reads as smooth typing rather than jumps.
 private struct StreamingText: View {
     let text: String
     let selectable: Bool
     @State private var shown = 0
 
-    // ▏ (thin left block) as a caret; blinks by toggling its color, so its width
-    // is always reserved and the text never reflows as it blinks.
-    private let caret = "\u{258F}"
-    private let blinkPeriod = 0.5
+    // A solid block glyph as the caret. It blinks by toggling its color between
+    // the text color and clear, so its width is always reserved and the text
+    // never reflows as it blinks.
+    private let caret = "\u{2588}"   // █ full block — clearly visible
+    private let blinkPeriod = 0.55
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: blinkPeriod)) { context in
             let caretOn = Int(context.date.timeIntervalSinceReferenceDate / blinkPeriod).isMultiple(of: 2)
             content(visible: String(text.prefix(shown)), caretOn: caretOn)
         }
-        .task(id: text) {
-            // Catch up to the latest snapshot a few characters at a time. `.task`
-            // restarts on each new snapshot, so reveal continues seamlessly.
-            if shown > text.count { shown = text.count }
-            while shown < text.count {
-                shown = min(text.count, shown + 2)
-                try? await Task.sleep(for: .milliseconds(14))
-                if Task.isCancelled { return }
-            }
+        .task(id: text) { await reveal() }
+    }
+
+    /// Advances `shown` toward the latest snapshot. `.task(id: text)` restarts
+    /// this on every new snapshot; `shown` is `@State`, so reveal resumes where
+    /// it left off. Reveals faster the further behind it is, so a big jump never
+    /// visibly stalls while a near-caught-up stream still types deliberately.
+    private func reveal() async {
+        if shown > text.count { shown = text.count }   // a new (shorter) segment
+        while shown < text.count {
+            let backlog = text.count - shown
+            let step = backlog > 160 ? 6 : (backlog > 60 ? 3 : 1)
+            let delayMS: UInt64 = backlog > 160 ? 5 : (backlog > 60 ? 10 : 22)
+            shown = min(text.count, shown + step)
+            try? await Task.sleep(nanoseconds: delayMS * 1_000_000)
+            if Task.isCancelled { return }
         }
     }
 
     @ViewBuilder
     private func content(visible: String, caretOn: Bool) -> some View {
-        let rendered = (Text(visible) + Text(caret).foregroundColor(caretOn ? .secondary : .clear))
+        let rendered = (Text(visible) + Text(caret).foregroundColor(caretOn ? .primary : .clear))
             .lineSpacing(4)
         if selectable {
             rendered.textSelection(.enabled)

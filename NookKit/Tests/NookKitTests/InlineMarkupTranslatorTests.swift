@@ -94,6 +94,18 @@ struct InlineMarkupTranslatorTests {
         #expect(segments == [Engine.Segment(raw: "just some text", translatable: true, open: "", inner: "just some text", close: "")])
     }
 
+    @Test("Corrupted markers are stripped, not leaked into the text")
+    func stripsCorruptedMarkers() {
+        // The model mangled a footnote marker into "⟦5⟦3" at the end of a sentence.
+        let mangled = "…를 얻는 것'을 의미합니다\u{27E6}5\u{27E6}3."
+        #expect(Engine.stripMarkers(mangled) == "…를 얻는 것'을 의미합니다.")
+        // A lone opener or closer is removed too.
+        #expect(Engine.stripMarkers("좋아요\u{27E6}") == "좋아요")
+        #expect(Engine.stripMarkers("좋아요\u{27E7}") == "좋아요")
+        // Well-formed markers still strip exactly as before.
+        #expect(Engine.stripMarkers("\u{27E6}0\u{27E7}가\u{27E6}/0\u{27E7}") == "가")
+    }
+
     @Test("A short template is a single chunk left unchanged")
     func chunkShort() {
         let t = "Hello world. This stays whole."
