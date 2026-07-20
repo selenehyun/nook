@@ -98,6 +98,7 @@ private struct ReadingSettingsScreen: View {
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
+    @AppStorage(ReaderStore.longPressOpensBrowserKey) private var longPressOpensBrowser = false
 
     var body: some View {
         Form {
@@ -114,6 +115,10 @@ private struct ReadingSettingsScreen: View {
                 Picker("Links Open", selection: $readerLinkBehavior) {
                     ForEach(ReaderLinkBehavior.allCases) { Text($0.label).tag($0) }
                 }
+                Toggle("Press and hold article to open browser", isOn: $longPressOpensBrowser)
+                Text("When on, press-and-hold the article body to open the in-app browser. The toolbar button opens it either way.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Reading")

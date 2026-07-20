@@ -1170,6 +1170,10 @@ public final class ReaderStore {
     /// experiment. Shared so both platforms read the same flag. Defaults on.
     public static let readerContentByDefaultKey = "readerContentByDefault"
 
+    /// `UserDefaults` key for the opt-in "press-and-hold the article body to open
+    /// the in-app browser" gesture (iOS). Defaults off.
+    public static let longPressOpensBrowserKey = "longPressOpensBrowser"
+
     /// Whether the native reader should show reader-mode-extracted content
     /// instead of the raw feed body by default.
     public var usesReaderContentByDefault: Bool {

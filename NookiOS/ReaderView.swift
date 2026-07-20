@@ -11,6 +11,10 @@ struct ReaderDetailView: View {
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
+    /// Opt-in: press-and-hold the article body to open the in-app browser. Off by
+    /// default now that the native reader covers most reading; the toolbar button
+    /// still opens the browser.
+    @AppStorage(ReaderStore.longPressOpensBrowserKey) private var longPressOpensBrowser = false
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
     @AppStorage("readerFontSize") private var readerFontSize = 18
     @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
@@ -133,32 +137,37 @@ struct ReaderDetailView: View {
                 // the empty space below a short article, not only on the text.
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
                 .contentShape(Rectangle())
-                // Double-tap the body to star; press-and-hold to open the web
-                // view with a build-up of haptic taps ending in one deep pulse.
+                // Double-tap the body to star; press-and-hold (opt-in) to open the
+                // web view with a build-up of haptic taps ending in one deep pulse.
                 .onTapGesture(count: 2) {
                     let willStar = !article.isStarred
                     store.toggleStarred(articleID: article.id)
                     haptics.star(on: willStar)
                     triggerStarBurst(on: willStar)
                 }
-                .onLongPressGesture(minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration, maximumDistance: 10) {
-                    pendingBuildup?.cancel()
-                    pendingBuildup = nil
-                    openBrowser(for: article)
-                } onPressingChanged: { pressing in
-                    if pressing {
-                        // Defer the haptic; if the finger moves (swipe/scroll),
-                        // the gesture cancels and pressing flips false first.
-                        pendingBuildup = Task {
-                            try? await Task.sleep(for: .seconds(hapticStartDelay))
-                            if !Task.isCancelled { haptics.startLongPressBuildup() }
-                        }
-                    } else {
+                .modifier(LongPressToOpenBrowser(
+                    enabled: longPressOpensBrowser,
+                    minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration,
+                    onOpen: {
                         pendingBuildup?.cancel()
                         pendingBuildup = nil
-                        haptics.cancelLongPressBuildup()
+                        openBrowser(for: article)
+                    },
+                    onPressingChanged: { pressing in
+                        if pressing {
+                            // Defer the haptic; if the finger moves (swipe/scroll),
+                            // the gesture cancels and pressing flips false first.
+                            pendingBuildup = Task {
+                                try? await Task.sleep(for: .seconds(hapticStartDelay))
+                                if !Task.isCancelled { haptics.startLongPressBuildup() }
+                            }
+                        } else {
+                            pendingBuildup?.cancel()
+                            pendingBuildup = nil
+                            haptics.cancelLongPressBuildup()
+                        }
                     }
-                }
+                ))
             }
             // Pull past the bottom for the next article, past the top for the
             // previous one. The web reader keeps its own bottom-only affordance.
@@ -633,6 +642,28 @@ struct InAppBrowserSheet: View {
             if markReadOnOpen {
                 store.markArticleOpened(articleID: article.id)
             }
+        }
+    }
+}
+
+/// Applies the press-and-hold-to-open-browser gesture only when the opt-in
+/// setting is enabled; otherwise the body carries no long-press gesture.
+private struct LongPressToOpenBrowser: ViewModifier {
+    let enabled: Bool
+    let minimumDuration: Double
+    let onOpen: () -> Void
+    let onPressingChanged: (Bool) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onLongPressGesture(
+                minimumDuration: minimumDuration,
+                maximumDistance: 10,
+                perform: onOpen,
+                onPressingChanged: onPressingChanged
+            )
+        } else {
+            content
         }
     }
 }
