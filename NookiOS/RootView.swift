@@ -475,6 +475,7 @@ private struct Sidebar: View {
             }
             .frame(width: 18, height: 18)
             .animation(.easeInOut(duration: 0.18), value: isRefreshing)
+            .feedActivityFlash(active: store.isRecentlyUpdated(feedID: feed.id))
             Text(feed.displayTitle).lineLimit(1)
             Spacer()
             let count = store.unreadCount(feedID: feed.id)

@@ -675,6 +675,7 @@ private struct FeedSidebar: View {
             iconImage: store.faviconImage(for: feed),
             isRefreshing: store.isRefreshing(feedID: feed.id),
             isUnhealthy: !store.isRefreshing(feedID: feed.id) && feed.healthScore < 0.5,
+            isUpdated: store.isRecentlyUpdated(feedID: feed.id),
             count: store.unreadCount(feedID: feed.id)
         )
         .tag(feed.id)
@@ -978,6 +979,7 @@ private struct SourceRow: View {
     var iconImage: Image?
     var isRefreshing: Bool
     var isUnhealthy: Bool
+    var isUpdated: Bool
     var count: Int
 
     init(
@@ -987,6 +989,7 @@ private struct SourceRow: View {
         iconImage: Image? = nil,
         isRefreshing: Bool = false,
         isUnhealthy: Bool = false,
+        isUpdated: Bool = false,
         count: Int
     ) {
         self.title = title
@@ -995,6 +998,7 @@ private struct SourceRow: View {
         self.iconImage = iconImage
         self.isRefreshing = isRefreshing
         self.isUnhealthy = isUnhealthy
+        self.isUpdated = isUpdated
         self.count = count
     }
 
@@ -1049,6 +1053,7 @@ private struct SourceRow: View {
             }
             .frame(width: 16, height: 16)
             .animation(.easeInOut(duration: 0.18), value: isRefreshing)
+            .feedActivityFlash(active: isUpdated)
         }
     }
 }
@@ -1193,7 +1198,7 @@ private struct ArticleListStatusBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            if store.isRefreshing {
+            if store.isVisiblyRefreshing {
                 ProgressView()
                     .controlSize(.small)
                 Text("Refreshing")

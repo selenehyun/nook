@@ -126,6 +126,18 @@ public final class ReaderStore {
             case .ambient, .background: false
             }
         }
+
+        /// Whether the per-feed sidebar spinner shows while fetching. On only for
+        /// user-initiated refreshes; automatic (ambient/background) refreshes stay
+        /// visually silent so returning to Nook or a periodic tick doesn't flip
+        /// every feed icon to a spinner. New content is signalled by a brief
+        /// per-feed flash instead (see `recentlyUpdatedFeedIDs`).
+        var showsSpinner: Bool {
+            switch self {
+            case .interactive: true
+            case .ambient, .background: false
+            }
+        }
     }
 
     private let feedService = RSSFeedService()
@@ -152,7 +164,20 @@ public final class ReaderStore {
     // the final state when the refresh finishes.
     private var isBatchRefreshing = false
     private var isAccessingSecurityScopedResource = false
+    // Every feed with a network fetch in flight, in any mode. Drives the global
+    // `isRefreshing` (concurrency guards, disabled buttons) so an automatic
+    // refresh still coalesces with user-initiated ones.
     private var refreshingFeedIDs: Set<Feed.ID> = []
+    // Feeds whose per-feed spinner should show — populated only for user-initiated
+    // (interactive) refreshes, so automatic ones update content without flipping
+    // feed icons to a spinner on every tick.
+    private var spinningFeedIDs: Set<Feed.ID> = []
+    // Feeds that just received new articles; the sidebar briefly flashes these,
+    // then they clear (see `flashFeedUpdate`).
+    private(set) var recentlyUpdatedFeedIDs: Set<Feed.ID> = []
+    // Per-feed timers that clear the flash flag; kept so a fresh update reschedules
+    // its own feed's clear instead of an older one cutting the flash short.
+    private var flashClearTasks: [Feed.ID: Task<Void, Never>] = [:]
 
     // Article bodies live in a separate sidecar so the launch baseline stays
     // small. This in-memory cache lets a re-merge (which reloads the light
@@ -206,6 +231,13 @@ public final class ReaderStore {
 
     public var isRefreshing: Bool {
         !refreshingFeedIDs.isEmpty
+    }
+
+    /// Whether a user-initiated refresh is visibly in progress. Drives the
+    /// "Refreshing" status bar / toolbar spinner so automatic (ambient/background)
+    /// refreshes stay silent, while `isRefreshing` still coalesces all refreshes.
+    public var isVisiblyRefreshing: Bool {
+        !spinningFeedIDs.isEmpty
     }
 
     public var selectedArticle: Article? {
@@ -766,7 +798,39 @@ public final class ReaderStore {
     }
 
     public func isRefreshing(feedID: Feed.ID) -> Bool {
-        refreshingFeedIDs.contains(feedID)
+        spinningFeedIDs.contains(feedID)
+    }
+
+    /// Whether the feed just received new articles and should flash in the
+    /// sidebar. Held true briefly after a refresh brings in new content.
+    public func isRecentlyUpdated(feedID: Feed.ID) -> Bool {
+        recentlyUpdatedFeedIDs.contains(feedID)
+    }
+
+    /// Marks a feed's fetch as in flight. `spinner` shows the per-feed spinner;
+    /// automatic refreshes pass false so the icon stays put.
+    private func beginFeedFetch(_ id: Feed.ID, spinner: Bool) {
+        refreshingFeedIDs.insert(id)
+        if spinner { spinningFeedIDs.insert(id) }
+    }
+
+    private func endFeedFetch(_ id: Feed.ID) {
+        refreshingFeedIDs.remove(id)
+        spinningFeedIDs.remove(id)
+    }
+
+    /// Briefly flags a feed as freshly updated so the sidebar can flash it, then
+    /// clears the flag after the flash window. Reschedules that feed's own clear
+    /// on a repeat update so the flash always plays in full.
+    private func flashFeedUpdate(_ feedID: Feed.ID) {
+        recentlyUpdatedFeedIDs.insert(feedID)
+        flashClearTasks[feedID]?.cancel()
+        flashClearTasks[feedID] = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1800))
+            guard !Task.isCancelled else { return }
+            self?.recentlyUpdatedFeedIDs.remove(feedID)
+            self?.flashClearTasks[feedID] = nil
+        }
     }
 
     /// Sets the per-feed reading-view override (`nil` = follow the global
@@ -1217,7 +1281,10 @@ public final class ReaderStore {
         feeds.removeAll { $0.id == feedID }
         articles.removeAll { $0.feedID == feedID }
         feedIcons[feedID] = nil
-        refreshingFeedIDs.remove(feedID)
+        endFeedFetch(feedID)
+        flashClearTasks[feedID]?.cancel()
+        flashClearTasks[feedID] = nil
+        recentlyUpdatedFeedIDs.remove(feedID)
 
         feedSelection.remove(feedID)
 
@@ -1437,14 +1504,14 @@ public final class ReaderStore {
             var next = 0
             let limit = min(mode.maxConcurrentFetches, targets.count)
             while next < limit {
-                // Mark in-flight so `isRefreshing` and the per-feed spinner track
-                // the concurrent fetch.
-                refreshingFeedIDs.insert(targets[next].id)
+                // Mark in-flight so `isRefreshing` tracks the concurrent fetch; the
+                // per-feed spinner shows only for user-initiated refreshes.
+                beginFeedFetch(targets[next].id, spinner: mode.showsSpinner)
                 launch(targets[next])
                 next += 1
             }
             while let (feedID, parsed, failure) = await group.next() {
-                refreshingFeedIDs.remove(feedID)
+                endFeedFetch(feedID)
                 // Cancelled (e.g. the user tapped "Add Feed"): stop launching more
                 // fetches and drain the in-flight ones without touching state, so
                 // a cancel yields promptly and doesn't mark feeds unhealthy on the
@@ -1463,7 +1530,7 @@ public final class ReaderStore {
                     errorMessage = failure
                 }
                 if next < targets.count {
-                    refreshingFeedIDs.insert(targets[next].id)
+                    beginFeedFetch(targets[next].id, spinner: mode.showsSpinner)
                     launch(targets[next])
                     next += 1
                 }
@@ -1478,9 +1545,11 @@ public final class ReaderStore {
     @discardableResult
     private func fetch(url: URL, existingFeedID: Feed.ID?) async throws -> ParsedFeed {
         let refreshID = existingFeedID ?? url.absoluteString
-        refreshingFeedIDs.insert(refreshID)
+        // Single-feed fetches are always user-initiated (add feed, refresh this
+        // feed), so the spinner is expected feedback.
+        beginFeedFetch(refreshID, spinner: true)
         defer {
-            refreshingFeedIDs.remove(refreshID)
+            endFeedFetch(refreshID)
         }
 
         var parsedFeed = try await feedService.fetch(url: url)
@@ -1574,6 +1643,12 @@ public final class ReaderStore {
     }
 
     private func merge(_ parsedFeed: ParsedFeed, animated: Bool = true) {
+        let feedID = parsedFeed.feed.id
+        // Whether this feed already had articles before the merge. A brand-new
+        // feed's first batch shouldn't flash (nothing "arrived" for the user yet);
+        // only a feed that already existed and now gains items should.
+        let feedHadArticles = articles.contains { $0.feedID == feedID }
+
         if let feedIndex = feeds.firstIndex(where: { $0.id == parsedFeed.feed.id }) {
             var updated = parsedFeed.feed
             // Preserve the user's per-feed settings across refreshes; a freshly
@@ -1635,6 +1710,13 @@ public final class ReaderStore {
             }
         } else {
             articles = merged
+        }
+
+        // Flash the feed in the sidebar when a refresh actually brought in new
+        // articles. This is the only visual signal for automatic refreshes (they
+        // show no spinner), so an unchanged refresh stays completely silent.
+        if hasNewArticles && feedHadArticles {
+            flashFeedUpdate(feedID)
         }
 
         // Keep the body cache current with freshly fetched content, so a later
