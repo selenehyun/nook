@@ -449,6 +449,11 @@ extension ArticleWebView {
                 wantsTranslation = true
                 runTranslationIfNeeded()
             } else {
+                // Nothing to undo when translation was never on. `updateNSView`
+                // calls this on every refresh (e.g. each page-load progress tick),
+                // so doing work here unconditionally would call back into SwiftUI
+                // state mid-update ("Modifying state during view update").
+                guard wantsTranslation || translationApplied || translationInFlight else { return }
                 // Stop any in-flight streaming (the loop bails on the next block)
                 // and reload to restore the original text.
                 wantsTranslation = false
@@ -477,7 +482,7 @@ extension ArticleWebView {
             guard wantsTranslation, contentReady, !translationApplied, !translationInFlight,
                   !translationLanguage.isEmpty, let webView else { return }
             translationInFlight = true
-            onTranslatingChange(true)
+            reportTranslating(true)
             beginBlockTranslation(webView, languageName: translationLanguage)
         }
 
@@ -531,7 +536,17 @@ extension ArticleWebView {
         @MainActor
         private func finishTranslating() {
             translationInFlight = false
-            onTranslatingChange(false)
+            reportTranslating(false)
+        }
+
+        /// Reports the translating flag on the next main-actor turn, never
+        /// synchronously — `applyTranslation`/`runTranslationIfNeeded` can be
+        /// reached from `updateNSView`, and mutating the caller's SwiftUI state
+        /// during a view update is undefined behavior.
+        @MainActor
+        private func reportTranslating(_ value: Bool) {
+            let report = onTranslatingChange
+            Task { @MainActor in report(value) }
         }
 
         /// Shared JS predicates identifying content that must NOT be translated:
