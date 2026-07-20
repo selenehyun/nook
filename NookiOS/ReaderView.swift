@@ -107,13 +107,21 @@ struct ReaderDetailView: View {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                // Slide the swapped content in with a manual offset animation.
-                // A SwiftUI `.transition` doesn't play here — the navigation
-                // detail suppresses it — so the incoming article is offset off
-                // the incoming edge and animated to rest (see `navigateReader`).
-                articleContent(article)
-                    .id(article.id)
-                    .offset(y: contentOffset)
+                // Manual push: the outgoing article slides off one edge while the
+                // incoming one slides in from the other, both at once (like macOS).
+                // A SwiftUI `.transition` doesn't play inside the navigation
+                // detail, so the two layers are offset and animated by hand.
+                ZStack {
+                    if let outgoing = outgoingArticle, outgoing.id != article.id {
+                        articleContent(outgoing)
+                            .id(outgoing.id)
+                            .offset(y: outgoingOffset)
+                            .allowsHitTesting(false)
+                    }
+                    articleContent(article)
+                        .id(article.id)
+                        .offset(y: incomingOffset)
+                }
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
@@ -287,24 +295,37 @@ struct ReaderDetailView: View {
     /// The reader viewport height, measured via a background reader — used both
     /// to fill the content to the viewport and as the slide distance.
     @State private var viewportHeight: CGFloat = 0
-    /// Vertical offset applied to the article content to animate a change: set to
-    /// the incoming edge, then eased back to zero.
-    @State private var contentOffset: CGFloat = 0
+    /// The article currently sliding out, rendered beneath the incoming one for
+    /// the duration of the push, then cleared.
+    @State private var outgoingArticle: Article?
+    /// Offsets driving the push: the incoming (current) article and the outgoing
+    /// one slide together.
+    @State private var incomingOffset: CGFloat = 0
+    @State private var outgoingOffset: CGFloat = 0
 
-    /// Navigates to the adjacent article with a directional slide animation. The
-    /// content swaps immediately (its `.id` changes), starts off the incoming
-    /// edge, then eases to rest — reliable inside the navigation detail where a
-    /// SwiftUI `.transition` doesn't play.
+    /// Navigates to the adjacent article with a two-layer push, matching macOS:
+    /// the outgoing article slides off one edge while the incoming one slides in
+    /// from the other. Done by hand because a SwiftUI `.transition` doesn't play
+    /// inside the navigation detail.
     private func navigateReader(forward: Bool) {
-        let previous = store.selectedArticleID
+        guard let previous = store.selectedArticle else { return }
         if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
         // At the first/last article the selection doesn't change — don't animate.
-        guard store.selectedArticleID != previous else { return }
+        guard let current = store.selectedArticle, current.id != previous.id else { return }
+
         let distance = viewportHeight > 0 ? viewportHeight : 600
-        contentOffset = forward ? distance : -distance
-        // Defer so the new content first renders at the offset, then slides in.
+        outgoingArticle = previous
+        outgoingOffset = 0
+        incomingOffset = forward ? distance : -distance
+        // Defer so both layers render at their start offsets, then slide together.
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.32)) { contentOffset = 0 }
+            withAnimation(.easeInOut(duration: 0.32)) {
+                outgoingOffset = forward ? -distance : distance
+                incomingOffset = 0
+            } completion: {
+                outgoingArticle = nil
+                outgoingOffset = 0
+            }
         }
     }
 
