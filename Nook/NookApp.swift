@@ -83,6 +83,9 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
 
     func applicationDidBecomeActive(_ notification: Notification) {
         ReaderStore.shared.setForegroundActive(true)
+        // The user is now in the app; a lingering "new articles" banner is just
+        // clutter, so dismiss any delivered one.
+        NewArticleNotifier.clearDelivered()
     }
 
     func applicationDidResignActive(_ notification: Notification) {
@@ -126,9 +129,13 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
             guard result.newArticleCount > 0, NewArticleNotifier.isEnabled, !NSApp.isActive else {
                 continue
             }
+            let body = await NewArticleSummarizer.notificationBody(
+                titles: result.sampleTitles,
+                count: result.newArticleCount
+            )
             await NewArticleNotifier.post(
                 title: String(localized: "New in Nook"),
-                body: Self.notificationBody(for: result),
+                body: body,
                 badge: result.badgeCount
             )
             store.markNotificationsDelivered(result.articleIDs)
@@ -143,11 +150,5 @@ final class BackgroundRefreshController: NSObject, NSApplicationDelegate, UNUser
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
-    }
-
-    private static func notificationBody(for result: ReaderStore.BackgroundRefreshResult) -> String {
-        let summary = String(localized: "\(result.newArticleCount) new articles")
-        guard !result.sampleTitles.isEmpty else { return summary }
-        return summary + "\n" + result.sampleTitles.joined(separator: "\n")
     }
 }

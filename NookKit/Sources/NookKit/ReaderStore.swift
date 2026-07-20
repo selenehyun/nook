@@ -973,8 +973,8 @@ public final class ReaderStore {
     }
 
     /// Result of a background refresh: how many genuinely new (previously
-    /// unseen, unread) articles arrived, and a few of their titles for a
-    /// notification.
+    /// unseen, unread) articles arrived, and their titles (most-recent first) for
+    /// the notification summarizer.
     public struct BackgroundRefreshResult: Sendable {
         public let newArticleCount: Int
         public let sampleTitles: [String]
@@ -1037,7 +1037,9 @@ public final class ReaderStore {
         let sorted = fresh.sorted(by: Article.isOrderedBefore)
         return BackgroundRefreshResult(
             newArticleCount: fresh.count,
-            sampleTitles: sorted.prefix(3).map(\.title),
+            // Carry enough titles for the summarizer to condense; it caps its own
+            // input, and the plain-list fallback trims to a few lines.
+            sampleTitles: sorted.prefix(12).map(\.title),
             articleIDs: fresh.map(\.id),
             badgeCount: showsUnreadBadge ? totalUnreadCount : 0
         )

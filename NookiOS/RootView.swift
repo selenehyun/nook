@@ -108,6 +108,8 @@ struct RootView: View {
                 store.setForegroundActive(true)
                 store.setSyncObservationActive(true)
                 store.syncFromDisk()
+                // In the app now: clear any lingering "new articles" banner.
+                NewArticleNotifier.clearDelivered()
                 if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
             case .background:
                 // Queue the next background refresh as we leave.

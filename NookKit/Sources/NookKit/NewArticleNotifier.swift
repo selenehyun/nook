@@ -10,6 +10,10 @@ public enum NewArticleNotifier {
     /// articles" preference. Shared so every reader of the toggle agrees.
     public static let enabledKey = "newArticleNotifications"
 
+    /// Shared identifier for every new-article notification, so a newer one
+    /// replaces the last and they can be cleared together.
+    private static let identifier = "nook.new-articles"
+
     /// Whether the user opted into new-article notifications. Defaults off.
     public static var isEnabled: Bool {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? false
@@ -42,7 +46,15 @@ public enum NewArticleNotifier {
         content.sound = .default
         if badge > 0 { content.badge = NSNumber(value: badge) }
 
-        let request = UNNotificationRequest(identifier: "nook.new-articles", content: content, trigger: nil)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
         try? await center.add(request)
+    }
+
+    /// Removes any delivered new-article notification from Notification Center.
+    /// Called when Nook becomes active: once the user is in the app (where the
+    /// unread counts and the sidebar flash surface new content), a lingering
+    /// banner is just clutter.
+    public static func clearDelivered() {
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [identifier])
     }
 }

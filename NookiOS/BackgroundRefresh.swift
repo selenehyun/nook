@@ -81,16 +81,14 @@ enum BackgroundRefresh {
 
     @MainActor
     private static func postNotification(for result: ReaderStore.BackgroundRefreshResult) async {
+        let body = await NewArticleSummarizer.notificationBody(
+            titles: result.sampleTitles,
+            count: result.newArticleCount
+        )
         await NewArticleNotifier.post(
             title: String(localized: "New in Nook"),
-            body: body(for: result),
+            body: body,
             badge: result.badgeCount
         )
-    }
-
-    private static func body(for result: ReaderStore.BackgroundRefreshResult) -> String {
-        let summary = String(localized: "\(result.newArticleCount) new articles")
-        guard !result.sampleTitles.isEmpty else { return summary }
-        return summary + "\n" + result.sampleTitles.joined(separator: "\n")
     }
 }
