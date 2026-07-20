@@ -114,34 +114,17 @@ struct InlineMarkupTranslatorTests {
         #expect(localEntries.isEmpty)
     }
 
-    @Test("Glossary terms are protected as opaque markers and restored verbatim")
-    func protectsTerms() {
-        let (marked, entries) = Engine.markify("OpenAI and Gwern discussed GPT-4.")
-        let (protectedTemplate, protectedEntries) = Engine.protectTerms(marked, entries: entries, terms: ["OpenAI", "Gwern", "GPT-4"])
-        // Each term is replaced by an opaque marker; the words no longer appear.
-        #expect(!protectedTemplate.contains("OpenAI"))
-        #expect(!protectedTemplate.contains("Gwern"))
-        #expect(!protectedTemplate.contains("GPT-4"))
-        // A translation that keeps the markers restores every term byte-for-byte.
-        let translated = protectedTemplate  // model kept markers, "translated" the gaps trivially
-        let rebuilt = Engine.rebuild(translated, entries: protectedEntries)
-        #expect(rebuilt == "OpenAI and Gwern discussed GPT-4.")
+    @Test("Brace-mangled markers are recovered so a link still rebuilds")
+    func recoversMangledMarkers() {
+        let (_, entries) = Engine.markify("Read <a href=\"/x\">more</a> now")
+        // The model rewrote ⟦…⟧ as braces around the translated word.
+        let mangled = "{0}더 보기{/0} 지금"
+        #expect(Engine.rebuild(mangled, entries: entries) == "<a href=\"/x\">더 보기</a> 지금")
     }
 
-    @Test("Term protection does not match inside larger words")
-    func protectTermsRespectsBoundaries() {
-        let (marked, entries) = Engine.markify("The airplane and the mainframe.")
-        // "AI" and "main" must not match inside airplane/mainframe.
-        let (template, _) = Engine.protectTerms(marked, entries: entries, terms: ["AI", "main"])
-        #expect(template == "The airplane and the mainframe.")
-    }
-
-    @Test("plainSource keeps protected terms but drops formatting markers")
-    func plainSourceKeepsTerms() {
-        let (marked, entries) = Engine.markify("Read <a href=\"/x\">OpenAI</a> docs")
-        let (template, protectedEntries) = Engine.protectTerms(marked, entries: entries, terms: ["OpenAI"])
-        // Formatting markers gone, the term kept as literal text.
-        #expect(Engine.plainSource(template, entries: protectedEntries) == "Read OpenAI docs")
+    @Test("Mangled markers are stripped, not left as braces")
+    func stripsMangledMarkers() {
+        #expect(Engine.stripMarkers("{0}단어{/0} 그리고 {=2}") == "단어 그리고 ")
     }
 
     @Test("Corrupted markers are stripped, not leaked into the text")
