@@ -107,12 +107,13 @@ struct ReaderDetailView: View {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                // Only the scrollable content transitions on article change, so
-                // the push animation isn't suppressed by the toolbar/sheets/task
-                // (those live on the stable parent below).
+                // Slide the swapped content in with a manual offset animation.
+                // A SwiftUI `.transition` doesn't play here — the navigation
+                // detail suppresses it — so the incoming article is offset off
+                // the incoming edge and animated to rest (see `navigateReader`).
                 articleContent(article)
                     .id(article.id)
-                    .transition(.push(from: readerNavForward ? .bottom : .top))
+                    .offset(y: contentOffset)
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
@@ -283,19 +284,27 @@ struct ReaderDetailView: View {
         )
     }
 
-    /// Whether the last article change moved forward (next). Drives the push
-    /// transition direction so previous/next slide the natural way.
-    @State private var readerNavForward = true
-    /// The reader viewport height, measured via a background reader so the
-    /// content can fill it without a `GeometryReader` root (which would suppress
-    /// the article-change push transition).
+    /// The reader viewport height, measured via a background reader — used both
+    /// to fill the content to the viewport and as the slide distance.
     @State private var viewportHeight: CGFloat = 0
+    /// Vertical offset applied to the article content to animate a change: set to
+    /// the incoming edge, then eased back to zero.
+    @State private var contentOffset: CGFloat = 0
 
-    /// Navigates to the adjacent article with a directional push animation.
+    /// Navigates to the adjacent article with a directional slide animation. The
+    /// content swaps immediately (its `.id` changes), starts off the incoming
+    /// edge, then eases to rest — reliable inside the navigation detail where a
+    /// SwiftUI `.transition` doesn't play.
     private func navigateReader(forward: Bool) {
-        readerNavForward = forward
-        withAnimation(.easeInOut(duration: 0.3)) {
-            if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
+        let previous = store.selectedArticleID
+        if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
+        // At the first/last article the selection doesn't change — don't animate.
+        guard store.selectedArticleID != previous else { return }
+        let distance = viewportHeight > 0 ? viewportHeight : 600
+        contentOffset = forward ? distance : -distance
+        // Defer so the new content first renders at the offset, then slides in.
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.32)) { contentOffset = 0 }
         }
     }
 

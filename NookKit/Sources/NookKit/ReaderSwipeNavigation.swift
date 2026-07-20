@@ -141,28 +141,26 @@ private struct ReaderSwipeNavigation: ViewModifier {
             }
     }
 
-    /// iOS overscroll past each edge, from the inset-accounted visible rect (in
-    /// content coordinates): at rest the top is 0 and the bottom is the content
-    /// height, so overscroll shows as the visible rect extending past either end.
-    /// Symmetric, unlike the earlier offset math which used the top inset for the
-    /// top edge but `containerSize` for the bottom — the latter was reduced by
-    /// the nav-bar inset, so the bottom edge never registered.
+    /// iOS overscroll past each edge, measured relative to each edge's resting
+    /// position. The top uses the content offset vs. the top inset (its resting
+    /// offset), so a top safe-area/nav-bar inset doesn't add a phantom baseline
+    /// that made the previous pull trigger almost immediately. The bottom uses
+    /// the visible rect vs. the content height (correct regardless of how the
+    /// container size folds in insets).
     private static func pull(from geometry: ScrollGeometry) -> EdgePull {
-        let visible = geometry.visibleRect
-        let top = max(0, -visible.minY)
-        let bottom = max(0, visible.maxY - geometry.contentSize.height)
+        let top = max(0, -geometry.contentInsets.top - geometry.contentOffset.y)
+        let bottom = max(0, geometry.visibleRect.maxY - geometry.contentSize.height)
         return EdgePull(top: top, bottom: bottom)
     }
     #endif
 
-    /// Whether the content rests at (within a hair of) each edge, from the same
-    /// inset-accounted visible rect used for the overscroll.
+    /// Whether the content rests at (within a hair of) each edge, using the same
+    /// per-edge measures as `pull(from:)`.
     private static func edges(_ geometry: ScrollGeometry) -> EdgePair {
         let tolerance: CGFloat = 8
-        let visible = geometry.visibleRect
         return EdgePair(
-            top: visible.minY <= tolerance,
-            bottom: visible.maxY >= geometry.contentSize.height - tolerance
+            top: geometry.contentOffset.y <= -geometry.contentInsets.top + tolerance,
+            bottom: geometry.visibleRect.maxY >= geometry.contentSize.height - tolerance
         )
     }
 }
