@@ -107,21 +107,31 @@ struct ReaderDetailView: View {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                // Manual push: the outgoing article slides off one edge while the
-                // incoming one slides in from the other, both at once (like macOS).
+                // Manual push: while navigating, the outgoing article slides off
+                // one edge as the incoming slides in from the other (like macOS).
                 // A SwiftUI `.transition` doesn't play inside the navigation
-                // detail, so the two layers are offset and animated by hand.
-                ZStack {
-                    if let outgoing = outgoingArticle, outgoing.id != article.id {
-                        articleContent(outgoing)
-                            .id(outgoing.id)
-                            .offset(y: outgoingOffset)
-                            .allowsHitTesting(false)
+                // detail, so the two captured layers are offset and animated by
+                // hand; the selection is only committed once the push completes.
+                Group {
+                    if let t = transition {
+                        ZStack {
+                            articleContent(t.outgoing)
+                                .id(t.outgoing.id)
+                                .offset(y: outgoingOffset)
+                                .allowsHitTesting(false)
+                            articleContent(t.incoming)
+                                .id(t.incoming.id)
+                                .offset(y: incomingOffset)
+                        }
+                    } else {
+                        articleContent(article)
+                            .id(article.id)
                     }
-                    articleContent(article)
-                        .id(article.id)
-                        .offset(y: incomingOffset)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Keep the sliding layers inside the reader — otherwise the
+                // outgoing one is seen passing over the app's top background.
+                .clipped()
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
@@ -295,26 +305,34 @@ struct ReaderDetailView: View {
     /// The reader viewport height, measured via a background reader — used both
     /// to fill the content to the viewport and as the slide distance.
     @State private var viewportHeight: CGFloat = 0
-    /// The article currently sliding out, rendered beneath the incoming one for
-    /// the duration of the push, then cleared.
-    @State private var outgoingArticle: Article?
-    /// Offsets driving the push: the incoming (current) article and the outgoing
-    /// one slide together.
-    @State private var incomingOffset: CGFloat = 0
+    /// The in-flight article push (captured outgoing + incoming), or nil at rest.
+    @State private var transition: ReaderTransition?
+    /// Offsets driving the push: the outgoing and incoming layers slide together.
     @State private var outgoingOffset: CGFloat = 0
+    @State private var incomingOffset: CGFloat = 0
+
+    private struct ReaderTransition: Equatable {
+        let outgoing: Article
+        let incoming: Article
+        let forward: Bool
+    }
 
     /// Navigates to the adjacent article with a two-layer push, matching macOS:
     /// the outgoing article slides off one edge while the incoming one slides in
     /// from the other. Done by hand because a SwiftUI `.transition` doesn't play
-    /// inside the navigation detail.
+    /// inside the navigation detail. The selection is committed only when the
+    /// push finishes, so the current article stays put during the animation
+    /// (no sudden jump from the observed selection changing mid-flight).
     private func navigateReader(forward: Bool) {
-        guard let previous = store.selectedArticle else { return }
-        if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
-        // At the first/last article the selection doesn't change — don't animate.
-        guard let current = store.selectedArticle, current.id != previous.id else { return }
+        guard transition == nil, let current = store.selectedArticle else { return }
+        guard let incoming = forward ? store.article(after: current.id) : store.article(before: current.id) else { return }
 
-        let distance = viewportHeight > 0 ? viewportHeight : 600
-        outgoingArticle = previous
+        // Warm the incoming article's reader content so it isn't a placeholder
+        // as it slides in.
+        store.ensureReaderContent(for: incoming)
+
+        let distance = viewportHeight > 0 ? viewportHeight : 700
+        transition = ReaderTransition(outgoing: current, incoming: incoming, forward: forward)
         outgoingOffset = 0
         incomingOffset = forward ? distance : -distance
         // Defer so both layers render at their start offsets, then slide together.
@@ -323,8 +341,12 @@ struct ReaderDetailView: View {
                 outgoingOffset = forward ? -distance : distance
                 incomingOffset = 0
             } completion: {
-                outgoingArticle = nil
+                // Commit the selection now the incoming layer is already in place,
+                // so swapping to the normal (non-transition) content is seamless.
+                if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
+                transition = nil
                 outgoingOffset = 0
+                incomingOffset = 0
             }
         }
     }
