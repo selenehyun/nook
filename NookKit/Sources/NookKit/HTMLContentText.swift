@@ -89,8 +89,8 @@ struct HTMLBlockList: View {
             NativeArticleTable(table: table, selectable: selectable)
         case .thematicBreak:
             Divider()
-        case .mixedText(let parts):
-            NativeMixedText(parts: parts, selectable: selectable)
+        case .mixedText(let parts, let headingLevel):
+            NativeMixedText(parts: parts, selectable: selectable, headingLevel: headingLevel)
         case .list(let ordered, let items):
             NativeArticleList(ordered: ordered, items: items, selectable: selectable)
         case .image(let media):
@@ -121,7 +121,7 @@ indirect enum HTMLContentBlock: Equatable, Sendable {
     /// pieces render as HTML (cached importer), the actively-streaming piece as
     /// cheap plain text (no importer per token). Collapses to `.text`/`.heading`
     /// once complete.
-    case mixedText([TextPart])
+    case mixedText(parts: [TextPart], headingLevel: Int?)
 
     enum TextPart: Equatable, Sendable {
         case html(String)
@@ -1228,17 +1228,27 @@ private struct NativeMixedText: View {
     let parts: [HTMLContentBlock.TextPart]
     let selectable: Bool
 
+    /// Non-nil when this block is a heading being translated, so the streaming
+    /// pieces render at the heading's size/weight instead of looking like body
+    /// text until they settle.
+    var headingLevel: Int? = nil
+
+    private var baseSize: CGFloat {
+        headingLevel.map { HTMLContentText.headingSize($0) } ?? HTMLContentText.platformBodySize
+    }
+    private var bold: Bool { headingLevel != nil }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
                 switch part {
                 case .html(let html):
-                    HTMLContentText(html: html, selectable: selectable)
+                    HTMLContentText(html: html, selectable: selectable, baseSize: headingLevel.map { HTMLContentText.headingSize($0) }, bold: bold)
                 case .streaming(let original, let text):
                     // The segment currently being translated (settles to `.html`
                     // once done): dimmed original underneath, translation typing on
                     // top, original erased as the translation streams.
-                    StreamingText(original: original, text: text, selectable: selectable)
+                    StreamingText(original: original, text: text, selectable: selectable, baseSize: baseSize, bold: bold)
                 }
             }
         }
@@ -1257,7 +1267,11 @@ private struct StreamingText: View {
     let original: String
     let text: String
     let selectable: Bool
+    var baseSize: CGFloat = HTMLContentText.platformBodySize
+    var bold: Bool = false
     @State private var shown = 0
+
+    private var font: Font { .system(size: baseSize, weight: bold ? .semibold : .regular) }
 
     // A solid block glyph as the caret. It blinks by toggling its color between
     // the text color and clear, so its width is always reserved and the text
@@ -1275,7 +1289,7 @@ private struct StreamingText: View {
             ZStack(alignment: .topLeading) {
                 if !original.isEmpty {
                     Text(original)
-                        .font(.system(size: HTMLContentText.platformBodySize))
+                        .font(font)
                         .lineSpacing(4)
                         .foregroundStyle(.secondary)
                         .opacity(originalDim * (1 - progress))
@@ -1305,7 +1319,7 @@ private struct StreamingText: View {
     @ViewBuilder
     private func content(visible: String, caretOn: Bool) -> some View {
         let rendered = (Text(visible) + Text(caret).foregroundColor(caretOn ? .primary : .clear))
-            .font(.system(size: HTMLContentText.platformBodySize))
+            .font(font)
             .lineSpacing(4)
         if selectable {
             rendered.textSelection(.enabled)
@@ -1323,22 +1337,8 @@ private struct NativeArticleHeading: View {
     let selectable: Bool
 
     var body: some View {
-        HTMLContentText(html: html, selectable: selectable, baseSize: size, bold: true)
+        HTMLContentText(html: html, selectable: selectable, baseSize: HTMLContentText.headingSize(level), bold: true)
             .padding(.top, level <= 2 ? 6 : 2)
-    }
-
-    private var size: CGFloat {
-        let base = HTMLContentText.platformBodySize
-        let scale: CGFloat
-        switch level {
-        case 1: scale = 1.7
-        case 2: scale = 1.45
-        case 3: scale = 1.25
-        case 4: scale = 1.1
-        case 5: scale = 1.0
-        default: scale = 0.9
-        }
-        return base * scale
     }
 }
 
@@ -1633,6 +1633,22 @@ public struct HTMLContentText: View {
         #else
         UIFont.preferredFont(forTextStyle: .body).pointSize
         #endif
+    }
+
+    /// The point size for a heading level (h1…h6), so headings render at the same
+    /// size whether via the importer (`NativeArticleHeading`) or while streaming
+    /// (`NativeMixedText`).
+    static func headingSize(_ level: Int) -> CGFloat {
+        let scale: CGFloat
+        switch level {
+        case 1: scale = 1.7
+        case 2: scale = 1.45
+        case 3: scale = 1.25
+        case 4: scale = 1.1
+        case 5: scale = 1.0
+        default: scale = 0.9
+        }
+        return platformBodySize * scale
     }
 
     private static func render(_ html: String, baseSize: CGFloat, bold: Bool) -> AttributedString? {

@@ -441,9 +441,9 @@ public final class NativeArticleTranslator {
     ) async -> String {
         switch block {
         case .text(let html):
-            return await translateTextBlock(html, at: index, wrap: { .text($0) }, language: language, context: context, token: token)
+            return await translateTextBlock(html, at: index, headingLevel: nil, language: language, context: context, token: token)
         case .heading(let level, let html):
-            return await translateTextBlock(html, at: index, wrap: { .heading(level: level, html: $0) }, language: language, context: context, token: token)
+            return await translateTextBlock(html, at: index, headingLevel: level, language: language, context: context, token: token)
         case .blockquote(let inner):
             var context = context
             var translatedInner = inner
@@ -520,13 +520,13 @@ public final class NativeArticleTranslator {
     private func translateTextBlock(
         _ html: String,
         at index: Int,
-        wrap: @escaping (String) -> HTMLContentBlock,
+        headingLevel: Int?,
         language: String,
         context: String,
         token: Int
     ) async -> String {
         let (settled, newContext) = await streamTextBlock(
-            html, wrap: wrap, language: language, context: context, token: token,
+            html, headingLevel: headingLevel, language: language, context: context, token: token,
             emit: { [self] partial in overrides[index] = partial }
         )
         guard token == generation else { return newContext }
@@ -540,9 +540,12 @@ public final class NativeArticleTranslator {
     /// intermediate `.mixedText` via `emit` — so a top-level block (writing its own
     /// override) and a nested one inside a quote/list (rebuilding its parent) get
     /// the identical typing/caret/overlay effect — and returns the settled block.
+    /// `headingLevel` (non-nil for a heading) is carried on the streamed
+    /// `.mixedText` so it renders at the heading's size/weight while typing, not as
+    /// body text.
     private func streamTextBlock(
         _ html: String,
-        wrap: (String) -> HTMLContentBlock,
+        headingLevel: Int?,
         language: String,
         context: String,
         token: Int,
@@ -551,28 +554,35 @@ public final class NativeArticleTranslator {
         var context = context
         let segments = InlineMarkupTranslator.segments(html)
         var output = segments.map(\.raw)
+        func settledBlock() -> HTMLContentBlock {
+            let joined = output.joined()
+            return headingLevel.map { .heading(level: $0, html: joined) } ?? .text(joined)
+        }
+        func mixed(activeIndex: Int, activePartial: String) -> HTMLContentBlock {
+            .mixedText(parts: mixedParts(output: output, activeIndex: activeIndex, activePartial: activePartial), headingLevel: headingLevel)
+        }
         for (segmentIndex, segment) in segments.enumerated() where segment.translatable {
-            guard token == generation else { return (wrap(output.joined()), context) }
+            guard token == generation else { return (settledBlock(), context) }
             let active = segmentIndex
             // Caret at the segment start the moment translation begins — before the
             // first token — so it's clear which block is being translated.
-            emit(.mixedText(mixedParts(output: output, activeIndex: active, activePartial: "")))
+            emit(mixed(activeIndex: active, activePartial: ""))
             // Stream this segment token-by-token: the active segment overlays and
             // erases its dimmed original while the others stay rendered as HTML.
             let result = await translateFragmentStreaming(
                 segment.inner, language: language, context: context, token: token
             ) { partial in
                 guard token == self.generation else { return }
-                emit(.mixedText(self.mixedParts(output: output, activeIndex: active, activePartial: partial)))
+                emit(mixed(activeIndex: active, activePartial: partial))
             }
             guard let (translatedInner, newContext) = result else { continue }
             context = newContext
             output[segmentIndex] = segment.open + translatedInner + segment.close
-            guard token == generation else { return (wrap(output.joined()), context) }
+            guard token == generation else { return (settledBlock(), context) }
             // Settle the finished segment; the next one re-emits.
-            emit(.mixedText(mixedParts(output: output, activeIndex: -1, activePartial: "")))
+            emit(mixed(activeIndex: -1, activePartial: ""))
         }
-        return (wrap(output.joined()), context)
+        return (settledBlock(), context)
     }
 
     /// Builds the streaming block's parts: the active segment lays its dimmed
@@ -708,12 +718,12 @@ public final class NativeArticleTranslator {
         switch block {
         case .text(let html):
             let (settled, newContext) = await streamTextBlock(
-                html, wrap: { .text($0) }, language: language, context: context, token: token, emit: onPartial
+                html, headingLevel: nil, language: language, context: context, token: token, emit: onPartial
             )
             return (settled, newContext)
         case .heading(let level, let html):
             let (settled, newContext) = await streamTextBlock(
-                html, wrap: { .heading(level: level, html: $0) }, language: language, context: context, token: token, emit: onPartial
+                html, headingLevel: level, language: language, context: context, token: token, emit: onPartial
             )
             return (settled, newContext)
         case .list(let ordered, let items):
