@@ -9,11 +9,14 @@ import AppKit
 /// for the previous one. The web reader keeps its own bottom-only affordance
 /// (`ArticleWebView` + `BottomPullAffordance`) and is untouched.
 ///
-/// Both platforms are driven by the same Apple scroll APIs — `scrollBounce
-/// Behavior(.always)` to guarantee an elastic edge even for short articles,
-/// `onScrollGeometryChange` for the live overscroll amount, and
-/// `onScrollPhaseChange` to decide on release — so macOS and iOS behave
-/// identically instead of relying on platform-specific event plumbing.
+/// The two platforms detect the pull differently because their scroll engines
+/// differ, each using the method that's reliable there:
+/// - macOS: a `.scrollWheel` event monitor accumulates the overscroll directly
+///   and consumes the events while pulling, so the content stays put and the
+///   commit fires deterministically on gesture end (the same approach the web
+///   reader uses in `ArticleWebView`).
+/// - iOS: `UIScrollView` reflects the elastic overscroll in its offset, so
+///   `onScrollGeometryChange` + `onScrollPhaseChange` read it directly.
 public extension View {
     func readerSwipeNavigation(
         nextTitle: String?,
@@ -30,7 +33,11 @@ public extension View {
     }
 }
 
-/// The live overscroll past each edge, in points (0 when resting or scrolling
+/// Which edge a pull is acting on. `.bottom` navigates to the next article,
+/// `.top` to the previous one.
+enum ReaderPullEdge { case top, bottom }
+
+/// The live pull distance past each edge, in points (0 when resting or scrolling
 /// within bounds). Only one side is ever non-zero at a time.
 private struct EdgePull: Equatable {
     var top: CGFloat = 0
@@ -43,74 +50,23 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let onNext: () -> Void
     let onPrevious: () -> Void
 
-    /// Pull distance (amplified, see `amplification`) past an edge needed to
-    /// commit to a navigation. Kept low so a modest pull triggers reliably —
-    /// native elastic overscroll is heavily damped, especially on macOS.
+    /// Pull distance past an edge needed to commit to a navigation.
     static let threshold: CGFloat = 70
-
-    /// The platform's elastic overscroll is small and stiff, so the raw distance
-    /// is scaled up before it drives the affordance and the decision. This makes
-    /// the indicator appear immediately and the threshold reachable with a normal
-    /// pull instead of a very hard one.
-    private static let amplification: CGFloat = 3.0
-
     /// The pull distance below which the affordance stays hidden.
     private static let revealThreshold: CGFloat = 4
 
     @State private var pull = EdgePull()
-    /// The greatest pull reached while the finger is down. Decisions use this
-    /// peak (not the value at lift-off), so both a slow pull-and-hold and a quick
-    /// flick past the edge commit reliably; momentum-only overscroll after
-    /// lift-off is ignored because it isn't tracked.
+
+    // iOS-only tracking.
+    @State private var atTop = false
+    @State private var atBottom = false
     @State private var peak = EdgePull()
     @State private var isDragging = false
-    // Whether the drag began already resting at an edge. A pull only navigates
-    // when it started at that edge, so scrolling down through the article (which
-    // ends by momentarily touching the bottom) never flips to the next article —
-    // the user must deliberately pull from the edge, like the web reader.
     @State private var beganAtTop = false
     @State private var beganAtBottom = false
 
     func body(content: Content) -> some View {
-        content
-            // Guarantee an elastic edge on both platforms even when the article
-            // is shorter than the viewport, so it can always be pulled.
-            .scrollBounceBehavior(.always, axes: .vertical)
-            .onScrollGeometryChange(for: EdgePull.self) { geometry in
-                Self.pull(from: geometry)
-            } action: { _, newValue in
-                pull = newValue
-                if isDragging {
-                    peak = EdgePull(top: max(peak.top, newValue.top), bottom: max(peak.bottom, newValue.bottom))
-                }
-            }
-            .onScrollPhaseChange { oldPhase, newPhase, context in
-                switch newPhase {
-                case .tracking, .interacting:
-                    // A new touch begins: start tracking the peak fresh and note
-                    // which edge (if any) the content was resting at.
-                    if !isDragging {
-                        peak = EdgePull()
-                        let edges = Self.edges(context.geometry)
-                        beganAtTop = edges.atTop
-                        beganAtBottom = edges.atBottom
-                    }
-                    isDragging = true
-                default:
-                    // The finger lifted: commit from the peak reached while
-                    // dragging, but only for an edge the drag actually began at.
-                    if oldPhase == .interacting || oldPhase == .tracking {
-                        if beganAtBottom, peak.bottom >= Self.threshold, nextTitle != nil {
-                            onNext()
-                        } else if beganAtTop, peak.top >= Self.threshold, previousTitle != nil {
-                            onPrevious()
-                        }
-                    }
-                    isDragging = false
-                    peak = EdgePull()
-                }
-                if newPhase == .idle { pull = EdgePull() }
-            }
+        platformContent(content)
             .overlay(alignment: .bottom) {
                 if pull.bottom > Self.revealThreshold {
                     ReaderEdgePullAffordance(edge: .bottom, pull: pull.bottom, title: nextTitle)
@@ -123,44 +79,259 @@ private struct ReaderSwipeNavigation: ViewModifier {
                         .transition(.opacity)
                 }
             }
-            #if os(macOS)
-            // macOS has no `.sensoryFeedback`; tick the Taptic engine when a pull
-            // crosses the commit threshold on either edge.
-            .onChange(of: crossedThreshold) { _, crossed in
-                if crossed { NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now) }
+    }
+
+    private func commit(_ edge: ReaderPullEdge) {
+        switch edge {
+        case .bottom: if nextTitle != nil { onNext() }
+        case .top: if previousTitle != nil { onPrevious() }
+        }
+        pull = EdgePull()
+    }
+
+    #if os(macOS)
+    @ViewBuilder
+    private func platformContent(_ content: Content) -> some View {
+        content
+            // Track which edge the content rests at; the monitor only engages a
+            // pull that starts at an edge.
+            .onScrollGeometryChange(for: EdgePair.self) { geometry in
+                Self.edges(geometry)
+            } action: { _, edges in
+                atTop = edges.top
+                atBottom = edges.bottom
             }
-            #endif
+            .background(
+                ScrollWheelOverscrollMonitor(
+                    atTop: atTop,
+                    atBottom: atBottom,
+                    threshold: Self.threshold,
+                    onPull: { pull = $0 },
+                    onCommit: commit
+                )
+            )
+    }
+    #else
+    @ViewBuilder
+    private func platformContent(_ content: Content) -> some View {
+        content
+            // Guarantee an elastic edge even when the article is shorter than the
+            // viewport, so it can always be pulled.
+            .scrollBounceBehavior(.always, axes: .vertical)
+            .onScrollGeometryChange(for: EdgePull.self) { geometry in
+                Self.pull(from: geometry)
+            } action: { _, newValue in
+                // Only surface the pull when the finger is down AND the drag began
+                // resting at that edge — so scrolling through the body (or its
+                // momentum bounce) never flashes the indicator. It shows only at
+                // the very top/bottom of the article.
+                let bottom = (isDragging && beganAtBottom) ? newValue.bottom : 0
+                let top = (isDragging && beganAtTop) ? newValue.top : 0
+                pull = EdgePull(top: top, bottom: bottom)
+                if isDragging {
+                    peak = EdgePull(top: max(peak.top, top), bottom: max(peak.bottom, bottom))
+                }
+            }
+            .onScrollPhaseChange { oldPhase, newPhase, context in
+                switch newPhase {
+                case .tracking, .interacting:
+                    if !isDragging {
+                        peak = EdgePull()
+                        let edges = Self.edges(context.geometry)
+                        beganAtTop = edges.top
+                        beganAtBottom = edges.bottom
+                    }
+                    isDragging = true
+                default:
+                    if oldPhase == .interacting || oldPhase == .tracking {
+                        if beganAtBottom, peak.bottom >= Self.threshold {
+                            commit(.bottom)
+                        } else if beganAtTop, peak.top >= Self.threshold {
+                            commit(.top)
+                        }
+                    }
+                    isDragging = false
+                    peak = EdgePull()
+                }
+                if newPhase == .idle { pull = EdgePull() }
+            }
     }
 
-    /// True while a pull on either edge is past the commit threshold.
-    private var crossedThreshold: Bool {
-        pull.bottom >= Self.threshold || pull.top >= Self.threshold
-    }
-
-    /// Overscroll past each edge from a scroll geometry, using the same offset
-    /// math (offset vs. inset-adjusted min/max) the web reader uses on iOS, then
-    /// amplified so the stiff native elastic distance is easy to act on.
+    /// iOS overscroll past each edge, amplified so the elastic distance drives
+    /// the affordance and threshold comfortably.
     private static func pull(from geometry: ScrollGeometry) -> EdgePull {
+        let amplification: CGFloat = 2.5
         let minY = -geometry.contentInsets.top
         let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
         let top = max(0, minY - geometry.contentOffset.y) * amplification
         let bottom = max(0, geometry.contentOffset.y - maxY) * amplification
         return EdgePull(top: top, bottom: bottom)
     }
+    #endif
 
-    /// Whether the content is resting at (or within a hair of) each edge — used
-    /// at drag start to decide which edge, if any, a pull may navigate from.
-    private static func edges(_ geometry: ScrollGeometry) -> (atTop: Bool, atBottom: Bool) {
+    /// Whether the content rests at (within a hair of) each edge.
+    private static func edges(_ geometry: ScrollGeometry) -> EdgePair {
         let minY = -geometry.contentInsets.top
         let maxY = max(minY, geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height)
-        return (geometry.contentOffset.y <= minY + 2, geometry.contentOffset.y >= maxY - 2)
+        return EdgePair(
+            top: geometry.contentOffset.y <= minY + 2,
+            bottom: geometry.contentOffset.y >= maxY - 2
+        )
     }
 }
 
+/// At-edge flags, as an `Equatable` value for `onScrollGeometryChange`.
+private struct EdgePair: Equatable {
+    var top: Bool
+    var bottom: Bool
+}
+
+// MARK: - macOS overscroll monitor
+
+#if os(macOS)
+/// Drives the native reader's edge pull from raw `.scrollWheel` events — the
+/// reliable path on macOS, where SwiftUI's elastic overscroll is tiny and its
+/// scroll phases don't cleanly mark the release. While a pull is engaged the
+/// events are consumed, so the article content doesn't move; the commit fires
+/// on the gesture's `.ended` phase. Mirrors `ArticleWebView.Coordinator`.
+private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
+    var atTop: Bool
+    var atBottom: Bool
+    var threshold: CGFloat
+    var onPull: (EdgePull) -> Void
+    var onCommit: (ReaderPullEdge) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        let c = context.coordinator
+        c.atTop = atTop
+        c.atBottom = atBottom
+        c.threshold = threshold
+        c.onPull = onPull
+        c.onCommit = onCommit
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var atTop = false
+        var atBottom = false
+        var threshold: CGFloat = 70
+        var onPull: (EdgePull) -> Void = { _ in }
+        var onCommit: (ReaderPullEdge) -> Void = { _ in }
+
+        private weak var view: NSView?
+        private var monitor: Any?
+        private var engaged: ReaderPullEdge?
+        private var raw: CGFloat = 0
+        private var beganAtTop = false
+        private var beganAtBottom = false
+        private var lastReported: CGFloat = 0
+
+        func attach(to view: NSView) {
+            self.view = view
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                self?.handle(event) == true ? nil : event
+            }
+        }
+
+        func detach() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        /// iOS-style rubber-band resistance so the pull grows ever more slowly —
+        /// same curve as the web reader.
+        private func rubberBand(_ distance: CGFloat, limit: CGFloat = 420, softness: CGFloat = 620) -> CGFloat {
+            guard distance > 0 else { return 0 }
+            return limit * distance / (distance + softness)
+        }
+
+        private func reset() {
+            engaged = nil
+            raw = 0
+            lastReported = 0
+        }
+
+        /// Returns true to consume the event (we're driving the pull).
+        private func handle(_ event: NSEvent) -> Bool {
+            guard let view, let window = view.window, event.window === window else { return false }
+            // Only act when the pointer is over the reader, so scrolling the
+            // sidebar or article list never drives article navigation.
+            let point = view.convert(event.locationInWindow, from: nil)
+            let overReader = view.bounds.contains(point)
+            let delta = event.scrollingDeltaY
+
+            // Record, at the start of each gesture, whether it began resting at
+            // an edge. Only such a gesture may drive navigation.
+            if event.phase.contains(.began) {
+                beganAtTop = atTop
+                beganAtBottom = atBottom
+            }
+
+            if engaged == nil {
+                // Require a real (phased) gesture that began at the edge, isn't in
+                // momentum, and is over the reader — so scrolling through the body
+                // (or a legacy mouse wheel with no gesture end) never engages.
+                guard overReader, event.momentumPhase == [], !event.phase.isEmpty else { return false }
+                if atTop, delta > 0, beganAtTop {
+                    engaged = .top
+                    raw = 0
+                } else if atBottom, delta < 0, beganAtBottom {
+                    engaged = .bottom
+                    raw = 0
+                } else {
+                    return false
+                }
+            }
+
+            switch engaged {
+            case .top:
+                raw = max(0, raw + delta)
+                lastReported = rubberBand(raw)
+                onPull(EdgePull(top: lastReported, bottom: 0))
+            case .bottom:
+                raw = max(0, raw - delta)
+                lastReported = rubberBand(raw)
+                onPull(EdgePull(top: 0, bottom: lastReported))
+            case nil:
+                return false
+            }
+
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                let amount = lastReported
+                let edge = engaged
+                reset()
+                onPull(EdgePull())
+                if let edge, amount >= threshold { onCommit(edge) }
+                return true
+            }
+            // Pulled all the way back: hand scrolling back to the scroll view.
+            if raw == 0 {
+                reset()
+                onPull(EdgePull())
+                return false
+            }
+            return true
+        }
+    }
+}
+#endif
+
+// MARK: - Affordance
+
 /// A floating pill revealed as the native reader is pulled past an edge: a hint
 /// while pulling, turning into the target article's title once past the commit
-/// threshold. Mirrors the web reader's affordance styling, adapted to two edges
-/// and a single (next/previous) action.
+/// threshold. Mirrors the web reader's affordance styling.
 private struct ReaderEdgePullAffordance: View {
     enum Edge { case top, bottom }
 
@@ -173,10 +344,8 @@ private struct ReaderEdgePullAffordance: View {
 
     private var reached: Bool { pull >= ReaderSwipeNavigation.threshold }
 
-    /// A stepped value that climbs through the hint zone so a light selection
-    /// haptic can tick with the scroll before the threshold is reached.
     private var hintTick: Int {
-        guard !reached, pull > 6 else { return 0 }
+        guard !reached, pull > ReaderSwipeNavigation.threshold * 0.06 else { return 0 }
         return Int(pull / 10)
     }
 
