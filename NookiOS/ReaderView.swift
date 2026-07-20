@@ -107,31 +107,7 @@ struct ReaderDetailView: View {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
             } else if let article = store.selectedArticle {
-                // Manual push: while navigating, the outgoing article slides off
-                // one edge as the incoming slides in from the other (like macOS).
-                // A SwiftUI `.transition` doesn't play inside the navigation
-                // detail, so the two captured layers are offset and animated by
-                // hand; the selection is only committed once the push completes.
-                Group {
-                    if let t = transition {
-                        ZStack {
-                            articleContent(t.outgoing)
-                                .id(t.outgoing.id)
-                                .offset(y: outgoingOffset)
-                                .allowsHitTesting(false)
-                            articleContent(t.incoming)
-                                .id(t.incoming.id)
-                                .offset(y: incomingOffset)
-                        }
-                    } else {
-                        articleContent(article)
-                            .id(article.id)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // Keep the sliding layers inside the reader — otherwise the
-                // outgoing one is seen passing over the app's top background.
-                .clipped()
+                reader(article)
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
@@ -139,6 +115,60 @@ struct ReaderDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color("ListBackground").ignoresSafeArea())
         .articleImageOverlay(imagePresenter)
+    }
+
+    private func reader(_ article: Article) -> some View {
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    header(article)
+                    Divider()
+
+                    readerBody(article)
+
+                    Spacer(minLength: 0)
+                }
+                .padding()
+                // Fill at least the whole viewport so the gestures also fire in
+                // the empty space below a short article, not only on the text.
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
+                .contentShape(Rectangle())
+                // Double-tap the body to star; press-and-hold to open the web
+                // view with a build-up of haptic taps ending in one deep pulse.
+                .onTapGesture(count: 2) {
+                    let willStar = !article.isStarred
+                    store.toggleStarred(articleID: article.id)
+                    haptics.star(on: willStar)
+                    triggerStarBurst(on: willStar)
+                }
+                .onLongPressGesture(minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration, maximumDistance: 10) {
+                    pendingBuildup?.cancel()
+                    pendingBuildup = nil
+                    openBrowser(for: article)
+                } onPressingChanged: { pressing in
+                    if pressing {
+                        // Defer the haptic; if the finger moves (swipe/scroll),
+                        // the gesture cancels and pressing flips false first.
+                        pendingBuildup = Task {
+                            try? await Task.sleep(for: .seconds(hapticStartDelay))
+                            if !Task.isCancelled { haptics.startLongPressBuildup() }
+                        }
+                    } else {
+                        pendingBuildup?.cancel()
+                        pendingBuildup = nil
+                        haptics.cancelLongPressBuildup()
+                    }
+                }
+            }
+            // Pull past the bottom for the next article, past the top for the
+            // previous one. The web reader keeps its own bottom-only affordance.
+            .readerSwipeNavigation(
+                nextTitle: store.article(after: article.id)?.title,
+                previousTitle: store.article(before: article.id)?.title,
+                onNext: { navigateReader(forward: true) },
+                onPrevious: { navigateReader(forward: false) }
+            )
+        }
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
                 .font(.system(size: 104, weight: .bold))
@@ -155,59 +185,56 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
-            if let article = store.selectedArticle {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        openBrowser(for: article)
-                    } label: {
-                        Image(systemName: "doc.plaintext")
-                    }
-                    .help("Open Reader / Original")
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    openBrowser(for: article)
+                } label: {
+                    Image(systemName: "doc.plaintext")
+                }
+                .help("Open Reader / Original")
 
-                    Button {
-                        store.toggleStarred(articleID: article.id)
-                    } label: {
-                        Image(systemName: article.isStarred ? "star.fill" : "star")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
+                Button {
+                    store.toggleStarred(articleID: article.id)
+                } label: {
+                    Image(systemName: article.isStarred ? "star.fill" : "star")
+                        .contentTransition(.symbolEffect(.replace))
+                }
 
-                    Menu {
+                Menu {
+                    Button {
+                        isShowingInfo = true
+                    } label: {
+                        Label("Article Info", systemImage: "info.circle")
+                    }
+                    if canTranslate {
                         Button {
-                            isShowingInfo = true
+                            toggleTranslation(article)
                         } label: {
-                            Label("Article Info", systemImage: "info.circle")
-                        }
-                        if canTranslate {
-                            Button {
-                                toggleTranslation(article)
-                            } label: {
-                                if translationBusy {
-                                    Label("Translating…", systemImage: "character.bubble")
-                                } else {
-                                    Label(
-                                        translationActive(article) ? "Show Original" : "Translate",
-                                        systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
-                                    )
-                                }
+                            if translationBusy {
+                                Label("Translating…", systemImage: "character.bubble")
+                            } else {
+                                Label(
+                                    translationActive(article) ? "Show Original" : "Translate",
+                                    systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
+                                )
                             }
-                            .disabled(translationBusy)
                         }
-                        ShareLink(item: article.url) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
-                        Link(destination: article.url) {
-                            Label("Open Original", systemImage: "safari")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
+                        .disabled(translationBusy)
                     }
+                    ShareLink(item: article.url) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    Link(destination: article.url) {
+                        Label("Open Original", systemImage: "safari")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
-        .task(id: store.selectedArticleID) {
+        .task(id: article.id) {
             // Detect the article's language so translation is offered only when
             // it differs from the app's language; reset any prior translation.
-            guard let article = store.selectedArticle else { return }
             isShowingTranslation = false
             isTranslated = false
             translatedTitle = nil
@@ -219,135 +246,32 @@ struct ReaderDetailView: View {
         }
         .translationPresentation(
             isPresented: $isShowingTranslation,
-            text: store.selectedArticle.map(Self.translationText(for:)) ?? ""
+            text: Self.translationText(for: article)
         )
         .sheet(isPresented: $store.isBrowserPresented) {
-            if let article = store.selectedArticle {
-                InAppBrowserSheet(
-                    store: store,
-                    article: article,
-                    style: readerStyle,
-                    linkOpensInApp: readerLinkBehavior == .inApp
-                )
-            }
+            InAppBrowserSheet(
+                store: store,
+                article: article,
+                style: readerStyle,
+                linkOpensInApp: readerLinkBehavior == .inApp
+            )
         }
         .sheet(isPresented: $isShowingInfo) {
-            if let article = store.selectedArticle {
-                ArticleInfoView(store: store, article: article)
-            }
+            ArticleInfoView(store: store, article: article)
         }
+        .id(article.id)
+        .transition(.push(from: readerNavForward ? .bottom : .top))
     }
 
-    /// The scrollable article surface — the only part that transitions on an
-    /// article change (kept free of toolbar/sheet/task modifiers, which would
-    /// otherwise suppress the transition).
-    private func articleContent(_ article: Article) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header(article)
-                Divider()
+    /// Whether the last article change moved forward (next). Drives the push
+    /// transition direction so previous/next slide the natural way.
+    @State private var readerNavForward = true
 
-                readerBody(article)
-
-                Spacer(minLength: 0)
-            }
-            .padding()
-            // Fill at least the whole viewport so the gestures also fire in
-            // the empty space below a short article, not only on the text.
-            .frame(maxWidth: .infinity, minHeight: viewportHeight, alignment: .topLeading)
-            .contentShape(Rectangle())
-            // Double-tap the body to star; press-and-hold to open the web
-            // view with a build-up of haptic taps ending in one deep pulse.
-            .onTapGesture(count: 2) {
-                let willStar = !article.isStarred
-                store.toggleStarred(articleID: article.id)
-                haptics.star(on: willStar)
-                triggerStarBurst(on: willStar)
-            }
-            .onLongPressGesture(minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration, maximumDistance: 10) {
-                pendingBuildup?.cancel()
-                pendingBuildup = nil
-                openBrowser(for: article)
-            } onPressingChanged: { pressing in
-                if pressing {
-                    // Defer the haptic; if the finger moves (swipe/scroll),
-                    // the gesture cancels and pressing flips false first.
-                    pendingBuildup = Task {
-                        try? await Task.sleep(for: .seconds(hapticStartDelay))
-                        if !Task.isCancelled { haptics.startLongPressBuildup() }
-                    }
-                } else {
-                    pendingBuildup?.cancel()
-                    pendingBuildup = nil
-                    haptics.cancelLongPressBuildup()
-                }
-            }
-        }
-        // Measure the viewport height in the background so the content fill above
-        // doesn't need a GeometryReader root (which suppresses the transition).
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear { viewportHeight = proxy.size.height }
-                    .onChange(of: proxy.size.height) { _, newValue in viewportHeight = newValue }
-            }
-        }
-        // Pull past the bottom for the next article, past the top for the
-        // previous one. The web reader keeps its own bottom-only affordance.
-        .readerSwipeNavigation(
-            nextTitle: store.article(after: article.id)?.title,
-            previousTitle: store.article(before: article.id)?.title,
-            onNext: { navigateReader(forward: true) },
-            onPrevious: { navigateReader(forward: false) }
-        )
-    }
-
-    /// The reader viewport height, measured via a background reader — used both
-    /// to fill the content to the viewport and as the slide distance.
-    @State private var viewportHeight: CGFloat = 0
-    /// The in-flight article push (captured outgoing + incoming), or nil at rest.
-    @State private var transition: ReaderTransition?
-    /// Offsets driving the push: the outgoing and incoming layers slide together.
-    @State private var outgoingOffset: CGFloat = 0
-    @State private var incomingOffset: CGFloat = 0
-
-    private struct ReaderTransition: Equatable {
-        let outgoing: Article
-        let incoming: Article
-        let forward: Bool
-    }
-
-    /// Navigates to the adjacent article with a two-layer push, matching macOS:
-    /// the outgoing article slides off one edge while the incoming one slides in
-    /// from the other. Done by hand because a SwiftUI `.transition` doesn't play
-    /// inside the navigation detail. The selection is committed only when the
-    /// push finishes, so the current article stays put during the animation
-    /// (no sudden jump from the observed selection changing mid-flight).
+    /// Navigates to the adjacent article with a directional push animation.
     private func navigateReader(forward: Bool) {
-        guard transition == nil, let current = store.selectedArticle else { return }
-        guard let incoming = forward ? store.article(after: current.id) : store.article(before: current.id) else { return }
-
-        // Warm the incoming article's reader content so it isn't a placeholder
-        // as it slides in.
-        store.ensureReaderContent(for: incoming)
-
-        let distance = viewportHeight > 0 ? viewportHeight : 700
-        transition = ReaderTransition(outgoing: current, incoming: incoming, forward: forward)
-        outgoingOffset = 0
-        incomingOffset = forward ? distance : -distance
-        // Defer so both layers render at their start offsets, then slide together.
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.32)) {
-                outgoingOffset = forward ? -distance : distance
-                incomingOffset = 0
-            } completion: {
-                // Commit the selection now the incoming layer is already in place,
-                // so swapping to the normal (non-transition) content is seamless.
-                if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
-                transition = nil
-                outgoingOffset = 0
-                incomingOffset = 0
-            }
+        readerNavForward = forward
+        withAnimation(.easeInOut(duration: 0.3)) {
+            if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
         }
     }
 
