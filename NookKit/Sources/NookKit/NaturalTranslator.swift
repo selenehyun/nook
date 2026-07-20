@@ -226,7 +226,7 @@ public enum NaturalTranslator {
         // field descriptions) is injected into the prompt and the small model
         // sometimes translates/echoes THAT instead of the article text.
         let first = try await session.respond(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false)
-        if isAcceptable(source: text, output: first.content.translation) {
+        if isAcceptable(source: text, output: first.content.translation, languageName: languageName) {
             return BlockResult(translation: first.content.translation, context: "")
         }
 
@@ -236,7 +236,7 @@ public enum NaturalTranslator {
             to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
             generating: BlockTranslation.self,
             includeSchemaInPrompt: false
-        ), isAcceptable(source: text, output: retry.content.translation) {
+        ), isAcceptable(source: text, output: retry.content.translation, languageName: languageName) {
             return BlockResult(translation: retry.content.translation, context: "")
         }
         // Still bad — let the caller escalate (fresh session / plain fallback)
@@ -281,7 +281,7 @@ public enum NaturalTranslator {
         // retrying in the same, poisoned session.
         if runaway { throw TranslationRejected() }
         onPartial(finalText)
-        if isAcceptable(source: text, output: finalText) {
+        if isAcceptable(source: text, output: finalText, languageName: languageName) {
             return BlockResult(translation: finalText, context: "")
         }
 
@@ -291,7 +291,7 @@ public enum NaturalTranslator {
             to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
             generating: BlockTranslation.self,
             includeSchemaInPrompt: false
-        ), isAcceptable(source: text, output: retry.content.translation) {
+        ), isAcceptable(source: text, output: retry.content.translation, languageName: languageName) {
             onPartial(retry.content.translation)
             return BlockResult(translation: retry.content.translation, context: "")
         }
@@ -330,7 +330,7 @@ public enum NaturalTranslator {
                 if let resp = try? await session.respond(to: ask) {
                     let out = stripTranslationPreamble(resp.content.trimmingCharacters(in: .whitespacesAndNewlines))
                     if !out.isEmpty,
-                       !looksUntranslated(source: text, output: out),
+                       !isUntranslated(source: text, output: out, languageName: languageName),
                        !hasImmediateRepetition(out),
                        !looksLikeSchemaLeak(out),
                        !looksRunaway(out) {
@@ -344,14 +344,54 @@ public enum NaturalTranslator {
     }
     #endif
 
-    /// A translation is acceptable when it isn't an untranslated echo of the
-    /// source, has no obvious back-to-back duplication, and hasn't leaked the
-    /// generation schema/instructions into the output.
-    private static func isAcceptable(source: String, output: String) -> Bool {
-        !looksUntranslated(source: source, output: output)
+    /// A translation is acceptable when it is actually in the target language (not
+    /// an echo of the source), has no obvious back-to-back duplication, and hasn't
+    /// leaked the generation schema/instructions into the output.
+    private static func isAcceptable(source: String, output: String, languageName: String) -> Bool {
+        !isUntranslated(source: source, output: output, languageName: languageName)
             && !hasImmediateRepetition(output)
             && !looksLikeSchemaLeak(output)
             && !looksRunaway(output)
+    }
+
+    /// Whether `output` is still the source, not a real translation. Combines an
+    /// exact-echo check (any language pair) with a target-script check: for a
+    /// Korean/Japanese/Chinese target, a real translation is mostly in that
+    /// script, so output that is almost all Latin letters is untranslated — this
+    /// catches the near-echoes the exact-match check misses.
+    static func isUntranslated(source: String, output: String, languageName: String) -> Bool {
+        if looksUntranslated(source: source, output: output) { return true }
+        guard let script = targetScript(languageName) else { return false }
+        var target = 0, latin = 0
+        for scalar in output.unicodeScalars {
+            let v = scalar.value
+            if isTargetScript(v, script) { target += 1 }
+            else if (0x41...0x5A).contains(v) || (0x61...0x7A).contains(v) { latin += 1 }
+        }
+        let letters = target + latin
+        guard letters >= 16 else { return false }   // too short to judge reliably
+        return Double(target) / Double(letters) < 0.2
+    }
+
+    private enum TargetScript { case hangul, japanese, chinese }
+
+    private static func targetScript(_ languageName: String) -> TargetScript? {
+        let l = languageName.lowercased()
+        if l.contains("korean") { return .hangul }
+        if l.contains("japanese") { return .japanese }
+        if l.contains("chinese") { return .chinese }
+        return nil
+    }
+
+    private static func isTargetScript(_ v: UInt32, _ script: TargetScript) -> Bool {
+        switch script {
+        case .hangul:
+            return (0xAC00...0xD7A3).contains(v) || (0x1100...0x11FF).contains(v) || (0x3130...0x318F).contains(v)
+        case .japanese:
+            return (0x3040...0x30FF).contains(v) || (0x4E00...0x9FFF).contains(v)
+        case .chinese:
+            return (0x4E00...0x9FFF).contains(v) || (0x3400...0x4DBF).contains(v)
+        }
     }
 
     /// Detects the model echoing the generation schema / instructions instead of

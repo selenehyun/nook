@@ -29,6 +29,16 @@ struct NaturalTranslatorTests {
         #expect(!tokens.contains("Gwern"))   // plain name — left to the model pass, not the heuristic
     }
 
+    @Test("Untranslated output is detected by target script")
+    func detectsUntranslatedByScript() {
+        let english = "The anonymous blogger Gwern recently completed a very long post about neural networks."
+        // Echoed English while translating to Korean: almost no Hangul → untranslated.
+        #expect(NaturalTranslator.isUntranslated(source: english, output: english, languageName: "Korean"))
+        // A real Korean translation (with some kept English names) is accepted.
+        let korean = "익명의 블로거 Gwern은 최근 신경망에 대한 아주 긴 글을 완성했습니다."
+        #expect(!NaturalTranslator.isUntranslated(source: english, output: korean, languageName: "Korean"))
+    }
+
     @Test("A runaway repetition loop is detected")
     func detectsRunaway() {
         // A single word repeated forever.
