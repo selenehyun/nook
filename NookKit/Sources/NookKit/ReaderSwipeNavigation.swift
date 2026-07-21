@@ -54,6 +54,10 @@ private struct ReaderSwipeNavigation: ViewModifier {
     /// firmer than the web reader's, so a small nudge at the top/bottom of a short
     /// article doesn't jump to the next one — a full, intentional pull is required.
     static let threshold: CGFloat = 160
+    /// The top edge (pull-down to the previous article) commits a bit sooner — a
+    /// top overscroll is harder to sustain than a bottom one, so 160 there felt
+    /// too stiff.
+    static let topThreshold: CGFloat = 120
 
     @State private var pull = EdgePull()
 
@@ -71,7 +75,7 @@ private struct ReaderSwipeNavigation: ViewModifier {
                 BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true, nextThreshold: Self.threshold)
             }
             .overlay(alignment: .top) {
-                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false, nextThreshold: Self.threshold)
+                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false, nextThreshold: Self.topThreshold)
             }
     }
 
@@ -132,7 +136,7 @@ private struct ReaderSwipeNavigation: ViewModifier {
                         let released = Self.pull(from: context.geometry)
                         if beganAtBottom, released.bottom >= Self.threshold {
                             commit(.bottom)
-                        } else if beganAtTop, released.top >= Self.threshold {
+                        } else if beganAtTop, released.top >= Self.topThreshold {
                             commit(.top)
                         }
                     }
