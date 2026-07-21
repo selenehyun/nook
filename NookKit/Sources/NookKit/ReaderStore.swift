@@ -1219,11 +1219,20 @@ public final class ReaderStore {
         if readerContentStore == nil, let storage {
             readerContentStore = ReaderContentStore(storage: storage, deviceID: deviceID)
         }
+
+        // Let the reader's open/push transition finish before doing any heavy
+        // main-thread work — the styled-text import (cache path) and the
+        // extractor's offscreen WKWebView (miss path) both stall the slide-in if
+        // run on the transition frame. The loading placeholder is already showing,
+        // so this is invisible.
+        try? await Task.sleep(for: .milliseconds(350))
+        if Task.isCancelled { return }
+
         // Serve a synced/cached result first (from this device or a peer), so a
         // page already extracted anywhere isn't re-fetched.
         if !forceRefresh, let cached = await readerContentStore?.value(for: article.id) {
             if cached.status == .success, let html = cached.html, !html.isEmpty {
-                await warmReaderBlocks(html: html, baseURL: article.url)
+                await warmReaderContent(html: html, baseURL: article.url)
                 readerContentStates[article.id] = .ready(html)
             } else {
                 readerContentStates[article.id] = .failed
@@ -1234,16 +1243,29 @@ public final class ReaderStore {
         if readerModeExtractor == nil { readerModeExtractor = ReaderModeExtractor() }
         let html = await readerModeExtractor?.extract(url: article.url)
         if let html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            // Parse into native blocks off-main and cache them BEFORE flipping to
-            // .ready, so the reader renders from a warm cache (no main-thread
-            // parse during the transition frame).
-            await warmReaderBlocks(html: html, baseURL: article.url)
+            // Parse into native blocks AND import their styled text into the caches
+            // BEFORE flipping to .ready, so the reader renders fully styled from a
+            // warm cache on the first frame — no parse or importer burst on the
+            // transition frame, and no placeholder→styled reflow.
+            await warmReaderContent(html: html, baseURL: article.url)
             readerContentStates[article.id] = .ready(html)
             await readerContentStore?.record(ReaderContentValue(status: .success, html: html), for: article.id)
         } else {
             readerContentStates[article.id] = .failed
             await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
         }
+    }
+
+    /// Warms both caches the reader reads from before content is shown: the block
+    /// parse (off-main) and the styled-text import for the above-the-fold blocks
+    /// (main actor, but done here while the loading placeholder shows). By the time
+    /// the state flips to `.ready`, the first screenful renders styled on the first
+    /// frame — the transition carries no parse and no importer burst.
+    private func warmReaderContent(html: String, baseURL: URL?) async {
+        await warmReaderBlocks(html: html, baseURL: baseURL)
+        // Only the first blocks matter for a burst-free open; the rest import
+        // lazily as they scroll into view (off the entry frame).
+        await HTMLContentText.warmReaderAttributedCache(html: html, baseURL: baseURL, maxBlocks: 14)
     }
 
     /// Parses reader HTML into native blocks off the main actor and stores them in

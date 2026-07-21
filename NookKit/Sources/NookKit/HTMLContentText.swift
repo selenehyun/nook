@@ -1673,9 +1673,12 @@ public struct HTMLContentText: View {
     /// article switch). Keys must match `renderKey` exactly per block type, or the
     /// warm is silently wasted. Nested quote/list children are warmed lazily.
     @MainActor
-    public static func warmReaderAttributedCache(html: String, baseURL: URL?) async {
-        let blocks = HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL)
+    public static func warmReaderAttributedCache(html: String, baseURL: URL?, maxBlocks: Int? = nil) async {
+        let all = HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL)
             ?? HTMLContentParser.parse(html, baseURL: baseURL)
+        // Bound the pre-`.ready` warm to the above-the-fold blocks so a very long
+        // article doesn't hold the content back importing everything up front.
+        let blocks = maxBlocks.map { Array(all.prefix($0)) } ?? all
         for block in blocks {
             if Task.isCancelled { return }
             switch block {
