@@ -567,6 +567,10 @@ private extension View {
     func warmListBackground() -> some View {
         scrollContentBackground(.hidden)
             .background(Color("ListBackground").ignoresSafeArea())
+            // Tighten the grouped list's generous section spacing (and the large
+            // gap above the first section) so the top isn't mostly whitespace.
+            .listSectionSpacing(.compact)
+            .contentMargins(.top, 8, for: .scrollContent)
     }
 
     /// Clears a `Section`'s row cards so the warm background shows through. Applied
