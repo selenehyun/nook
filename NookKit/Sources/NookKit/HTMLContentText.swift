@@ -1666,6 +1666,48 @@ public struct HTMLContentText: View {
         return platformBodySize * scale
     }
 
+    /// Pre-imports the reader's text blocks into `HTMLAttributedCache` on the main
+    /// actor (the WebKit importer is main-only) so scrolling doesn't stall running
+    /// the import per block as it appears. Yields between blocks to stay off the
+    /// frame; cancels cooperatively (call from a `.task(id:)` that restarts on
+    /// article switch). Keys must match `renderKey` exactly per block type, or the
+    /// warm is silently wasted. Nested quote/list children are warmed lazily.
+    @MainActor
+    public static func warmReaderAttributedCache(html: String, baseURL: URL?) async {
+        let blocks = HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL)
+            ?? HTMLContentParser.parse(html, baseURL: baseURL)
+        for block in blocks {
+            if Task.isCancelled { return }
+            switch block {
+            case .text(let fragment):
+                warmAttributed(fragment, baseSize: platformBodySize, bold: false)
+            case .heading(let level, let fragment):
+                warmAttributed(fragment, baseSize: headingSize(level), bold: true)
+            case .table(let table):
+                for row in table.rows {
+                    for cell in row.cells {
+                        if Task.isCancelled { return }
+                        warmAttributed(cell, baseSize: platformBodySize, bold: row.isHeader)
+                    }
+                }
+            default:
+                break
+            }
+            await Task.yield()
+        }
+    }
+
+    /// Imports one fragment into the cache if absent, at the exact key its view
+    /// will request.
+    @MainActor
+    private static func warmAttributed(_ html: String, baseSize: CGFloat, bold: Bool) {
+        let key = "\(baseSize)-\(bold)-\(html)"
+        guard HTMLAttributedCache.shared.value(forKey: key) == nil else { return }
+        if let rendered = render(html, baseSize: baseSize, bold: bold) {
+            HTMLAttributedCache.shared.store(rendered, forKey: key)
+        }
+    }
+
     private static func render(_ html: String, baseSize: CGFloat, bold: Bool) -> AttributedString? {
         guard let data = html.data(using: .utf8) else { return nil }
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [

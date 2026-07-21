@@ -80,6 +80,13 @@ struct ReaderDetailView: View {
     /// ready, else the feed's own content HTML (nil = plain-paragraph body). The
     /// translator must consume exactly this so its per-block overrides line up
     /// with the rendered blocks.
+    /// Cache-warming identity: changes when the article switches, and again when
+    /// reader-mode content becomes ready (so the extracted HTML gets warmed too).
+    private func warmingKey(for article: Article) -> String {
+        if case .ready = store.readerContentState(for: article) { return "\(article.id)|ready" }
+        return "\(article.id)"
+    }
+
     private func renderedReaderHTML(for article: Article) -> String? {
         if store.usesReaderContentByDefault, case .ready(let extracted) = store.readerContentState(for: article) {
             return extracted
@@ -276,6 +283,18 @@ struct ReaderDetailView: View {
             // run on the transition frame.
             let detected = await Task.detached { Self.detectLanguage(for: article) }.value
             if !Task.isCancelled { detectedLanguage = detected }
+        }
+        // Warm the reader's text-import cache after the open transition settles, so
+        // per-block WebKit imports don't stall scrolling. Re-runs when reader-mode
+        // content becomes ready (to warm the extracted HTML shown then), and cancels
+        // on article switch. Skipped while translating (the translator replaces
+        // blocks, so warming the untranslated keys would be wasted).
+        .task(id: warmingKey(for: article)) {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled, !nativeTranslator.isActive else { return }
+            if let html = renderedReaderHTML(for: article) {
+                await HTMLContentText.warmReaderAttributedCache(html: html, baseURL: article.url)
+            }
         }
         // If reader-mode content finishes extracting AFTER translation was turned
         // on, restart the translator against the now-rendered extracted HTML so
