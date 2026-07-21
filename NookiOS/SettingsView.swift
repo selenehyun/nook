@@ -170,7 +170,7 @@ private struct GeneralSettingsScreen: View {
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
 
     var body: some View {
-        Form {
+        List {
             Section("Language") {
                 Picker("Language", selection: $appLanguage) {
                     ForEach(AppLanguage.allCases) { language in
@@ -207,7 +207,7 @@ private struct ReadingSettingsScreen: View {
     @AppStorage(ReaderStore.longPressOpensBrowserKey) private var longPressOpensBrowser = false
 
     var body: some View {
-        Form {
+        List {
             Section("Reading") {
                 Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
                 Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
@@ -253,7 +253,7 @@ private struct ReaderSettingsScreen: View {
     }
 
     var body: some View {
-        Form {
+        List {
             Section {
                 Picker("Font", selection: $readerFont) {
                     ForEach(ReaderFont.allCases) { Text($0.label).tag($0) }
@@ -315,7 +315,7 @@ private struct FeedsSettingsScreen: View {
     }
 
     var body: some View {
-        Form {
+        List {
             Section {
                 Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
                 Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
@@ -475,7 +475,7 @@ private struct ExperimentalSettingsScreen: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
 
     var body: some View {
-        Form {
+        List {
             Section("Reader View") {
                 Toggle("Show reader view content by default", isOn: $readerContentByDefault)
                 Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
@@ -498,7 +498,7 @@ private struct AboutSettingsScreen: View {
     private var build: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1" }
 
     var body: some View {
-        Form {
+        List {
             Section("About") {
                 LabeledContent("Version", value: "\(version) (\(build))")
                 if let url = feedbackURL {
@@ -544,7 +544,11 @@ private struct AboutSettingsScreen: View {
 /// system background.
 private extension View {
     func warmListBackground() -> some View {
-        scrollContentBackground(.hidden)
+        // `.plain` drops the grouped style's cool secondarySystemGroupedBackground
+        // cards (which read bluish over the warm background); transparent rows then
+        // let `ListBackground` show through, matching the article list.
+        listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .background(Color("ListBackground").ignoresSafeArea())
             .listRowBackground(Color.clear)
     }
