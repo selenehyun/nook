@@ -300,20 +300,22 @@ private struct CompactShell: View {
     var body: some View {
         TabView(selection: $selection) {
             HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
-                .tabItem { Image(systemName: "house").accessibilityLabel(Text("Home")) }
+                .tabItem { Image(systemName: selection == .home ? "house.fill" : "house").accessibilityLabel(Text("Home")) }
                 .badge(store.count(for: .unread))
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
-                .tabItem { Image(systemName: "list.bullet").accessibilityLabel(Text("Feeds")) }
+                // `list.bullet` has no filled variant, so use `square.stack` which
+                // does, keeping the outline→fill-on-select behavior consistent.
+                .tabItem { Image(systemName: selection == .feeds ? "square.stack.fill" : "square.stack").accessibilityLabel(Text("Feeds")) }
                 .tag(AppTab.feeds)
 
             StarredTab(store: store)
-                .tabItem { Image(systemName: "star").accessibilityLabel(Text("Starred")) }
+                .tabItem { Image(systemName: selection == .starred ? "star.fill" : "star").accessibilityLabel(Text("Starred")) }
                 .tag(AppTab.starred)
 
             SettingsView(store: store, isTab: true)
-                .tabItem { Image(systemName: "gearshape").accessibilityLabel(Text("Settings")) }
+                .tabItem { Image(systemName: selection == .settings ? "gearshape.fill" : "gearshape").accessibilityLabel(Text("Settings")) }
                 .tag(AppTab.settings)
         }
         // Shrink the tab bar into a compact pill while scrolling the list, so the
