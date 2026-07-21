@@ -544,12 +544,11 @@ private struct AboutSettingsScreen: View {
 /// system background.
 private extension View {
     func warmListBackground() -> some View {
-        // `.plain` drops the grouped style's cool secondarySystemGroupedBackground
-        // cards (which read bluish over the warm background); its rows are already
-        // transparent, so `ListBackground` shows through — exactly how the article
-        // list is styled. (A container-level `.listRowBackground` here instead
-        // turned the list area opaque/black.)
-        listStyle(.plain)
+        // Clear the row backgrounds FIRST, directly on the List, so it reaches the
+        // rows (applied after `.background` it doesn't, leaving cool grouped cards
+        // or opaque rows). Then hide the list's own background and let the warm
+        // `ListBackground` show through — matching the article list.
+        listRowBackground(Color.clear)
             .scrollContentBackground(.hidden)
             .background(Color("ListBackground").ignoresSafeArea())
     }
