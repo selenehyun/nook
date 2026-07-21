@@ -100,17 +100,70 @@ private struct NestGlyphView: View {
     }
 }
 
-/// The app's nest mark as a bottom-tab glyph. Rendered once to a template
-/// `UIImage` so the tab bar tints it (gray unselected, accent selected) like any
-/// SF Symbol. Main-actor isolated because `ImageRenderer` is.
+/// Bottom-tab glyphs rendered once to template `UIImage`s. Going through
+/// pre-rendered rasters (rather than `.tabItem { Image(systemName:) }`) is what
+/// lets us control outline-vs-fill: the iOS 26 tab bar force-fills symbol-named
+/// items, but it can't re-fill a raster. All are templates so the bar tints them
+/// (secondary when unselected, accent when selected). Main-actor: `ImageRenderer`
+/// and `UIImage(systemName:)` sizing run there.
 @MainActor
-enum NestTabIcon {
-    static let image: UIImage = {
-        let glyph = NestGlyphView()
-            .scaleEffect(28.0 / 1024.0)
-            .frame(width: 28, height: 28)
+enum TabGlyph {
+    /// An SF Symbol rasterized at tab size as a template image.
+    static func symbol(_ name: String) -> UIImage {
+        let config = UIImage.SymbolConfiguration(pointSize: 24, weight: .regular)
+        return (UIImage(systemName: name, withConfiguration: config) ?? UIImage())
+            .withRenderingMode(.alwaysTemplate)
+    }
+
+    /// The nest mark, trimmed to its content and sized to a fixed point height so
+    /// it fills the tab slot like the other icons instead of floating tiny in a
+    /// mostly-empty canvas.
+    static let nest: UIImage = {
+        let glyph = NestGlyphView().scaleEffect(0.5).frame(width: 512, height: 512)
         let renderer = ImageRenderer(content: glyph)
         renderer.scale = 3
-        return (renderer.uiImage ?? UIImage()).withRenderingMode(.alwaysTemplate)
+        let full = renderer.uiImage ?? UIImage()
+        guard let trimmed = full.nk_trimmingTransparentEdges(), let cg = trimmed.cgImage else {
+            return full.withRenderingMode(.alwaysTemplate)
+        }
+        // Re-scale so the trimmed mark is ~22pt tall (comparable to the symbols'
+        // 24pt), regardless of how many pixels the trim produced.
+        let targetHeightPt: CGFloat = 22
+        let pointScale = max(1, CGFloat(cg.height) / targetHeightPt)
+        return UIImage(cgImage: cg, scale: pointScale, orientation: .up)
+            .withRenderingMode(.alwaysTemplate)
     }()
+}
+
+private extension UIImage {
+    /// Crops fully-transparent margins, so a glyph drawn small inside a large
+    /// canvas becomes a tight image that the tab bar can scale up to fill.
+    func nk_trimmingTransparentEdges() -> UIImage? {
+        guard let cg = cgImage else { return nil }
+        let width = cg.width, height = cg.height
+        guard width > 0, height > 0 else { return nil }
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+        guard let ctx = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var minX = width, minY = height, maxX = -1, maxY = -1
+        for y in 0..<height {
+            let row = y * bytesPerRow
+            for x in 0..<width where pixels[row + x * 4 + 3] > 10 {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        let rect = CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+        guard let cropped = cg.cropping(to: rect) else { return nil }
+        return UIImage(cgImage: cropped, scale: scale, orientation: .up)
+    }
 }

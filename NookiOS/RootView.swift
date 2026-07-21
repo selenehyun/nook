@@ -301,38 +301,39 @@ private struct CompactShell: View {
         TabView(selection: $selection) {
             HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
                 // Nook's own nest mark (from the icon/splash twig geometry) —
-                // on-brand and distinct from a generic house. Tinted by the tab bar.
+                // on-brand and distinct from a generic house.
                 .tabItem {
-                    Image(uiImage: NestTabIcon.image)
+                    Image(uiImage: TabGlyph.nest)
+                        .renderingMode(.template)
                         .accessibilityLabel(Text("Home"))
                 }
                 .badge(store.count(for: .unread))
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
-                // `list.bullet` has no filled variant, so use `square.stack` which
-                // does, keeping the outline→fill-on-select behavior consistent.
-                // `.symbolVariant(.none)` stops the tab bar from auto-filling the
-                // unselected icons (iOS 26 forces `.fill` on tab symbols otherwise).
+                // Pre-rendered template rasters so the icon is outline when
+                // unselected and filled when selected (the tab bar otherwise
+                // force-fills symbol items on iOS 26). `list.bullet` has no filled
+                // variant, so use `square.stack`.
                 .tabItem {
-                    Image(systemName: selection == .feeds ? "square.stack.fill" : "square.stack")
-                        .symbolVariant(.none)
+                    Image(uiImage: TabGlyph.symbol(selection == .feeds ? "square.stack.fill" : "square.stack"))
+                        .renderingMode(.template)
                         .accessibilityLabel(Text("Feeds"))
                 }
                 .tag(AppTab.feeds)
 
             StarredTab(store: store)
                 .tabItem {
-                    Image(systemName: selection == .starred ? "star.fill" : "star")
-                        .symbolVariant(.none)
+                    Image(uiImage: TabGlyph.symbol(selection == .starred ? "star.fill" : "star"))
+                        .renderingMode(.template)
                         .accessibilityLabel(Text("Starred"))
                 }
                 .tag(AppTab.starred)
 
             SettingsView(store: store, isTab: true)
                 .tabItem {
-                    Image(systemName: selection == .settings ? "gearshape.fill" : "gearshape")
-                        .symbolVariant(.none)
+                    Image(uiImage: TabGlyph.symbol(selection == .settings ? "gearshape.fill" : "gearshape"))
+                        .renderingMode(.template)
                         .accessibilityLabel(Text("Settings"))
                 }
                 .tag(AppTab.settings)
