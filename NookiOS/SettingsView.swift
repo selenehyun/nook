@@ -87,6 +87,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .warmListBackground()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -187,6 +188,7 @@ private struct GeneralSettingsScreen: View {
                 Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
             }
         }
+        .warmListBackground()
         .navigationTitle("General")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: appLanguage) { _, newValue in
@@ -225,6 +227,7 @@ private struct ReadingSettingsScreen: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .warmListBackground()
         .navigationTitle("Reading")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -279,6 +282,7 @@ private struct ReaderSettingsScreen: View {
                 }
             }
         }
+        .warmListBackground()
         .navigationTitle("Reader")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -406,6 +410,7 @@ private struct FeedsSettingsScreen: View {
                 Text("Nook keeps your feeds in a folder in the cloud so they stay in sync across your devices.")
             }
         }
+        .warmListBackground()
         .navigationTitle("Feeds")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: newArticleNotifications) { await checkAlerts() }
@@ -478,6 +483,7 @@ private struct ExperimentalSettingsScreen: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .warmListBackground()
         .navigationTitle("Experimental")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -509,6 +515,7 @@ private struct AboutSettingsScreen: View {
                 }
             }
         }
+        .warmListBackground()
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -528,5 +535,16 @@ private struct AboutSettingsScreen: View {
         let s = subject.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
         let b = body.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
         return URL(string: "mailto:rationlunas@gmail.com?subject=\(s)&body=\(b)")
+    }
+}
+
+/// Gives a `List`/`Form` the app's warm tone — hiding the default system grouped
+/// background and using `ListBackground` with frosted rows — so Settings matches
+/// the article list and Feeds screens instead of the plain system background.
+private extension View {
+    func warmListBackground() -> some View {
+        scrollContentBackground(.hidden)
+            .background(Color("ListBackground").ignoresSafeArea())
+            .listRowBackground(Rectangle().fill(.ultraThinMaterial))
     }
 }
