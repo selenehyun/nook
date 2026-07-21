@@ -12,9 +12,16 @@ import UIKit
 /// code, quotes, tables, rules) and media (images, video, audio, embeds) are
 /// kept in document order and rendered as dedicated native views.
 public struct HTMLContentView: View {
-    private let blocks: [HTMLContentBlock]
+    private let html: String
+    private let baseURL: URL?
     private let selectable: Bool
     private var translator: NativeArticleTranslator?
+    /// nil until the blocks are available. A cache hit (warmed off-main by the
+    /// store, or a revisit) is a cheap `NSCache` read done in `init`, so the
+    /// common path renders on the very first frame. A miss stays nil and parses
+    /// OFF the render/transition frame in `.task`, so opening the reader never
+    /// stalls on the HTML parse — the body just fills in a beat later.
+    @State private var blocks: [HTMLContentBlock]?
 
     public init(
         html: String,
@@ -22,26 +29,44 @@ public struct HTMLContentView: View {
         selectable: Bool = true,
         translator: NativeArticleTranslator? = nil
     ) {
-        // A cache hit (warmed off-main by the store, or a revisit) skips the
-        // synchronous parse entirely. On a miss we parse synchronously exactly as
-        // before — so cold paths (feed-original body, failed fallback) are
-        // unchanged — and populate the cache for next time.
-        if let cached = HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL) {
-            blocks = cached
-        } else {
-            let parsed = HTMLContentParser.parse(html, baseURL: baseURL)
-            HTMLBlockCache.shared.store(parsed, html: html, baseURL: baseURL)
-            blocks = parsed
-        }
+        self.html = html
+        self.baseURL = baseURL
         self.selectable = selectable
         self.translator = translator
+        _blocks = State(initialValue: HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL))
     }
 
     public var body: some View {
-        // Lazy at the top level so off-screen blocks defer their HTML import /
-        // syntax highlight / image load instead of all firing at once on entry.
-        HTMLBlockList(blocks: blocks, selectable: selectable, lazy: true, translator: translator)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if let blocks {
+                // Lazy at the top level so off-screen blocks defer their HTML
+                // import / syntax highlight / image load instead of all firing at
+                // once on entry.
+                HTMLBlockList(blocks: blocks, selectable: selectable, lazy: true, translator: translator)
+            } else {
+                // Parsing off-frame; reserve a sliver of height so the scroll view
+                // doesn't briefly collapse before the blocks land.
+                Color.clear.frame(height: 1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: html) {
+            guard blocks == nil else { return }
+            // A warm that landed between init and now (the store parses reader-mode
+            // HTML off-main before flipping to .ready) is a synchronous hit.
+            if let hit = HTMLBlockCache.shared.blocks(html: html, baseURL: baseURL) {
+                blocks = hit
+                return
+            }
+            // Otherwise parse off the main actor (pure string/regex work — safe
+            // off-main) so the transition frame carries none of it.
+            let parsed = await Task.detached(priority: .userInitiated) {
+                HTMLContentParser.parse(html, baseURL: baseURL)
+            }.value
+            guard !Task.isCancelled else { return }
+            HTMLBlockCache.shared.store(parsed, html: html, baseURL: baseURL)
+            blocks = parsed
+        }
     }
 }
 
@@ -70,17 +95,20 @@ struct HTMLBlockList: View {
     @ViewBuilder
     private var rows: some View {
         ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
-            blockView(translator?.translatedBlock(at: index) ?? block)
+            // Only the top-level lazy list staggers text imports (by document
+            // order); nested lists/quotes pass 0 so their small, bounded content
+            // imports immediately when built.
+            blockView(translator?.translatedBlock(at: index) ?? block, order: lazy ? index : 0)
         }
     }
 
     @ViewBuilder
-    private func blockView(_ block: HTMLContentBlock) -> some View {
+    private func blockView(_ block: HTMLContentBlock, order: Int) -> some View {
         switch block {
         case .text(let html):
-            HTMLContentText(html: html, selectable: selectable)
+            HTMLContentText(html: html, selectable: selectable, order: order)
         case .heading(let level, let html):
-            NativeArticleHeading(level: level, html: html, selectable: selectable)
+            NativeArticleHeading(level: level, html: html, selectable: selectable, order: order)
         case .blockquote(let inner):
             NativeArticleQuote(blocks: inner, selectable: selectable)
         case .codeBlock(let code, let language):
@@ -1342,9 +1370,10 @@ private struct NativeArticleHeading: View {
     let level: Int
     let html: String
     let selectable: Bool
+    var order: Int = 0
 
     var body: some View {
-        HTMLContentText(html: html, selectable: selectable, baseSize: HTMLContentText.headingSize(level), bold: true)
+        HTMLContentText(html: html, selectable: selectable, baseSize: HTMLContentText.headingSize(level), bold: true, order: order)
             .padding(.top, level <= 2 ? 6 : 2)
     }
 }
@@ -1573,13 +1602,19 @@ public struct HTMLContentText: View {
     let selectable: Bool
     let baseSize: CGFloat?
     let bold: Bool
+    /// Document position within the top-level list. Cold imports are staggered by
+    /// this so the first screenful fills in top-down over a few frames rather than
+    /// bursting the main-thread importer all at once on reader entry. 0 (the
+    /// default) imports immediately.
+    let order: Int
     @State private var attributed: AttributedString?
 
-    public init(html: String, selectable: Bool = true, baseSize: CGFloat? = nil, bold: Bool = false) {
+    public init(html: String, selectable: Bool = true, baseSize: CGFloat? = nil, bold: Bool = false, order: Int = 0) {
         self.html = html
         self.selectable = selectable
         self.baseSize = baseSize
         self.bold = bold
+        self.order = order
     }
 
     public var body: some View {
@@ -1613,11 +1648,25 @@ public struct HTMLContentText: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: renderKey) {
-            // Reuse a prior import of the same fragment (revisits/rebuilds) so the
-            // main-thread WebKit importer doesn't re-run for every block.
+            // Reuse a prior import of the same fragment (revisits/rebuilds, or a
+            // block warmed ahead) so the main-thread WebKit importer doesn't re-run
+            // for every block — this is the fast, no-delay path.
             if let cached = HTMLAttributedCache.shared.value(forKey: renderKey) {
                 attributed = cached
                 return
+            }
+            // Cold block: stagger by document order so the first screenful imports
+            // top-down over a few frames instead of hammering the main-thread
+            // importer at once on entry (the plain-text placeholder holds the real
+            // height meanwhile). Re-check the cache after waiting, in case the warm
+            // pass filled it in the interim.
+            if order > 0 {
+                try? await Task.sleep(for: .milliseconds(min(order, 10) * 16))
+                if Task.isCancelled { return }
+                if let cached = HTMLAttributedCache.shared.value(forKey: renderKey) {
+                    attributed = cached
+                    return
+                }
             }
             // Falls back to plain text if the HTML importer yields nothing, so a
             // failed import shows content instead of an endless spinner. Only real
