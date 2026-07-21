@@ -683,6 +683,8 @@ private struct ReaderPushingList<Top: View>: View {
     /// what this pushed reader shows.
     @State private var pushed: Article?
     @State private var isSearching = false
+    /// Animated tab-bar hide while the reader is open (see the destination below).
+    @State private var hideTabBar = false
 
     init(store: ReaderStore, providesSearch: Bool = true, @ViewBuilder top: @escaping () -> Top = { EmptyView() }) {
         self.store = store
@@ -700,8 +702,13 @@ private struct ReaderPushingList<Top: View>: View {
             // Drive the reader from the binding (not the closure's snapshot) so
             // previous/next swipe can move it in place.
             ReaderDetailView(store: store, articleOverride: $pushed)
-                // Hide the tab bar while reading; it returns when popping to the list.
-                .toolbar(.hidden, for: .tabBar)
+                // Hide the tab bar while reading, animated so it slides down as the
+                // reader opens and back up on return (toggling from onAppear/
+                // onDisappear inside withAnimation, rather than a static hide that
+                // just cuts).
+                .toolbar(hideTabBar ? .hidden : .automatic, for: .tabBar)
+                .onAppear { withAnimation(.easeInOut(duration: 0.3)) { hideTabBar = true } }
+                .onDisappear { withAnimation(.easeInOut(duration: 0.3)) { hideTabBar = false } }
         }
     }
 
