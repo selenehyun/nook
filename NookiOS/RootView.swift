@@ -316,6 +316,9 @@ private struct CompactShell: View {
                 .tabItem { Image(systemName: "gearshape").accessibilityLabel(Text("Settings")) }
                 .tag(AppTab.settings)
         }
+        // Shrink the tab bar into a compact pill while scrolling the list, so the
+        // content gets the focus; it expands again on scroll-up / at the top.
+        .modifier(TabBarMinimizeOnScroll())
         .onAppear { applySelection(selection) }
         .onChange(of: selection) { _, tab in applySelection(tab) }
         .onChange(of: homeFilter) { _, _ in
@@ -364,6 +367,18 @@ private struct CompactShell: View {
         case .feed(let id):
             store.feedSelection = [id]
             store.smartSelection = nil
+        }
+    }
+}
+
+/// Minimizes the tab bar as the user scrolls down (restoring on scroll-up / at
+/// the top) on iOS 26+, where the behavior is native; a no-op on earlier iOS.
+private struct TabBarMinimizeOnScroll: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            content
         }
     }
 }
