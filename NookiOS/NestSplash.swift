@@ -108,9 +108,12 @@ private struct NestGlyphView: View {
 /// and `UIImage(systemName:)` sizing run there.
 @MainActor
 enum TabGlyph {
-    /// An SF Symbol rasterized at tab size as a template image.
+    /// An SF Symbol rasterized as a template image at roughly the size the tab bar
+    /// renders its native symbols (a custom image isn't auto-scaled by the bar, so
+    /// the point size here is the size shown — keep it near the ~18pt native glyph
+    /// so these icons stay their original size).
     static func symbol(_ name: String) -> UIImage {
-        let config = UIImage.SymbolConfiguration(pointSize: 24, weight: .regular)
+        let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         return (UIImage(systemName: name, withConfiguration: config) ?? UIImage())
             .withRenderingMode(.alwaysTemplate)
     }
@@ -128,8 +131,11 @@ enum TabGlyph {
         // Target ~24pt tall (like the symbols), capped in width so the wide nest
         // can't grow past a normal icon footprint. UIGraphicsImageRenderer output
         // is guaranteed to be this point size regardless of source pixels.
+        // Taller than the ~18pt symbols so the nest reads as the primary tab, with
+        // a generous width cap (it's a wide mark, so a tight cap would squash its
+        // height and make it look smaller than the others again).
         let aspect = source.size.height > 0 ? source.size.width / source.size.height : 1
-        let maxWidth: CGFloat = 30
+        let maxWidth: CGFloat = 52
         var size = CGSize(width: 24 * aspect, height: 24)
         if size.width > maxWidth { size = CGSize(width: maxWidth, height: maxWidth / max(aspect, 0.01)) }
 
