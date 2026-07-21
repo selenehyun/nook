@@ -48,6 +48,10 @@ struct ReaderDetailView: View {
     // full multi-line inline title so long titles stay fully readable.
     @State private var titleHidden = false
     @State private var titleHeight: CGFloat = 0
+    /// Reader width, used to bound the collapsed bar title so it stays clear of the
+    /// back button and the trailing toolbar group (a principal item is centered in
+    /// the full bar, so an unbounded title would spill under the buttons).
+    @State private var barWidth: CGFloat = 0
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -237,13 +241,8 @@ struct ReaderDetailView: View {
                     withAnimation(.easeInOut(duration: 0.2)) { titleHidden = hidden }
                 }
             }
+            .onChange(of: proxy.size.width, initial: true) { _, w in barWidth = w }
         }
-        // The system inline title reveals once the inline article title scrolls
-        // under the bar. Using navigationTitle (not a principal item) so the system
-        // lays it out in the space between the back button and the trailing group
-        // and truncates it there — a principal item centers in the full bar width
-        // and can spill under the buttons.
-        .navigationTitle(titleHidden ? displayTitle(article) : "")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
@@ -261,6 +260,19 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                // Mirrors the inline title, fading in once that title scrolls under
+                // the bar. Width is bounded (and truncated within it) so the
+                // centered principal item never reaches the back button or the
+                // trailing group — the reserve covers the widest side.
+                Text(displayTitle(article))
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: max(80, barWidth - 260))
+                    .opacity(titleHidden ? 1 : 0)
+                    .accessibilityHidden(!titleHidden)
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     openBrowser(for: article)
