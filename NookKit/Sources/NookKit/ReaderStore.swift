@@ -8,13 +8,12 @@ public final class ReaderStore {
     public var feeds: [Feed] = [] { didSet { scheduleArticleFilter(debounced: true) } }
     var articles: [Article] = [] {
         didSet {
-            // During a batch refresh, skip the per-feed O(all-articles) counts/badge
-            // recompute — they run once in the batch's defer. The debounced filter
-            // still coalesces, so the list updates once when the burst settles.
-            if !isBatchRefreshing {
-                recomputeCounts()
-                updateUnreadBadge()
-            }
+            // Counts + unread badge recompute on every change (a single O(all)
+            // pass, cheap) so the Dock/app-icon badge and sidebar counts always
+            // stay live — including a read toggle made while a refresh is in
+            // flight. Only the filter+sort is debounced/coalesced.
+            recomputeCounts()
+            updateUnreadBadge()
             scheduleArticleFilter(debounced: true)
         }
     }
@@ -1602,10 +1601,9 @@ public final class ReaderStore {
         isBatchRefreshing = true
         defer {
             isBatchRefreshing = false
-            // Apply the counts, badge, and one immediate filter now that the whole
-            // batch has merged — instead of once per feed during the loop.
-            recomputeCounts()
-            updateUnreadBadge()
+            // One immediate (non-debounced) filter now that the whole batch has
+            // merged, so the list settles at once instead of after the debounce.
+            // Counts/badge already stayed live via the `articles` didSet.
             scheduleArticleFilter()
             scheduleSave()
         }
