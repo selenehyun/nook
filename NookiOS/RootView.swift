@@ -130,6 +130,10 @@ struct RootView: View {
                     .zIndex(1)
             }
         }
+        // Apply Nook's signature accent explicitly across both shells (iPhone tab
+        // bar and iPad split view). The asset-catalog global accent alone didn't
+        // take effect, so tint the whole app root here.
+        .tint(Color("AccentColor"))
     }
 
     @ViewBuilder
