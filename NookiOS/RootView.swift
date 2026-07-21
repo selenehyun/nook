@@ -651,12 +651,15 @@ private struct FeedsTab: View {
 /// never pushes the reader in an inactive tab) and mirrored to
 /// `store.selectedArticleID` so the reader and mark-read dwell work.
 private struct ReaderPushingList<Top: View>: View {
-    let store: ReaderStore
+    @Bindable var store: ReaderStore
     let top: () -> Top
     /// The article captured when a row is tapped — the value the reader renders.
     /// Local to this stack, so another tab's scope change never blanks or swaps
     /// what this pushed reader shows.
     @State private var pushed: Article?
+    /// Search is presented from a toolbar button rather than an always-visible
+    /// drawer, so the segment/title row stays compact.
+    @State private var isSearching = false
 
     init(store: ReaderStore, @ViewBuilder top: @escaping () -> Top = { EmptyView() }) {
         self.store = store
@@ -666,7 +669,15 @@ private struct ReaderPushingList<Top: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             top()
-            ArticleList(store: store, selection: selectionBinding)
+            ArticleList(store: store, selection: selectionBinding, managesSearch: false)
+        }
+        .searchable(text: $store.searchText, isPresented: $isSearching, prompt: "Search Articles")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { isSearching = true } label: {
+                    Label("Search Articles", systemImage: "magnifyingglass")
+                }
+            }
         }
         .navigationDestination(item: $pushed) { article in
             ReaderDetailView(store: store, articleOverride: article)
@@ -980,9 +991,28 @@ private struct Sidebar: View {
     }
 }
 
+/// Applies the standard always-available search drawer only when `enabled`
+/// (iPad). The compact tab shell presents search from a toolbar button instead.
+private struct DrawerSearch: ViewModifier {
+    @Binding var text: String
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.searchable(text: $text, prompt: "Search Articles")
+        } else {
+            content
+        }
+    }
+}
+
 private struct ArticleList: View {
     @Bindable var store: ReaderStore
     @Binding var selection: Article.ID?
+    /// Whether this list owns the search field. True on iPad (the split-view list
+    /// shows the standard always-available search drawer); false in the compact
+    /// tab shell, where `ReaderPushingList` presents search from a toolbar button.
+    var managesSearch: Bool = true
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
 
     var body: some View {
@@ -1039,7 +1069,7 @@ private struct ArticleList: View {
         .scrollContentBackground(.hidden)
         .background(Color("ListBackground").ignoresSafeArea())
         .navigationTitle(store.selectedSourceTitle)
-        .searchable(text: $store.searchText, prompt: "Search Articles")
+        .modifier(DrawerSearch(text: $store.searchText, enabled: managesSearch))
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
         .refreshable { await refreshCurrent() }
         .overlay {
