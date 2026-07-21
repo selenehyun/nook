@@ -265,7 +265,11 @@ struct ReaderDetailView: View {
             .onChange(of: proxy.size.width, initial: true) { _, w in barWidth = w }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
+        // Only the bottom bar auto-hides. Hiding the navigation bar too would
+        // shrink the top safe area and shove the article body upward (a visible
+        // layout shift); the top bar is already minimal (back + fading title), so
+        // keeping it costs little and the bottom bar hiding still gives the body
+        // room while reading.
         .toolbar(chromeHidden ? .hidden : .visible, for: .bottomBar)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
