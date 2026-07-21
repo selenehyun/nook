@@ -312,8 +312,6 @@ private struct CompactShell: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(AppTab.settings)
         }
-        // Selected tab uses Nook's warm signature color instead of system blue.
-        .tint(Color("Signature"))
         .onAppear { applySelection(selection) }
         .onChange(of: selection) { _, tab in applySelection(tab) }
         .onChange(of: homeFilter) { _, _ in
