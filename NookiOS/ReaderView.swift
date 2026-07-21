@@ -306,24 +306,26 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
-            // The controls are removed (not just faded) while immersed, so their
-            // iOS 26 glass button backgrounds disappear too — an opacity fade would
-            // leave the empty capsules behind. The bars themselves stay in place, so
-            // the layout doesn't shift.
+            // Keep the principal item ALWAYS present so the navigation bar never
+            // collapses to zero height when immersed — an empty inline bar would
+            // shrink the top safe area and shift the body. It's plain text (no glass
+            // capsule), so holding it costs nothing visually; opacity hides it.
+            ToolbarItem(placement: .principal) {
+                // Mirrors the inline title, fading in once that title scrolls under
+                // the bar. Width is bounded (and truncated within it) so the
+                // centered principal item never reaches the back button or the
+                // trailing group — the reserve covers the widest side.
+                Text(displayTitle(article))
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: max(80, barWidth - 260))
+                    .opacity(titleHidden && !chromeHidden ? 1 : 0)
+                    .accessibilityHidden(!titleHidden || chromeHidden)
+            }
+            // The button controls carry iOS 26 glass capsules, so remove them (not
+            // just fade them) while immersed — a fade would leave the empty pills.
             if !chromeHidden {
-                ToolbarItem(placement: .principal) {
-                    // Mirrors the inline title, fading in once that title scrolls
-                    // under the bar. Width is bounded (and truncated within it) so
-                    // the centered principal item never reaches the back button or
-                    // the trailing group — the reserve covers the widest side.
-                    Text(displayTitle(article))
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: max(80, barWidth - 260))
-                        .opacity(titleHidden ? 1 : 0)
-                        .accessibilityHidden(!titleHidden)
-                }
                 // Top-right stays a single, uncrowded "more" menu for the occasional
                 // actions; the frequent ones live in the bottom toolbar below.
                 ToolbarItem(placement: .topBarTrailing) {
