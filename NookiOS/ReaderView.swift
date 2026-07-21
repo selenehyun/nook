@@ -56,10 +56,6 @@ struct ReaderDetailView: View {
     // full multi-line inline title so long titles stay fully readable.
     @State private var titleHidden = false
     @State private var titleHeight: CGFloat = 0
-    /// Reader width, used to bound the collapsed bar title so it stays clear of the
-    /// back button and the trailing toolbar group (a principal item is centered in
-    /// the full bar, so an unbounded title would spill under the buttons).
-    @State private var barWidth: CGFloat = 0
     /// Safari-style chrome auto-hide: scrolling down fades the top and bottom bars
     /// (background + controls) so the body has the screen; scrolling up (or
     /// reaching the top) brings them back. The bars keep their layout space and
@@ -293,8 +289,13 @@ struct ReaderDetailView: View {
                     withAnimation(.easeInOut(duration: 0.25)) { chromeHidden = target }
                 }
             }
-            .onChange(of: proxy.size.width, initial: true) { _, w in barWidth = w }
         }
+        // System inline title: correct width, truncation, and position (centered in
+        // the real space between the back button and trailing group) — no custom
+        // bounding. Empty near the top (the big inline title in the body shows
+        // there); once that scrolls away it fills in, which also anchors the bar's
+        // height so hiding the controls never collapses it.
+        .navigationTitle(titleHidden ? displayTitle(article) : "")
         .navigationBarTitleDisplayMode(.inline)
         // Hide the chrome by fading the bar BACKGROUNDS (not by removing the bars),
         // so the bars keep their layout space and the body never shifts. Content
@@ -323,29 +324,10 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
-            // Keep the principal item ALWAYS present so the navigation bar never
-            // collapses to zero height when immersed — an empty inline bar would
-            // shrink the top safe area and shift the body. It's plain text (no glass
-            // capsule), so holding it costs nothing visually; opacity hides it.
-            ToolbarItem(placement: .principal) {
-                // Mirrors the inline title, fading in once that title scrolls under
-                // the bar. Width is bounded (and truncated within it) so the
-                // centered principal item never reaches the back button or the
-                // trailing group — the reserve covers the widest side.
-                Text(displayTitle(article))
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    // Centered in the full bar, so reserve only what the sides need:
-                    // a single trailing "…" button and a (system-truncated) back
-                    // button — ~75pt each. Keeps the title from spilling under them
-                    // while using far more of the width than a generous reserve did.
-                    .frame(maxWidth: max(80, barWidth - 150))
-                    .opacity(titleHidden && !chromeHidden ? 1 : 0)
-                    .accessibilityHidden(!titleHidden || chromeHidden)
-            }
             // The button controls carry iOS 26 glass capsules, so remove them (not
             // just fade them) while immersed — a fade would leave the empty pills.
+            // The system navigationTitle (below) fills the bar once the inline title
+            // scrolls away, which also keeps the bar from collapsing (no shift).
             if !chromeHidden {
                 // Top-right stays a single, uncrowded "more" menu for the occasional
                 // actions; the frequent ones live in the bottom toolbar below.
