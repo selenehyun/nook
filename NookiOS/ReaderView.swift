@@ -13,6 +13,14 @@ private struct TitleHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
+/// A scroll sample for the chrome auto-hide: the vertical offset plus how far
+/// the bottom is, so toggling can be suppressed near the end (where the bottom
+/// bar's collapse/expand would rubber-band the offset and oscillate the bars).
+private struct ScrollSnapshot: Equatable {
+    var y: CGFloat
+    var distanceToBottom: CGFloat
+}
+
 struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     /// The article to show, as a binding the compact tab shell owns, so the pushed
@@ -244,7 +252,11 @@ struct ReaderDetailView: View {
             // under the bar (its bottom = top padding + its height). The content top
             // sits at the bar's bottom, so the raw scroll offset is the distance
             // travelled — no bar-geometry math needed.
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, newY in
+            .onScrollGeometryChange(for: ScrollSnapshot.self) { geo in
+                let maxY = max(0, geo.contentSize.height - geo.containerSize.height)
+                return ScrollSnapshot(y: geo.contentOffset.y, distanceToBottom: maxY - geo.contentOffset.y)
+            } action: { _, snap in
+                let newY = snap.y
                 // Content starts under the bar with 16pt top padding, so the inline
                 // title's bottom passes the bar after scrolling ~padding + height.
                 let pastTitle = newY > titleHeight + 8
@@ -252,12 +264,17 @@ struct ReaderDetailView: View {
                     withAnimation(.easeInOut(duration: 0.2)) { titleHidden = pastTitle }
                 }
 
-                // Chrome auto-hide with hysteresis. Accumulate scroll distance since
-                // the last direction change; only flip after a sustained move, and
-                // always show near the top. Because hiding only changes opacity (not
-                // layout), newY isn't perturbed by the flip — no feedback flicker.
                 let delta = newY - lastScrollY
                 lastScrollY = newY
+
+                // Near the bottom, freeze the bars: the bottom bar's collapse/expand
+                // there changes the content height and rubber-bands the offset, which
+                // would otherwise bounce the bars in and out.
+                guard snap.distanceToBottom > 100 else { return }
+
+                // Chrome auto-hide with hysteresis. Accumulate scroll distance since
+                // the last direction change; only flip after a sustained move, and
+                // always show near the top.
                 if (delta > 0) != (scrollAccum > 0) { scrollAccum = 0 }
                 scrollAccum += delta
 
