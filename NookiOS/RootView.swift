@@ -375,8 +375,6 @@ private struct HomeTab: View {
 
     private let filters: [SmartSource] = [.unread, .today, .all]
 
-    @State private var isSearching = false
-
     /// Short labels for the nav-bar segmented control — "All Articles" is too wide
     /// there, so it shows as "All".
     private func segmentTitle(_ source: SmartSource) -> String {
@@ -388,42 +386,21 @@ private struct HomeTab: View {
             Group {
                 if store.isStorageConfigured {
                     // The segmented filter lives in the navigation bar itself (no
-                    // separate strip, no redundant title), so the header stays
-                    // compact and there's no black band above the warm list. Tapping
-                    // search morphs the segment into a search field and the search
-                    // glyph into a close (X) — no always-visible search row.
-                    ReaderPushingList(store: store, providesSearch: false)
+                    // separate strip, no redundant title). Search is the full native
+                    // search bar, revealed on demand by the toolbar button
+                    // (ReaderPushingList's CompactSearchButton) — not an always-
+                    // visible row, and not a cramped custom field.
+                    ReaderPushingList(store: store)
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .principal) {
-                                ZStack {
-                                    if isSearching {
-                                        HomeSearchField(text: $store.searchText)
-                                            .transition(.blurReplace)
-                                    } else {
-                                        Picker("Filter", selection: $filter) {
-                                            ForEach(filters) { source in
-                                                Text(segmentTitle(source)).tag(source)
-                                            }
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .frame(minWidth: 240)
-                                        .transition(.blurReplace)
+                                Picker("Filter", selection: $filter) {
+                                    ForEach(filters) { source in
+                                        Text(segmentTitle(source)).tag(source)
                                     }
                                 }
-                            }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button {
-                                    withAnimation(.snappy(duration: 0.3)) { isSearching.toggle() }
-                                    if !isSearching {
-                                        store.searchText = ""
-                                        store.debounceSearch()
-                                    }
-                                } label: {
-                                    Image(systemName: isSearching ? "xmark.circle.fill" : "magnifyingglass")
-                                        .contentTransition(.symbolEffect(.replace))
-                                }
-                                .accessibilityLabel(isSearching ? Text("Cancel Search") : Text("Search Articles"))
+                                .pickerStyle(.segmented)
+                                .frame(minWidth: 240)
                             }
                         }
                 } else {
@@ -438,39 +415,6 @@ private struct HomeTab: View {
                 }
             }
         }
-    }
-}
-
-/// The inline search field that the Home segment morphs into. Focuses itself when
-/// it appears (as it slides in) and offers an inline clear button.
-private struct HomeSearchField: View {
-    @Binding var text: String
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            TextField("Search Articles", text: $text)
-                .textFieldStyle(.plain)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                .focused($focused)
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(.quaternary, in: Capsule())
-        .frame(minWidth: 220)
-        .onAppear { focused = true }
     }
 }
 
@@ -1045,19 +989,30 @@ private struct Sidebar: View {
     }
 }
 
-/// The compact search UI for tabs without a segment (Starred, drilled feeds):
-/// a toolbar magnifying-glass button that attaches `.searchable` only while
-/// active, so there's no always-visible search row.
+/// Reveals the full native search bar on demand from a toolbar magnifying-glass
+/// button. `.searchable` is attached only while searching, so there's no
+/// always-visible search row; once attached, `presented` is flipped false→true
+/// so the system runs its native present animation AND focuses the field (raising
+/// the keyboard). The native "Cancel" dismisses it, which unmounts the bar.
 private struct CompactSearchButton: ViewModifier {
     @Binding var searchText: String
     @Binding var isSearching: Bool
     let enabled: Bool
+    @State private var presented = false
 
     func body(content: Content) -> some View {
         if !enabled {
             content
         } else if isSearching {
-            content.searchable(text: $searchText, isPresented: $isSearching, prompt: "Search Articles")
+            content
+                .searchable(text: $searchText, isPresented: $presented, prompt: "Search Articles")
+                .task { presented = true }
+                .onChange(of: presented) { _, nowPresented in
+                    if !nowPresented {
+                        searchText = ""
+                        isSearching = false
+                    }
+                }
         } else {
             content.toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
