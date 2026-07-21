@@ -700,6 +700,8 @@ private struct ReaderPushingList<Top: View>: View {
             // Drive the reader from the binding (not the closure's snapshot) so
             // previous/next swipe can move it in place.
             ReaderDetailView(store: store, articleOverride: $pushed)
+                // Hide the tab bar while reading; it returns when popping to the list.
+                .toolbar(.hidden, for: .tabBar)
         }
     }
 
