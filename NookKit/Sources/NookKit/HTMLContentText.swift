@@ -1652,18 +1652,33 @@ public struct HTMLContentText: View {
 
     /// The point size for a heading level (h1…h6), so headings render at the same
     /// size whether via the importer (`NativeArticleHeading`) or while streaming
-    /// (`NativeMixedText`).
+    /// (`NativeMixedText`). Mapped to the platform's standard text-style sizes
+    /// (title/title2/title3/headline/…) rather than arbitrary multiples, so
+    /// headings match native typography and scale with Dynamic Type.
     static func headingSize(_ level: Int) -> CGFloat {
-        let scale: CGFloat
+        #if canImport(AppKit)
+        let style: NSFont.TextStyle
         switch level {
-        case 1: scale = 1.7
-        case 2: scale = 1.45
-        case 3: scale = 1.25
-        case 4: scale = 1.1
-        case 5: scale = 1.0
-        default: scale = 0.9
+        case 1: style = .title1
+        case 2: style = .title2
+        case 3: style = .title3
+        case 4: style = .headline
+        case 5: style = .body
+        default: style = .subheadline
         }
-        return platformBodySize * scale
+        return NSFont.preferredFont(forTextStyle: style).pointSize
+        #else
+        let style: UIFont.TextStyle
+        switch level {
+        case 1: style = .title1
+        case 2: style = .title2
+        case 3: style = .title3
+        case 4: style = .headline
+        case 5: style = .body
+        default: style = .subheadline
+        }
+        return UIFont.preferredFont(forTextStyle: style).pointSize
+        #endif
     }
 
     /// Pre-imports the reader's text blocks into `HTMLAttributedCache` on the main

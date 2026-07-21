@@ -156,7 +156,7 @@ struct ReaderDetailView: View {
     private func reader(_ article: Article) -> some View {
         GeometryReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
                     header(article)
                     Divider()
 
@@ -164,7 +164,8 @@ struct ReaderDetailView: View {
 
                     Spacer(minLength: 0)
                 }
-                .padding()
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
                 // Fill at least the whole viewport so the gestures also fire in
                 // the empty space below a short article, not only on the text.
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .topLeading)
@@ -398,26 +399,37 @@ struct ReaderDetailView: View {
 
     private func header(_ article: Article) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+            // Title first and prominent (system text style, Dynamic Type), the way
+            // Safari Reader / News present an article.
+            Text(displayTitle(article))
+                .font(.title.weight(.bold))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Source + date as a single secondary metadata line. The feed name
+            // truncates with an ellipsis so a long name never wraps or pushes the
+            // date off; the date keeps its intrinsic width.
+            HStack(spacing: 6) {
                 if let feed = store.feed(for: article.feedID) {
                     if let icon = store.faviconImage(for: feed) {
                         icon.resizable().aspectRatio(contentMode: .fit)
                             .frame(width: 16, height: 16)
                             .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                     } else {
-                        Image(systemName: feed.systemImage)
+                        Image(systemName: feed.systemImage).imageScale(.small)
                     }
                     Text(feed.displayTitle)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(verbatim: "·").foregroundStyle(.tertiary)
                 }
-                Text("·")
                 Text(article.publishedAt.localized(date: .abbreviated, time: .shortened))
+                    .lineLimit(1)
+                    .fixedSize()
+                Spacer(minLength: 0)
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
-
-            Text(displayTitle(article))
-                .font(.title.bold())
-                .textSelection(.enabled)
 
             if translationActive(article) {
                 Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
