@@ -539,12 +539,13 @@ private struct AboutSettingsScreen: View {
 }
 
 /// Gives a `List`/`Form` the app's warm tone — hiding the default system grouped
-/// background and using `ListBackground` with frosted rows — so Settings matches
-/// the article list and Feeds screens instead of the plain system background.
+/// background and letting `ListBackground` show through transparent rows — so
+/// Settings matches the article list instead of the plain (or cool frosted)
+/// system background.
 private extension View {
     func warmListBackground() -> some View {
         scrollContentBackground(.hidden)
             .background(Color("ListBackground").ignoresSafeArea())
-            .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+            .listRowBackground(Color.clear)
     }
 }
