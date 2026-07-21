@@ -8,11 +8,12 @@ import Translation
 /// page presented as a sheet.
 struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
-    /// The article to show, captured at push time. The compact tab shell passes
-    /// this so the pushed reader is driven by its own value, not the shared,
-    /// scope-dependent `store.selectedArticle` (which another tab's scope change
-    /// can null out). nil on iPad, where the split-view detail follows selection.
-    var articleOverride: Article? = nil
+    /// The article to show, as a binding the compact tab shell owns, so the pushed
+    /// reader is driven by its own value — not the shared, scope-dependent
+    /// `store.selectedArticle` (which another tab's scope change can null out) — and
+    /// so previous/next swipe can move it. nil on iPad, where the split-view detail
+    /// follows `store.selectedArticle`.
+    var articleOverride: Binding<Article?>? = nil
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
@@ -136,7 +137,7 @@ struct ReaderDetailView: View {
                 } description: {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
-            } else if let article = articleOverride ?? store.selectedArticle {
+            } else if let article = articleOverride?.wrappedValue ?? store.selectedArticle {
                 reader(article)
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
@@ -328,9 +329,17 @@ struct ReaderDetailView: View {
 
     /// Navigates to the adjacent article with a directional push animation.
     private func navigateReader(forward: Bool) {
+        // Navigate relative to the article actually on screen (the override binding
+        // when pushed in a tab, else the store selection), and move BOTH that
+        // binding and the store selection — otherwise the pushed reader keeps
+        // showing the captured article and the gesture appears to do nothing.
+        let currentID = (articleOverride?.wrappedValue ?? store.selectedArticle)?.id
+        guard let currentID else { return }
+        guard let next = forward ? store.article(after: currentID) : store.article(before: currentID) else { return }
         readerNavForward = forward
         withAnimation(.easeInOut(duration: 0.3)) {
-            if forward { store.selectNextArticle() } else { store.selectPreviousArticle() }
+            store.selectedArticleID = next.id
+            articleOverride?.wrappedValue = next
         }
     }
 

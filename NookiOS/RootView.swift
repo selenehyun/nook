@@ -681,8 +681,10 @@ private struct ReaderPushingList<Top: View>: View {
             ArticleList(store: store, selection: selectionBinding, managesSearch: false)
         }
         .modifier(CompactSearchButton(searchText: $store.searchText, isSearching: $isSearching, enabled: providesSearch))
-        .navigationDestination(item: $pushed) { article in
-            ReaderDetailView(store: store, articleOverride: article)
+        .navigationDestination(item: $pushed) { _ in
+            // Drive the reader from the binding (not the closure's snapshot) so
+            // previous/next swipe can move it in place.
+            ReaderDetailView(store: store, articleOverride: $pushed)
         }
     }
 
