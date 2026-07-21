@@ -286,6 +286,10 @@ struct ReaderDetailView: View {
         // via opacity alongside (below).
         .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .navigationBar)
         .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .bottomBar)
+        // Hide the system back button too while immersed (its own glass capsule
+        // would otherwise linger); the edge-swipe back gesture still works, and
+        // scrolling up brings the bar — and the button — right back.
+        .navigationBarBackButtonHidden(chromeHidden)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
                 .font(.system(size: 104, weight: .bold))
@@ -302,78 +306,79 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // Mirrors the inline title, fading in once that title scrolls under
-                // the bar. Width is bounded (and truncated within it) so the
-                // centered principal item never reaches the back button or the
-                // trailing group — the reserve covers the widest side.
-                Text(displayTitle(article))
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: max(80, barWidth - 260))
-                    .opacity(titleHidden && !chromeHidden ? 1 : 0)
-                    .accessibilityHidden(!titleHidden || chromeHidden)
-            }
-            // Top-right stays a single, uncrowded "more" menu for the occasional
-            // actions; the frequent ones live in the bottom toolbar below.
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    if canTranslate {
-                        Button {
-                            toggleTranslation(article)
-                        } label: {
-                            if translationBusy {
-                                Label("Translating…", systemImage: "character.bubble")
-                            } else {
-                                Label(
-                                    translationActive(article) ? "Show Original" : "Translate",
-                                    systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
-                                )
+            // The controls are removed (not just faded) while immersed, so their
+            // iOS 26 glass button backgrounds disappear too — an opacity fade would
+            // leave the empty capsules behind. The bars themselves stay in place, so
+            // the layout doesn't shift.
+            if !chromeHidden {
+                ToolbarItem(placement: .principal) {
+                    // Mirrors the inline title, fading in once that title scrolls
+                    // under the bar. Width is bounded (and truncated within it) so
+                    // the centered principal item never reaches the back button or
+                    // the trailing group — the reserve covers the widest side.
+                    Text(displayTitle(article))
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: max(80, barWidth - 260))
+                        .opacity(titleHidden ? 1 : 0)
+                        .accessibilityHidden(!titleHidden)
+                }
+                // Top-right stays a single, uncrowded "more" menu for the occasional
+                // actions; the frequent ones live in the bottom toolbar below.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if canTranslate {
+                            Button {
+                                toggleTranslation(article)
+                            } label: {
+                                if translationBusy {
+                                    Label("Translating…", systemImage: "character.bubble")
+                                } else {
+                                    Label(
+                                        translationActive(article) ? "Show Original" : "Translate",
+                                        systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
+                                    )
+                                }
                             }
+                            .disabled(translationBusy)
                         }
-                        .disabled(translationBusy)
+                        Button {
+                            isShowingInfo = true
+                        } label: {
+                            Label("Article Info", systemImage: "info.circle")
+                        }
+                        Link(destination: article.url) {
+                            Label("Open Original", systemImage: "safari")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+
+                // Frequent actions on a native bottom toolbar (the tab bar is hidden
+                // while reading, so this owns the bottom edge): share, star, and the
+                // full web reader/original.
+                ToolbarItemGroup(placement: .bottomBar) {
+                    ShareLink(item: article.url) {
+                        Image(systemName: "square.and.arrow.up")
                     }
                     Button {
-                        isShowingInfo = true
+                        let willStar = !article.isStarred
+                        store.toggleStarred(articleID: article.id)
+                        haptics.star(on: willStar)
                     } label: {
-                        Label("Article Info", systemImage: "info.circle")
+                        Image(systemName: article.isStarred ? "star.fill" : "star")
+                            .contentTransition(.symbolEffect(.replace))
                     }
-                    Link(destination: article.url) {
-                        Label("Open Original", systemImage: "safari")
+                    Spacer()
+                    Button {
+                        openBrowser(for: article)
+                    } label: {
+                        Image(systemName: "doc.plaintext")
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .help("Open Reader / Original")
                 }
-                .opacity(chromeHidden ? 0 : 1)
-                .disabled(chromeHidden)
-            }
-
-            // Frequent actions on a native bottom toolbar (the tab bar is hidden
-            // while reading, so this owns the bottom edge): share, star, and the
-            // full web reader/original. They fade with the bar background.
-            ToolbarItemGroup(placement: .bottomBar) {
-                ShareLink(item: article.url) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .opacity(chromeHidden ? 0 : 1)
-                Button {
-                    let willStar = !article.isStarred
-                    store.toggleStarred(articleID: article.id)
-                    haptics.star(on: willStar)
-                } label: {
-                    Image(systemName: article.isStarred ? "star.fill" : "star")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .opacity(chromeHidden ? 0 : 1)
-                Spacer()
-                Button {
-                    openBrowser(for: article)
-                } label: {
-                    Image(systemName: "doc.plaintext")
-                }
-                .help("Open Reader / Original")
-                .opacity(chromeHidden ? 0 : 1)
             }
         }
         .task(id: article.id) {
