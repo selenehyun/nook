@@ -110,6 +110,10 @@ struct SettingsView: View {
                 opmlImport: $opmlImport
             ))
         }
+        // Nook's warm signature tint for the whole Settings stack, so icons,
+        // buttons, links, and toggles read in the brand color instead of the
+        // default system blue. Propagates to the pushed sub-screens.
+        .tint(Color("Signature"))
     }
 }
 
