@@ -24,10 +24,14 @@ enum InlineMarkupTranslator {
     // brackets (e.g. "{1}", "{=0}", "【/2】"). Recover those to the canonical form
     // before rebuilding/stripping so a mangled marker restores (or is removed)
     // instead of leaking into the text.
-    // Braces and CJK brackets only — not "[1]", which is a legitimate citation.
+    // Braces, CJK brackets, and the not-sign the model substitutes for ⟦/⟧ —
+    // not "[1]", which is a legitimate citation.
     private static let mangledMarkerRegex = try! NSRegularExpression(
-        pattern: "[{【〔]\\s*(=|/)?\\s*([0-9]+)\\s*[}】〕]"
+        pattern: "[{【〔\u{00AC}]\\s*(=|/)?\\s*([0-9]+)\\s*[}】〕\u{00AC}]"
     )
+    // Any residual marker-delimiter character that never belongs in translated
+    // prose, left over after a marker was mangled beyond recovery.
+    private static let strayMarkerChars = "[\u{27E6}\u{27E7}\u{00AC}]"
 
     /// Canonicalizes marker delimiters the model may have altered back to ⟦…⟧.
     static func normalizeMarkers(_ s: String) -> String {
@@ -35,6 +39,13 @@ enum InlineMarkupTranslator {
         return mangledMarkerRegex.stringByReplacingMatches(
             in: s, range: NSRange(location: 0, length: ns.length), withTemplate: "\u{27E6}$1$2\u{27E7}"
         )
+    }
+
+    /// Final safety net: removes any leftover marker-delimiter characters (⟦ ⟧ ¬)
+    /// that survived rebuild — so a marker the model mangled beyond recovery never
+    /// shows in the reader.
+    static func sanitizeResidualMarkers(_ s: String) -> String {
+        s.replacingOccurrences(of: strayMarkerChars, with: "", options: .regularExpression)
     }
     private static let voidTags: Set<String> = [
         "br", "wbr", "img", "hr", "source", "col", "area", "input",
@@ -156,7 +167,7 @@ enum InlineMarkupTranslator {
         return normalizeMarkers(template)
             .replacingOccurrences(of: "\u{27E6}[=/]?[0-9]+\u{27E7}", with: "", options: .regularExpression)
             .replacingOccurrences(of: "\u{27E6}[=/]?[0-9]*\u{27E7}?", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "[\u{27E6}\u{27E7}]", with: "", options: .regularExpression)
+            .replacingOccurrences(of: strayMarkerChars, with: "", options: .regularExpression)
     }
 
     /// Approximate upper bound on the characters of a marked template sent to the
@@ -744,8 +755,12 @@ public final class NativeArticleTranslator {
         // just this chunk. When we gave up (translated == local, the untranslated
         // original), rebuild restores the original tags around the original text —
         // so a failed chunk still shows its source styling rather than raw markers.
-        let html = InlineMarkupTranslator.rebuild(translated, entries: localEntries)
-            ?? InlineMarkupTranslator.plainFallback(translated)
+        // A valid rebuild leaves no markers, but a stray delimiter the model
+        // emitted as text (e.g. a lone "¬") can still slip through — clean it.
+        let html = InlineMarkupTranslator.sanitizeResidualMarkers(
+            InlineMarkupTranslator.rebuild(translated, entries: localEntries)
+                ?? InlineMarkupTranslator.plainFallback(translated)
+        )
         return (html, InlineMarkupTranslator.stripMarkers(translated))
     }
 

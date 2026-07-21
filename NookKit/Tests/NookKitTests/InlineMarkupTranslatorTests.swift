@@ -127,6 +127,15 @@ struct InlineMarkupTranslatorTests {
         #expect(Engine.stripMarkers("{0}단어{/0} 그리고 {=2}") == "단어 그리고 ")
     }
 
+    @Test("A leftover not-sign marker artifact is removed")
+    func removesNotSignArtifact() {
+        // The model rendered a close marker as a bare "¬"; it must not show.
+        #expect(Engine.sanitizeResidualMarkers("모델 런타임 및 인퓨전 팀\u{00AC}") == "모델 런타임 및 인퓨전 팀")
+        #expect(Engine.stripMarkers("인퓨전 팀\u{00AC}") == "인퓨전 팀")
+        // A not-sign wrapping an index is recovered as a marker before stripping.
+        #expect(Engine.stripMarkers("\u{00AC}0\u{00AC}단어\u{00AC}/0\u{00AC}") == "단어")
+    }
+
     @Test("Corrupted markers are stripped, not leaked into the text")
     func stripsCorruptedMarkers() {
         // The model mangled a footnote marker into "⟦5⟦3" at the end of a sentence.
