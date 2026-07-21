@@ -307,7 +307,6 @@ private struct CompactShell: View {
                         .renderingMode(.template)
                         .accessibilityLabel(Text("Home"))
                 }
-                .badge(store.count(for: .unread))
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
