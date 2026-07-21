@@ -300,20 +300,20 @@ private struct CompactShell: View {
     var body: some View {
         TabView(selection: $selection) {
             HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
-                .tabItem { Label("Home", systemImage: "house") }
+                .tabItem { Image(systemName: "house").accessibilityLabel(Text("Home")) }
                 .badge(store.count(for: .unread))
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
-                .tabItem { Label("Feeds", systemImage: "list.bullet") }
+                .tabItem { Image(systemName: "list.bullet").accessibilityLabel(Text("Feeds")) }
                 .tag(AppTab.feeds)
 
             StarredTab(store: store)
-                .tabItem { Label("Starred", systemImage: "star") }
+                .tabItem { Image(systemName: "star").accessibilityLabel(Text("Starred")) }
                 .tag(AppTab.starred)
 
             SettingsView(store: store, isTab: true)
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tabItem { Image(systemName: "gearshape").accessibilityLabel(Text("Settings")) }
                 .tag(AppTab.settings)
         }
         .onAppear { applySelection(selection) }
