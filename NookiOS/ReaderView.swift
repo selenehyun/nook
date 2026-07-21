@@ -336,7 +336,11 @@ struct ReaderDetailView: View {
                     .font(.headline)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: max(80, barWidth - 260))
+                    // Centered in the full bar, so reserve only what the sides need:
+                    // a single trailing "…" button and a (system-truncated) back
+                    // button — ~75pt each. Keeps the title from spilling under them
+                    // while using far more of the width than a generous reserve did.
+                    .frame(maxWidth: max(80, barWidth - 150))
                     .opacity(titleHidden && !chromeHidden ? 1 : 0)
                     .accessibilityHidden(!titleHidden || chromeHidden)
             }
