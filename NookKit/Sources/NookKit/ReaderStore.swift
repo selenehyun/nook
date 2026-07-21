@@ -1784,7 +1784,9 @@ public final class ReaderStore {
             scheduleShardSave()
         }
 
-        var existingArticlesByID = Dictionary(uniqueKeysWithValues: articles.map { ($0.id, $0) })
+        // Last-writer-wins on a duplicate ID rather than trapping — a dupe slipping
+        // through the baseline/shard merge must degrade, not crash the next refresh.
+        var existingArticlesByID = Dictionary(articles.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         let knownIDs = Set(existingArticlesByID.keys)
         var hasNewArticles = false
         for newArticle in parsedFeed.articles {

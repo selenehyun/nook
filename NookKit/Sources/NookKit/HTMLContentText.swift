@@ -616,7 +616,10 @@ private struct NativeArticleImage: View {
                 case .success(let image):
                     image
                         .resizable()
-                        .scaledToFit()
+                        // Use the declared aspect ratio when the source gave one
+                        // (nil ⇒ intrinsic, same as scaledToFit), so the loaded
+                        // image lands at the height the placeholder already reserved.
+                        .aspectRatio(media.aspectRatio, contentMode: .fit)
                         .contentShape(Rectangle())
                         .onTapGesture { presenter?.present(url: media.url, caption: media.caption) }
                         .help(String(localized: "Click to zoom", bundle: .module))
@@ -626,8 +629,12 @@ private struct NativeArticleImage: View {
                 case .failure:
                     NativeMediaLink(media: media, systemImage: "photo", label: String(localized: "Open Image", bundle: .module))
                 default:
+                    // Reserve the image's height up front from its aspect ratio so
+                    // it doesn't jump content down under the finger when it loads;
+                    // fall back to a fixed min height only when no ratio is known.
                     ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 160)
+                        .frame(maxWidth: .infinity, minHeight: media.aspectRatio == nil ? 160 : nil)
+                        .aspectRatio(media.aspectRatio, contentMode: .fit)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -1437,7 +1444,10 @@ private struct NativeArticleCode: View {
 
     @ViewBuilder
     private var text: some View {
-        let rendered = Text(highlighted ?? AttributedString(code))
+        // Prefer the highlight cache synchronously so a cached/warmed block shows
+        // colored on the first frame instead of a plain→colored flash.
+        let shown = highlighted ?? SyntaxHighlightCache.shared.value(forKey: "\(language ?? "")\n\(code)")
+        let rendered = Text(shown ?? AttributedString(code))
             .font(.system(.callout, design: .monospaced))
         if selectable {
             rendered.textSelection(.enabled)
@@ -1573,9 +1583,14 @@ public struct HTMLContentText: View {
     }
 
     public var body: some View {
-        Group {
-            if let attributed {
-                let text = Text(attributed).lineSpacing(4).tint(.accentColor)
+        // Read the importer cache synchronously so an already-imported block (warmed
+        // ahead, or revisited) renders its styled text on the very first frame —
+        // skipping both the placeholder's on-main `plainText` regex and the
+        // placeholder→imported position nudge as blocks scroll into view.
+        let ready = attributed ?? HTMLAttributedCache.shared.value(forKey: renderKey)
+        return Group {
+            if let ready {
+                let text = Text(ready).lineSpacing(4).tint(.accentColor)
                 if selectable {
                     text.textSelection(.enabled)
                 } else {
