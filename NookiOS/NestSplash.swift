@@ -135,8 +135,9 @@ enum TabGlyph {
         // a generous width cap (it's a wide mark, so a tight cap would squash its
         // height and make it look smaller than the others again).
         let aspect = source.size.height > 0 ? source.size.width / source.size.height : 1
-        let maxWidth: CGFloat = 52
-        var size = CGSize(width: 24 * aspect, height: 24)
+        let targetHeight: CGFloat = 20
+        let maxWidth: CGFloat = 44
+        var size = CGSize(width: targetHeight * aspect, height: targetHeight)
         if size.width > maxWidth { size = CGSize(width: maxWidth, height: maxWidth / max(aspect, 0.01)) }
 
         let resized = UIGraphicsImageRenderer(size: size).image { _ in
