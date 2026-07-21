@@ -1104,6 +1104,9 @@ private struct ArticleList: View {
                 }
                 // Transparent rows so the warm list background shows through.
                 .listRowBackground(Color.clear)
+                // No divider above the first row or below the last — only between rows.
+                .listRowSeparator(article.id == store.visibleArticles.first?.id ? .hidden : .automatic, edges: .top)
+                .listRowSeparator(article.id == store.visibleArticles.last?.id ? .hidden : .automatic, edges: .bottom)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)

@@ -30,19 +30,26 @@ public struct BottomPullAffordance: View {
     /// Whether the primary action goes forward (next) or backward (previous),
     /// which chooses the arrow direction and the "nothing more" message.
     private let forward: Bool
+    /// The pull distance at which the "next" action is reached. Overridable so a
+    /// surface can require a firmer pull (the native reader uses a larger value);
+    /// defaults to the shared `nextThreshold`. Must match the caller's commit
+    /// threshold so the indicator fills exactly when release will navigate.
+    private let nextThreshold: CGFloat
 
     public init(
         pull: CGFloat,
         nextTitle: String?,
         edge: VerticalEdge = .bottom,
         includeClose: Bool = true,
-        forward: Bool = true
+        forward: Bool = true,
+        nextThreshold: CGFloat = BottomPullAffordance.nextThreshold
     ) {
         self.pull = pull
         self.nextTitle = nextTitle
         self.edge = edge
         self.includeClose = includeClose
         self.forward = forward
+        self.nextThreshold = nextThreshold
     }
 
     /// +1 for the bottom edge, -1 to mirror the reel geometry for the top edge.
@@ -58,7 +65,7 @@ public struct BottomPullAffordance: View {
 
     private var stage: Stage {
         if includeClose, pull >= Self.closeThreshold { return .close }
-        if pull >= Self.nextThreshold { return .next }
+        if pull >= nextThreshold { return .next }
         return .hint
     }
 
@@ -161,11 +168,11 @@ public struct BottomPullAffordance: View {
         }
         switch (stage, item) {
         case (.hint, .next):
-            return eased(pull / Self.nextThreshold)
+            return eased(pull / nextThreshold)
         case (.next, .close) where pullDirection == .forward:
-            return eased((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
+            return eased((pull - nextThreshold) / (Self.closeThreshold - nextThreshold))
         case (.next, .hint) where pullDirection == .backward:
-            return 1 - eased((pull - Self.nextThreshold) / (Self.closeThreshold - Self.nextThreshold))
+            return 1 - eased((pull - nextThreshold) / (Self.closeThreshold - nextThreshold))
         case (.close, .next):
             return 1 - eased((pull - Self.closeThreshold) / 62)
         default:

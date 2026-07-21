@@ -50,9 +50,10 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let onNext: () -> Void
     let onPrevious: () -> Void
 
-    /// Pull distance past an edge needed to commit to a navigation. Matches the
-    /// web reader's next-article threshold so the two surfaces feel the same.
-    static let threshold: CGFloat = BottomPullAffordance.nextThreshold
+    /// Pull distance past an edge needed to commit to a navigation. Deliberately
+    /// firmer than the web reader's, so a small nudge at the top/bottom of a short
+    /// article doesn't jump to the next one — a full, intentional pull is required.
+    static let threshold: CGFloat = 160
 
     @State private var pull = EdgePull()
 
@@ -67,10 +68,10 @@ private struct ReaderSwipeNavigation: ViewModifier {
             // selection roll are identical — bottom pulls to the next article,
             // top mirrors it to the previous one (no "close" stage here).
             .overlay(alignment: .bottom) {
-                BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true)
+                BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true, nextThreshold: Self.threshold)
             }
             .overlay(alignment: .top) {
-                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false)
+                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false, nextThreshold: Self.threshold)
             }
     }
 
