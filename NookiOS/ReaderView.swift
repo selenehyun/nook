@@ -52,6 +52,10 @@ struct ReaderDetailView: View {
     /// back button and the trailing toolbar group (a principal item is centered in
     /// the full bar, so an unbounded title would spill under the buttons).
     @State private var barWidth: CGFloat = 0
+    /// Safari-style chrome auto-hide: scrolling down hides the top and bottom bars
+    /// so the body has the screen; scrolling up (or reaching the top) brings them
+    /// back. Reset per article (the reader is identity-keyed on the article id).
+    @State private var chromeHidden = false
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -233,17 +237,36 @@ struct ReaderDetailView: View {
             // under the bar (its bottom = top padding + its height). The content top
             // sits at the bar's bottom, so the raw scroll offset is the distance
             // travelled — no bar-geometry math needed.
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { oldY, newY in
                 // Content starts under the bar with 16pt top padding, so the inline
                 // title's bottom passes the bar after scrolling ~padding + height.
-                let hidden = y > titleHeight + 8
-                if hidden != titleHidden {
-                    withAnimation(.easeInOut(duration: 0.2)) { titleHidden = hidden }
+                let pastTitle = newY > titleHeight + 8
+                if pastTitle != titleHidden {
+                    withAnimation(.easeInOut(duration: 0.2)) { titleHidden = pastTitle }
+                }
+
+                // Safari-style chrome auto-hide: near the top always show; past it,
+                // hide when scrolling down and reveal when scrolling up. A small
+                // dead zone avoids flicker on tiny jitters.
+                let shouldHide: Bool
+                if !pastTitle {
+                    shouldHide = false
+                } else if newY - oldY > 6 {
+                    shouldHide = true
+                } else if newY - oldY < -6 {
+                    shouldHide = false
+                } else {
+                    shouldHide = chromeHidden
+                }
+                if shouldHide != chromeHidden {
+                    withAnimation(.easeInOut(duration: 0.25)) { chromeHidden = shouldHide }
                 }
             }
             .onChange(of: proxy.size.width, initial: true) { _, w in barWidth = w }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
+        .toolbar(chromeHidden ? .hidden : .visible, for: .bottomBar)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
                 .font(.system(size: 104, weight: .bold))
@@ -312,7 +335,6 @@ struct ReaderDetailView: View {
                 ShareLink(item: article.url) {
                     Image(systemName: "square.and.arrow.up")
                 }
-                Spacer()
                 Button {
                     let willStar = !article.isStarred
                     store.toggleStarred(articleID: article.id)
