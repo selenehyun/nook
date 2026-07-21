@@ -6,7 +6,18 @@ import SwiftUI
 @Observable
 public final class ReaderStore {
     public var feeds: [Feed] = [] { didSet { scheduleArticleFilter(debounced: true) } }
-    var articles: [Article] = [] { didSet { recomputeCounts(); scheduleArticleFilter(debounced: true); updateUnreadBadge() } }
+    var articles: [Article] = [] {
+        didSet {
+            // During a batch refresh, skip the per-feed O(all-articles) counts/badge
+            // recompute — they run once in the batch's defer. The debounced filter
+            // still coalesces, so the list updates once when the burst settles.
+            if !isBatchRefreshing {
+                recomputeCounts()
+                updateUnreadBadge()
+            }
+            scheduleArticleFilter(debounced: true)
+        }
+    }
 
     // Sidebar badge counts, recomputed in a single pass whenever `articles`
     // changes, so rendering a feed/folder/source badge is an O(1)/O(feeds)
@@ -48,7 +59,7 @@ public final class ReaderStore {
     public var searchText = ""
     /// The query actually used to filter articles. Trails `searchText` by a
     /// short debounce so filtering doesn't run on every keystroke.
-    public private(set) var activeSearchQuery = "" { didSet { scheduleArticleFilter() } }
+    public private(set) var activeSearchQuery = "" { didSet { scheduleArticleFilter(animated: false) } }
     private var searchDebounceTask: Task<Void, Never>?
 
     /// The filtered, sorted articles shown in the list. Recomputed off the main
@@ -59,7 +70,7 @@ public final class ReaderStore {
     /// mutation firing `didSet`) so the expensive filter+sort runs at most once
     /// per quiet window instead of dozens of times a second.
     private var filterDebounceTask: Task<Void, Never>?
-    private static let filterDebounceInterval: Duration = .seconds(1)
+    private static let filterDebounceInterval: Duration = .milliseconds(300)
     /// Above this many articles, filtering runs on a background executor.
     private static let backgroundFilterThreshold = 600
     var lastRefreshedAt: Date?
@@ -264,11 +275,11 @@ public final class ReaderStore {
     /// bursts (articles/feeds streaming in during a sync) pass `debounced: true`
     /// so the recompute is deferred until the burst settles, capturing the
     /// latest snapshot once instead of re-sorting on every mutation.
-    private func scheduleArticleFilter(debounced: Bool = false) {
+    private func scheduleArticleFilter(debounced: Bool = false, animated: Bool = true) {
         guard debounced else {
             filterDebounceTask?.cancel()
             filterDebounceTask = nil
-            performArticleFilter()
+            performArticleFilter(animated: animated)
             return
         }
 
@@ -276,14 +287,14 @@ public final class ReaderStore {
         filterDebounceTask = Task { [weak self] in
             try? await Task.sleep(for: Self.filterDebounceInterval)
             guard !Task.isCancelled, let self else { return }
-            self.performArticleFilter()
+            self.performArticleFilter(animated: animated)
         }
     }
 
     /// Captures the current inputs and recomputes `displayedArticles`. Small
     /// libraries are filtered synchronously (instant, animatable); large ones
     /// are filtered on a background executor so the main thread stays responsive.
-    private func performArticleFilter() {
+    private func performArticleFilter(animated: Bool = true) {
         filterTask?.cancel()
 
         let snapshot = articles
@@ -293,11 +304,15 @@ public final class ReaderStore {
         let retained = retainedArticleIDs
         let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if snapshot.count < Self.backgroundFilterThreshold {
+        // Only the empty-query, small-library path filters synchronously (cheap set
+        // /enum checks + sort, and it should stay sync so it can still animate). Any
+        // text query does an O(n·paragraphs) locale scan, so route it off the main
+        // actor even under the threshold, so search never hitches the main thread.
+        if query.isEmpty && snapshot.count < Self.backgroundFilterThreshold {
             applyDisplayed(Self.computeVisibleArticles(
                 snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
                 smartSelection: smartSelection, retained: retained, query: query
-            ))
+            ), animated: animated)
             return
         }
 
@@ -309,11 +324,11 @@ public final class ReaderStore {
                 )
             }.value
             guard !Task.isCancelled, let self else { return }
-            self.applyDisplayed(result)
+            self.applyDisplayed(result, animated: animated)
         }
     }
 
-    private func applyDisplayed(_ result: [Article]) {
+    private func applyDisplayed(_ result: [Article], animated: Bool = true) {
         // Animate only when the visible rows actually change and still overlap
         // the current list — i.e. articles arriving (or filtering out) — so new
         // stories slide in instead of the list snapping/jumping. A full swap
@@ -323,7 +338,7 @@ public final class ReaderStore {
         let oldIDs = displayedArticles.map(\.id)
         let newIDs = result.map(\.id)
         let oldSet = Set(oldIDs)
-        if oldIDs != newIDs, !oldSet.isEmpty, !oldSet.isDisjoint(with: newIDs) {
+        if animated, oldIDs != newIDs, !oldSet.isEmpty, !oldSet.isDisjoint(with: newIDs) {
             withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                 displayedArticles = result
             }
@@ -1587,6 +1602,11 @@ public final class ReaderStore {
         isBatchRefreshing = true
         defer {
             isBatchRefreshing = false
+            // Apply the counts, badge, and one immediate filter now that the whole
+            // batch has merged — instead of once per feed during the loop.
+            recomputeCounts()
+            updateUnreadBadge()
+            scheduleArticleFilter()
             scheduleSave()
         }
 
