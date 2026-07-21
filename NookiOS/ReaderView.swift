@@ -238,6 +238,12 @@ struct ReaderDetailView: View {
                 }
             }
         }
+        // The system inline title reveals once the inline article title scrolls
+        // under the bar. Using navigationTitle (not a principal item) so the system
+        // lays it out in the space between the back button and the trailing group
+        // and truncates it there — a principal item centers in the full bar width
+        // and can spill under the buttons.
+        .navigationTitle(titleHidden ? displayTitle(article) : "")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
@@ -255,16 +261,6 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // Mirrors the inline title; fades in only once that title has
-                // scrolled up under the bar, like a native large-title collapse.
-                Text(displayTitle(article))
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .opacity(titleHidden ? 1 : 0)
-                    .accessibilityHidden(!titleHidden)
-            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     openBrowser(for: article)
