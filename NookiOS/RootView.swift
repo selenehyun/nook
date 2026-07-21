@@ -671,7 +671,9 @@ private struct ReaderPushingList<Top: View>: View {
             top()
             ArticleList(store: store, selection: selectionBinding, managesSearch: false)
         }
-        .searchable(text: $store.searchText, isPresented: $isSearching, prompt: "Search Articles")
+        // The search field is attached only while searching, so there's no
+        // always-visible search row — the toolbar button reveals it on demand.
+        .modifier(PresentedSearch(text: $store.searchText, isPresented: $isSearching))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { isSearching = true } label: {
@@ -987,6 +989,23 @@ private struct Sidebar: View {
             } label: {
                 Label("Delete Feed", systemImage: "trash")
             }
+        }
+    }
+}
+
+/// Attaches `.searchable` only while `isPresented`, so the compact tab shell
+/// shows no search row until the toolbar button reveals it — and drops it again
+/// when search is dismissed. Presenting with `isPresented` already true activates
+/// the field.
+private struct PresentedSearch: ViewModifier {
+    @Binding var text: String
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        if isPresented {
+            content.searchable(text: $text, isPresented: $isPresented, prompt: "Search Articles")
+        } else {
+            content
         }
     }
 }
