@@ -273,27 +273,10 @@ struct ReaderDetailView: View {
                     .opacity(titleHidden ? 1 : 0)
                     .accessibilityHidden(!titleHidden)
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    openBrowser(for: article)
-                } label: {
-                    Image(systemName: "doc.plaintext")
-                }
-                .help("Open Reader / Original")
-
-                Button {
-                    store.toggleStarred(articleID: article.id)
-                } label: {
-                    Image(systemName: article.isStarred ? "star.fill" : "star")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-
+            // Top-right stays a single, uncrowded "more" menu for the occasional
+            // actions; the frequent ones live in the bottom toolbar below.
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        isShowingInfo = true
-                    } label: {
-                        Label("Article Info", systemImage: "info.circle")
-                    }
                     if canTranslate {
                         Button {
                             toggleTranslation(article)
@@ -309,8 +292,10 @@ struct ReaderDetailView: View {
                         }
                         .disabled(translationBusy)
                     }
-                    ShareLink(item: article.url) {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                    Button {
+                        isShowingInfo = true
+                    } label: {
+                        Label("Article Info", systemImage: "info.circle")
                     }
                     Link(destination: article.url) {
                         Label("Open Original", systemImage: "safari")
@@ -318,6 +303,31 @@ struct ReaderDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+            }
+
+            // Frequent actions on a native bottom toolbar (the tab bar is hidden
+            // while reading, so this owns the bottom edge): share, star, and the
+            // full web reader/original.
+            ToolbarItemGroup(placement: .bottomBar) {
+                ShareLink(item: article.url) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                Spacer()
+                Button {
+                    let willStar = !article.isStarred
+                    store.toggleStarred(articleID: article.id)
+                    haptics.star(on: willStar)
+                } label: {
+                    Image(systemName: article.isStarred ? "star.fill" : "star")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                Spacer()
+                Button {
+                    openBrowser(for: article)
+                } label: {
+                    Image(systemName: "doc.plaintext")
+                }
+                .help("Open Reader / Original")
             }
         }
         .task(id: article.id) {
