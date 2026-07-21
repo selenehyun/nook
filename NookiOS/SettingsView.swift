@@ -30,36 +30,39 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                NavigationLink {
-                    GeneralSettingsScreen()
-                } label: {
-                    Label("General", systemImage: "gearshape")
+                Section {
+                    NavigationLink {
+                        GeneralSettingsScreen()
+                    } label: {
+                        Label("General", systemImage: "gearshape")
+                    }
+                    NavigationLink {
+                        ReadingSettingsScreen()
+                    } label: {
+                        Label("Reading", systemImage: "book")
+                    }
+                    NavigationLink {
+                        ReaderSettingsScreen()
+                    } label: {
+                        Label("Reader", systemImage: "textformat")
+                    }
+                    NavigationLink {
+                        FeedsSettingsScreen(store: store)
+                    } label: {
+                        Label("Feeds", systemImage: "dot.radiowaves.up.forward")
+                    }
+                    NavigationLink {
+                        ExperimentalSettingsScreen()
+                    } label: {
+                        Label("Experimental", systemImage: "flask")
+                    }
+                    NavigationLink {
+                        AboutSettingsScreen()
+                    } label: {
+                        Label("About", systemImage: "info.circle")
+                    }
                 }
-                NavigationLink {
-                    ReadingSettingsScreen()
-                } label: {
-                    Label("Reading", systemImage: "book")
-                }
-                NavigationLink {
-                    ReaderSettingsScreen()
-                } label: {
-                    Label("Reader", systemImage: "textformat")
-                }
-                NavigationLink {
-                    FeedsSettingsScreen(store: store)
-                } label: {
-                    Label("Feeds", systemImage: "dot.radiowaves.up.forward")
-                }
-                NavigationLink {
-                    ExperimentalSettingsScreen()
-                } label: {
-                    Label("Experimental", systemImage: "flask")
-                }
-                NavigationLink {
-                    AboutSettingsScreen()
-                } label: {
-                    Label("About", systemImage: "info.circle")
-                }
+                .warmRows()
 
                 if isTab {
                     Section("Data") {
@@ -85,6 +88,7 @@ struct SettingsView: View {
                         }
                         .disabled(store.feeds.isEmpty)
                     }
+                    .warmRows()
                 }
             }
             .warmListBackground()
@@ -183,10 +187,12 @@ private struct GeneralSettingsScreen: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .warmRows()
 
             Section("App Icon") {
                 Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
             }
+            .warmRows()
         }
         .warmListBackground()
         .navigationTitle("General")
@@ -213,6 +219,7 @@ private struct ReadingSettingsScreen: View {
                 Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
                     .disabled(!markReadOnOpen)
             }
+            .warmRows()
 
             Section("In-App Browser") {
                 Picker("In-App Browser", selection: $readerViewMode) {
@@ -226,6 +233,7 @@ private struct ReadingSettingsScreen: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .warmRows()
         }
         .warmListBackground()
         .navigationTitle("Reading")
@@ -266,6 +274,7 @@ private struct ReaderSettingsScreen: View {
             } footer: {
                 Text("These options apply when reading in reader mode.")
             }
+            .warmRows()
 
             Section("Colors") {
                 Picker("Background", selection: $readerBackgroundOption) {
@@ -281,6 +290,7 @@ private struct ReaderSettingsScreen: View {
                     ColorPicker("Text Color", selection: textColor, supportsOpacity: false)
                 }
             }
+            .warmRows()
         }
         .warmListBackground()
         .navigationTitle("Reader")
@@ -326,6 +336,7 @@ private struct FeedsSettingsScreen: View {
             } footer: {
                 Text("Some feeds omit each article's date. When enabled, Nook reads the real date from the article's page (once per article).")
             }
+            .warmRows()
 
             Section {
                 Toggle("Notify me about new articles", isOn: $newArticleNotifications)
@@ -369,6 +380,7 @@ private struct FeedsSettingsScreen: View {
                     Text("Nook checks for new articles in the background and sends a notification when some arrive. iOS decides exactly when to run this, so timing is approximate.")
                 }
             }
+            .warmRows()
 
             Section("Background Diagnostics") {
                 LabeledContent("Notification Authorization", value: notificationStatus)
@@ -380,6 +392,7 @@ private struct FeedsSettingsScreen: View {
                 diagnosticRow("Fetch Result", key: BackgroundRefresh.lastFetchResultKey)
                 diagnosticRow("Notification Result", key: BackgroundRefresh.lastNotificationResultKey)
             }
+            .warmRows()
 
             Section {
                 if sortedFeeds.isEmpty {
@@ -401,6 +414,7 @@ private struct FeedsSettingsScreen: View {
             } footer: {
                 Text("Choose how each feed's articles open in the web view. “Default” follows the In-App Browser setting above.")
             }
+            .warmRows()
 
             Section {
                 LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? String(localized: "Not selected") : syncFolderDisplayPath)
@@ -409,6 +423,7 @@ private struct FeedsSettingsScreen: View {
             } footer: {
                 Text("Nook keeps your feeds in a folder in the cloud so they stay in sync across your devices.")
             }
+            .warmRows()
         }
         .warmListBackground()
         .navigationTitle("Feeds")
@@ -482,6 +497,7 @@ private struct ExperimentalSettingsScreen: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .warmRows()
         }
         .warmListBackground()
         .navigationTitle("Experimental")
@@ -514,6 +530,7 @@ private struct AboutSettingsScreen: View {
                     }
                 }
             }
+            .warmRows()
         }
         .warmListBackground()
         .navigationTitle("About")
@@ -543,13 +560,18 @@ private struct AboutSettingsScreen: View {
 /// Settings matches the article list instead of the plain (or cool frosted)
 /// system background.
 private extension View {
+    /// Warm background for a Settings list. Rows must additionally use
+    /// `.warmRows()` on each `Section` — a container-level row background does not
+    /// reach grouped-list rows, leaving cool `secondarySystemGroupedBackground`
+    /// cards, so the clear must be applied per-section.
     func warmListBackground() -> some View {
-        // Clear the row backgrounds FIRST, directly on the List, so it reaches the
-        // rows (applied after `.background` it doesn't, leaving cool grouped cards
-        // or opaque rows). Then hide the list's own background and let the warm
-        // `ListBackground` show through — matching the article list.
-        listRowBackground(Color.clear)
-            .scrollContentBackground(.hidden)
+        scrollContentBackground(.hidden)
             .background(Color("ListBackground").ignoresSafeArea())
+    }
+
+    /// Clears a `Section`'s row cards so the warm background shows through. Applied
+    /// per section because that reliably reaches the rows.
+    func warmRows() -> some View {
+        listRowBackground(Color.clear)
     }
 }
