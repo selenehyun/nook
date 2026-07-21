@@ -6,6 +6,13 @@ import Translation
 /// The iOS article reader. Mirrors the macOS reader: a native, selectable body
 /// (system typography) with a toggle into the styled `WKWebView` reader/original
 /// page presented as a sheet.
+/// Reports the inline title's measured height so the reader knows the scroll
+/// distance at which it passes under the navigation bar.
+private struct TitleHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
     /// The article to show, as a binding the compact tab shell owns, so the pushed
@@ -34,6 +41,13 @@ struct ReaderDetailView: View {
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
+
+    // Native title handling: the full title renders inline at the top of the
+    // article; once it scrolls up under the navigation bar, the bar's own title
+    // fades in — the standard iOS large-to-inline title reveal, but keeping the
+    // full multi-line inline title so long titles stay fully readable.
+    @State private var titleHidden = false
+    @State private var titleHeight: CGFloat = 0
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -210,7 +224,21 @@ struct ReaderDetailView: View {
                 onNext: { navigateReader(forward: true) },
                 onPrevious: { navigateReader(forward: false) }
             )
+            .onPreferenceChange(TitleHeightKey.self) { titleHeight = $0 }
+            // Reveal the navigation-bar title once the inline title has scrolled up
+            // under the bar (its bottom = top padding + its height). The content top
+            // sits at the bar's bottom, so the raw scroll offset is the distance
+            // travelled — no bar-geometry math needed.
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
+                // Content starts under the bar with 16pt top padding, so the inline
+                // title's bottom passes the bar after scrolling ~padding + height.
+                let hidden = y > titleHeight + 8
+                if hidden != titleHidden {
+                    withAnimation(.easeInOut(duration: 0.2)) { titleHidden = hidden }
+                }
+            }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
                 .font(.system(size: 104, weight: .bold))
@@ -227,6 +255,16 @@ struct ReaderDetailView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                // Mirrors the inline title; fades in only once that title has
+                // scrolled up under the bar, like a native large-title collapse.
+                Text(displayTitle(article))
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .opacity(titleHidden ? 1 : 0)
+                    .accessibilityHidden(!titleHidden)
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     openBrowser(for: article)
@@ -405,6 +443,11 @@ struct ReaderDetailView: View {
                 .font(.title.weight(.bold))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    GeometryReader { g in
+                        Color.clear.preference(key: TitleHeightKey.self, value: g.size.height)
+                    }
+                )
 
             // Source + date as a single secondary metadata line. The feed name
             // truncates with an ellipsis so a long name never wraps or pushes the
