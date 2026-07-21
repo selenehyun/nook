@@ -115,23 +115,28 @@ enum TabGlyph {
             .withRenderingMode(.alwaysTemplate)
     }
 
-    /// The nest mark, trimmed to its content and sized to a fixed point height so
-    /// it fills the tab slot like the other icons instead of floating tiny in a
-    /// mostly-empty canvas.
+    /// The nest mark, trimmed to its content then redrawn into a fixed point-size
+    /// context so the tab icon is a sane size (never the raw render canvas, which
+    /// blew up to hundreds of points and covered the whole bar).
     static let nest: UIImage = {
         let glyph = NestGlyphView().scaleEffect(0.5).frame(width: 512, height: 512)
         let renderer = ImageRenderer(content: glyph)
         renderer.scale = 3
         let full = renderer.uiImage ?? UIImage()
-        guard let trimmed = full.nk_trimmingTransparentEdges(), let cg = trimmed.cgImage else {
-            return full.withRenderingMode(.alwaysTemplate)
+        let source = full.nk_trimmingTransparentEdges() ?? full
+
+        // Target ~24pt tall (like the symbols), capped in width so the wide nest
+        // can't grow past a normal icon footprint. UIGraphicsImageRenderer output
+        // is guaranteed to be this point size regardless of source pixels.
+        let aspect = source.size.height > 0 ? source.size.width / source.size.height : 1
+        let maxWidth: CGFloat = 30
+        var size = CGSize(width: 24 * aspect, height: 24)
+        if size.width > maxWidth { size = CGSize(width: maxWidth, height: maxWidth / max(aspect, 0.01)) }
+
+        let resized = UIGraphicsImageRenderer(size: size).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
         }
-        // Re-scale so the trimmed mark is ~22pt tall (comparable to the symbols'
-        // 24pt), regardless of how many pixels the trim produced.
-        let targetHeightPt: CGFloat = 22
-        let pointScale = max(1, CGFloat(cg.height) / targetHeightPt)
-        return UIImage(cgImage: cg, scale: pointScale, orientation: .up)
-            .withRenderingMode(.alwaysTemplate)
+        return resized.withRenderingMode(.alwaysTemplate)
     }()
 }
 
