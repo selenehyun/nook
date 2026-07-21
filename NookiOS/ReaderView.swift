@@ -52,10 +52,17 @@ struct ReaderDetailView: View {
     /// back button and the trailing toolbar group (a principal item is centered in
     /// the full bar, so an unbounded title would spill under the buttons).
     @State private var barWidth: CGFloat = 0
-    /// Safari-style chrome auto-hide: scrolling down hides the top and bottom bars
-    /// so the body has the screen; scrolling up (or reaching the top) brings them
-    /// back. Reset per article (the reader is identity-keyed on the article id).
+    /// Safari-style chrome auto-hide: scrolling down fades the top and bottom bars
+    /// (background + controls) so the body has the screen; scrolling up (or
+    /// reaching the top) brings them back. The bars keep their layout space and
+    /// only their opacity/background change, so nothing shifts and the scroll
+    /// offset never feeds back. Reset per article (identity-keyed on article id).
     @State private var chromeHidden = false
+    /// Scroll bookkeeping for a stable auto-hide: accumulate distance since the
+    /// last direction change and only flip once it passes a threshold, so momentum
+    /// and tiny jitters can't flicker the bars.
+    @State private var lastScrollY: CGFloat = 0
+    @State private var scrollAccum: CGFloat = 0
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -237,7 +244,7 @@ struct ReaderDetailView: View {
             // under the bar (its bottom = top padding + its height). The content top
             // sits at the bar's bottom, so the raw scroll offset is the distance
             // travelled — no bar-geometry math needed.
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { oldY, newY in
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, newY in
                 // Content starts under the bar with 16pt top padding, so the inline
                 // title's bottom passes the bar after scrolling ~padding + height.
                 let pastTitle = newY > titleHeight + 8
@@ -245,32 +252,40 @@ struct ReaderDetailView: View {
                     withAnimation(.easeInOut(duration: 0.2)) { titleHidden = pastTitle }
                 }
 
-                // Safari-style chrome auto-hide: near the top always show; past it,
-                // hide when scrolling down and reveal when scrolling up. A small
-                // dead zone avoids flicker on tiny jitters.
-                let shouldHide: Bool
+                // Chrome auto-hide with hysteresis. Accumulate scroll distance since
+                // the last direction change; only flip after a sustained move, and
+                // always show near the top. Because hiding only changes opacity (not
+                // layout), newY isn't perturbed by the flip — no feedback flicker.
+                let delta = newY - lastScrollY
+                lastScrollY = newY
+                if (delta > 0) != (scrollAccum > 0) { scrollAccum = 0 }
+                scrollAccum += delta
+
+                let target: Bool
                 if !pastTitle {
-                    shouldHide = false
-                } else if newY - oldY > 6 {
-                    shouldHide = true
-                } else if newY - oldY < -6 {
-                    shouldHide = false
+                    target = false
+                } else if scrollAccum > 44 {
+                    target = true
+                } else if scrollAccum < -44 {
+                    target = false
                 } else {
-                    shouldHide = chromeHidden
+                    target = chromeHidden
                 }
-                if shouldHide != chromeHidden {
-                    withAnimation(.easeInOut(duration: 0.25)) { chromeHidden = shouldHide }
+                if target != chromeHidden {
+                    scrollAccum = 0
+                    withAnimation(.easeInOut(duration: 0.25)) { chromeHidden = target }
                 }
             }
             .onChange(of: proxy.size.width, initial: true) { _, w in barWidth = w }
         }
         .navigationBarTitleDisplayMode(.inline)
-        // Only the bottom bar auto-hides. Hiding the navigation bar too would
-        // shrink the top safe area and shove the article body upward (a visible
-        // layout shift); the top bar is already minimal (back + fading title), so
-        // keeping it costs little and the bottom bar hiding still gives the body
-        // room while reading.
-        .toolbar(chromeHidden ? .hidden : .visible, for: .bottomBar)
+        // Hide the chrome by fading the bar BACKGROUNDS (not by removing the bars),
+        // so the bars keep their layout space and the body never shifts. Content
+        // already scrolls under the translucent bars, so a hidden background simply
+        // reveals the body beneath — Safari-style — top and bottom. Controls fade
+        // via opacity alongside (below).
+        .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .navigationBar)
+        .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .bottomBar)
         .overlay {
             Image(systemName: starBurstOn ? "star.fill" : "star.slash.fill")
                 .font(.system(size: 104, weight: .bold))
@@ -297,8 +312,8 @@ struct ReaderDetailView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: max(80, barWidth - 260))
-                    .opacity(titleHidden ? 1 : 0)
-                    .accessibilityHidden(!titleHidden)
+                    .opacity(titleHidden && !chromeHidden ? 1 : 0)
+                    .accessibilityHidden(!titleHidden || chromeHidden)
             }
             // Top-right stays a single, uncrowded "more" menu for the occasional
             // actions; the frequent ones live in the bottom toolbar below.
@@ -330,15 +345,18 @@ struct ReaderDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .opacity(chromeHidden ? 0 : 1)
+                .disabled(chromeHidden)
             }
 
             // Frequent actions on a native bottom toolbar (the tab bar is hidden
             // while reading, so this owns the bottom edge): share, star, and the
-            // full web reader/original.
+            // full web reader/original. They fade with the bar background.
             ToolbarItemGroup(placement: .bottomBar) {
                 ShareLink(item: article.url) {
                     Image(systemName: "square.and.arrow.up")
                 }
+                .opacity(chromeHidden ? 0 : 1)
                 Button {
                     let willStar = !article.isStarred
                     store.toggleStarred(articleID: article.id)
@@ -347,6 +365,7 @@ struct ReaderDetailView: View {
                     Image(systemName: article.isStarred ? "star.fill" : "star")
                         .contentTransition(.symbolEffect(.replace))
                 }
+                .opacity(chromeHidden ? 0 : 1)
                 Spacer()
                 Button {
                     openBrowser(for: article)
@@ -354,6 +373,7 @@ struct ReaderDetailView: View {
                     Image(systemName: "doc.plaintext")
                 }
                 .help("Open Reader / Original")
+                .opacity(chromeHidden ? 0 : 1)
             }
         }
         .task(id: article.id) {
