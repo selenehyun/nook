@@ -5,10 +5,185 @@ import UserNotifications
 
 /// The iOS reader UI. Reuses the shared `ReaderStore` from NookKit; only the
 /// presentation differs from the macOS app.
+///
+/// The shell branches on horizontal size class: compact width (iPhone portrait)
+/// opens straight into a bottom `TabView` (Home / Feeds / Starred / Settings);
+/// regular width (iPad) keeps the three-column `NavigationSplitView`.
 struct RootView: View {
     @Bindable private var store = ReaderStore.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
+    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
+    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
+    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
+    @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
+    @State private var isReady = false
+
+    var body: some View {
+        ZStack {
+            shell
+                .task {
+                    // The store computes the unread count; iOS reflects it on the
+                    // app icon badge (requires notification authorization).
+                    store.onUnreadBadgeChange = { count in
+                        UNUserNotificationCenter.current().setBadgeCount(count)
+                    }
+                    store.showsUnreadBadge = showUnreadBadge
+                    // Cold launch is foreground; `scenePhase`'s onChange doesn't fire
+                    // for the initial value, so set active here or the on-screen list
+                    // would never be marked "seen" until the first background→active
+                    // cycle.
+                    store.setForegroundActive(true)
+                    // Warm up WebKit well after launch — off the critical path so its
+                    // WebContent process (and the noisy system logs it emits) spin up
+                    // once the app is settled, not during launch. Independent task with
+                    // its own timer so the delay is measured from launch, still ahead
+                    // of the user's first article tap. Idempotent, so a tap that beats
+                    // it is fine.
+                    Task {
+                        try? await Task.sleep(for: .seconds(6))
+                        WebViewWarmer.warmUp()
+                    }
+                    await store.bootstrap()
+                    // Keep the splash up while the nest assembles and the wordmark
+                    // appears, then reveal the loaded UI.
+                    try? await Task.sleep(for: .milliseconds(1850))
+                    withAnimation(.easeOut(duration: 0.35)) { isReady = true }
+                    // Ask for notification permission after the UI is shown (so the
+                    // prompt doesn't cover the splash), only for the features in use.
+                    await requestNotificationAuthorizationIfNeeded()
+                    BackgroundRefresh.schedule()
+                }
+                .onChange(of: showUnreadBadge) { _, newValue in
+                    store.showsUnreadBadge = newValue
+                    if newValue { Task { await requestNotificationAuthorizationIfNeeded() } }
+                }
+                .onChange(of: newArticleNotifications) { _, enabled in
+                    if enabled {
+                        Task { await requestNotificationAuthorizationIfNeeded() }
+                        BackgroundRefresh.schedule()
+                    } else {
+                        BackgroundRefresh.cancel()
+                    }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    switch phase {
+                    case .active:
+                        // Returning to the foreground: pull another device's changes
+                        // from the sync folder, then refresh feeds over the network.
+                        // Foreground-active marks the on-screen list "seen" so its
+                        // articles don't fire a background notification later.
+                        store.setForegroundActive(true)
+                        store.setSyncObservationActive(true)
+                        store.syncFromDisk()
+                        // In the app now: clear any lingering "new articles" banner.
+                        NewArticleNotifier.clearDelivered()
+                        if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
+                    case .background:
+                        // Queue the next background refresh as we leave.
+                        store.setForegroundActive(false)
+                        store.setSyncObservationActive(false)
+                        BackgroundRefresh.schedule()
+                    case .inactive:
+                        store.setForegroundActive(false)
+                    default:
+                        break
+                    }
+                }
+                .onOpenURL { url in handleIncomingURL(url) }
+                // Mark-read dwell lives here on the always-present root, keyed on the
+                // selected article, so it isn't cancelled by the detail column being
+                // pushed/popped in the collapsed split view (iPad) or a tab's
+                // navigation stack (iPhone).
+                .task(id: store.selectedArticleID) {
+                    guard let id = store.selectedArticleID else { return }
+                    store.retainArticle(id: id)
+                    guard markReadOnOpen else { return }
+                    do {
+                        if markReadDelaySeconds > 0 {
+                            try await Task.sleep(for: .seconds(Double(markReadDelaySeconds)))
+                        } else {
+                            await Task.yield()
+                        }
+                        store.markArticleOpened(articleID: id)
+                    } catch {
+                        // Navigated away before the dwell completed — leave it unread.
+                    }
+                }
+                .alert(
+                    "Something Went Wrong",
+                    isPresented: Binding(
+                        get: { store.errorMessage != nil },
+                        set: { if !$0 { store.errorMessage = nil } }
+                    ),
+                    presenting: store.errorMessage
+                ) { _ in
+                    Button("OK", role: .cancel) { store.errorMessage = nil }
+                } message: { message in
+                    Text(message)
+                }
+
+            if !isReady {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var shell: some View {
+        if horizontalSizeClass == .compact {
+            CompactShell(store: store)
+        } else {
+            RegularShell(store: store)
+        }
+    }
+
+    /// Requests notification authorization once, for either notification feature —
+    /// the unread badge or new-article alerts.
+    ///
+    /// iOS shows the permission prompt only the first time, so we request the full
+    /// set both features need (`alert`, `sound`, `badge`) up front. Requesting just
+    /// `.badge` first (the badge is on by default) would spend the one-time prompt
+    /// and permanently foreclose alerts — so later enabling new-article
+    /// notifications could never get banner/sound authorization.
+    private func requestNotificationAuthorizationIfNeeded() async {
+        guard showUnreadBadge || newArticleNotifications else { return }
+
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .notDetermined else { return }
+        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+    }
+
+    /// Handles `nook://` deep links. `nook://add-feed?url=<page or feed URL>`
+    /// (sent by the share extension) adds the feed, auto-discovering RSS/Atom.
+    private func handleIncomingURL(_ url: URL) {
+        guard url.scheme == "nook" else { return }
+        guard url.host == "add-feed" else { return }
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let feed = components.queryItems?.first(where: { $0.name == "url" })?.value,
+              !feed.isEmpty else { return }
+        Task {
+            do {
+                try await store.addFeed(urlString: feed)
+            } catch {
+                await MainActor.run {
+                    store.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Regular width (iPad) shell
+
+/// The original three-column `NavigationSplitView` shell, unchanged. Owns the
+/// sheet/importer state that the sidebar's ellipsis menu drives.
+private struct RegularShell: View {
+    @Bindable var store: ReaderStore
 
     /// A single file importer backs both the sync-folder picker and OPML import;
     /// stacking two `.fileImporter` modifiers on one view makes only one work.
@@ -21,24 +196,8 @@ struct RootView: View {
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var isShowingSettings = false
-    @AppStorage("showUnreadBadge") private var showUnreadBadge = true
-    @AppStorage("markReadOnOpen") private var markReadOnOpen = true
-    @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
-    @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
-    @State private var isReady = false
 
     var body: some View {
-        ZStack {
-            content
-            if !isReady {
-                SplashView()
-                    .transition(.opacity)
-                    .zIndex(1)
-            }
-        }
-    }
-
-    private var content: some View {
         NavigationSplitView {
             Sidebar(
                 store: store,
@@ -50,97 +209,11 @@ struct RootView: View {
                 isShowingSettings: $isShowingSettings
             )
         } content: {
-            ArticleList(store: store)
+            ArticleList(store: store, selection: $store.selectedArticleID)
         } detail: {
             ReaderDetailView(store: store)
         }
         .navigationSplitViewStyle(.balanced)
-        .task {
-            // The store computes the unread count; iOS reflects it on the app
-            // icon badge (requires notification authorization).
-            store.onUnreadBadgeChange = { count in
-                UNUserNotificationCenter.current().setBadgeCount(count)
-            }
-            store.showsUnreadBadge = showUnreadBadge
-            // Cold launch is foreground; `scenePhase`'s onChange doesn't fire for
-            // the initial value, so set active here or the on-screen list would
-            // never be marked "seen" until the first background→active cycle.
-            store.setForegroundActive(true)
-            // Warm up WebKit well after launch — off the critical path so its
-            // WebContent process (and the noisy system logs it emits) spin up
-            // once the app is settled, not during launch. Independent task with
-            // its own timer so the delay is measured from launch, still ahead of
-            // the user's first article tap. Idempotent, so a tap that beats it is
-            // fine.
-            Task {
-                try? await Task.sleep(for: .seconds(6))
-                WebViewWarmer.warmUp()
-            }
-            await store.bootstrap()
-            // Keep the splash up while the nest assembles and the wordmark
-            // appears, then reveal the loaded UI.
-            try? await Task.sleep(for: .milliseconds(1850))
-            withAnimation(.easeOut(duration: 0.35)) { isReady = true }
-            // Ask for notification permission after the UI is shown (so the
-            // prompt doesn't cover the splash), only for the features in use.
-            await requestNotificationAuthorizationIfNeeded()
-            BackgroundRefresh.schedule()
-        }
-        .onChange(of: showUnreadBadge) { _, newValue in
-            store.showsUnreadBadge = newValue
-            if newValue { Task { await requestNotificationAuthorizationIfNeeded() } }
-        }
-        .onChange(of: newArticleNotifications) { _, enabled in
-            if enabled {
-                Task { await requestNotificationAuthorizationIfNeeded() }
-                BackgroundRefresh.schedule()
-            } else {
-                BackgroundRefresh.cancel()
-            }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .active:
-                // Returning to the foreground: pull another device's changes
-                // from the sync folder, then refresh feeds over the network.
-                // Foreground-active marks the on-screen list "seen" so its
-                // articles don't fire a background notification later.
-                store.setForegroundActive(true)
-                store.setSyncObservationActive(true)
-                store.syncFromDisk()
-                // In the app now: clear any lingering "new articles" banner.
-                NewArticleNotifier.clearDelivered()
-                if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: true) }
-            case .background:
-                // Queue the next background refresh as we leave.
-                store.setForegroundActive(false)
-                store.setSyncObservationActive(false)
-                BackgroundRefresh.schedule()
-            case .inactive:
-                store.setForegroundActive(false)
-            default:
-                break
-            }
-        }
-        .onOpenURL { url in handleIncomingURL(url) }
-        // Mark-read dwell lives here on the always-present root, keyed on the
-        // selected article, so it isn't cancelled by the detail column being
-        // pushed/popped in the collapsed split view on iPhone.
-        .task(id: store.selectedArticleID) {
-            guard let id = store.selectedArticleID else { return }
-            store.retainArticle(id: id)
-            guard markReadOnOpen else { return }
-            do {
-                if markReadDelaySeconds > 0 {
-                    try await Task.sleep(for: .seconds(Double(markReadDelaySeconds)))
-                } else {
-                    await Task.yield()
-                }
-                store.markArticleOpened(articleID: id)
-            } catch {
-                // Navigated away before the dwell completed — leave it unread.
-            }
-        }
         .fileImporter(
             isPresented: $isImporting,
             allowedContentTypes: importKind == .folder ? [.folder] : [.opml, .xml],
@@ -193,54 +266,428 @@ struct RootView: View {
                 newFolderName = ""
             }
         }
-        .alert(
-            "Something Went Wrong",
-            isPresented: Binding(
-                get: { store.errorMessage != nil },
-                set: { if !$0 { store.errorMessage = nil } }
-            ),
-            presenting: store.errorMessage
-        ) { _ in
-            Button("OK", role: .cancel) { store.errorMessage = nil }
-        } message: { message in
-            Text(message)
+    }
+}
+
+// MARK: - Compact width (iPhone) shell
+
+/// The selected tab. The shared store has one selection scope, so switching tabs
+/// re-asserts the newly-active tab's scope (feeds/starred change
+/// `feedSelection`/`smartSelection`, so returning to Home must restore its filter).
+private enum AppTab: Hashable { case home, feeds, starred, settings }
+
+/// A navigable source in the Feeds tab.
+private enum FeedTarget: Hashable {
+    case all
+    case folder(String)
+    case feed(Feed.ID)
+}
+
+/// The iPhone bottom-tab shell: Home (segmented Unread/Today/All), Feeds
+/// (library), Starred, and Settings. The shared `ReaderStore` has a single
+/// selection scope, so the shell re-asserts the active tab's scope whenever the
+/// selected tab (or the Home filter / Feeds drill-down) changes.
+private struct CompactShell: View {
+    @Bindable var store: ReaderStore
+    @State private var selection: AppTab = .home
+    @State private var homeFilter: SmartSource = .unread
+    @State private var feedsPath: [FeedTarget] = []
+
+    var body: some View {
+        TabView(selection: $selection) {
+            HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
+                .tabItem { Label("Home", systemImage: "house") }
+                .badge(store.count(for: .unread))
+                .tag(AppTab.home)
+
+            FeedsTab(store: store, path: $feedsPath)
+                .tabItem { Label("Feeds", systemImage: "list.bullet") }
+                .tag(AppTab.feeds)
+
+            StarredTab(store: store)
+                .tabItem { Label("Starred", systemImage: "star") }
+                .tag(AppTab.starred)
+
+            SettingsView(store: store, isTab: true)
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(AppTab.settings)
+        }
+        .onAppear { applySelection(selection) }
+        .onChange(of: selection) { _, tab in applySelection(tab) }
+        .onChange(of: homeFilter) { _, _ in
+            if selection == .home {
+                clearSearch()
+                store.selectSmartSource(homeFilter)
+            }
         }
     }
 
-    /// Requests notification authorization once, for either notification feature —
-    /// the unread badge or new-article alerts.
-    ///
-    /// iOS shows the permission prompt only the first time, so we request the full
-    /// set both features need (`alert`, `sound`, `badge`) up front. Requesting just
-    /// `.badge` first (the badge is on by default) would spend the one-time prompt
-    /// and permanently foreclose alerts — so later enabling new-article
-    /// notifications could never get banner/sound authorization.
-    private func requestNotificationAuthorizationIfNeeded() async {
-        guard showUnreadBadge || newArticleNotifications else { return }
-
-        let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .notDetermined else { return }
-        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+    /// Points the shared store at the scope the given tab shows. Also clears the
+    /// shared search text, which would otherwise leak a query from the tab you
+    /// left into the newly-shown scope.
+    private func applySelection(_ tab: AppTab) {
+        clearSearch()
+        switch tab {
+        case .home:
+            store.selectSmartSource(homeFilter)
+        case .starred:
+            store.selectSmartSource(.starred)
+        case .feeds:
+            applyFeedTarget(feedsPath.last)
+        case .settings:
+            break
+        }
     }
 
-    /// Handles `nook://` deep links. `nook://add-feed?url=<page or feed URL>`
-    /// (sent by the share extension) adds the feed, auto-discovering RSS/Atom.
-    private func handleIncomingURL(_ url: URL) {
-        guard url.scheme == "nook" else { return }
-        guard url.host == "add-feed" else { return }
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let feed = components.queryItems?.first(where: { $0.name == "url" })?.value,
-              !feed.isEmpty else { return }
-        Task {
-            do {
-                try await store.addFeed(urlString: feed)
-            } catch {
-                await MainActor.run {
-                    store.errorMessage = error.localizedDescription
+    private func applyFeedTarget(_ target: FeedTarget?) {
+        guard let target else { return }
+        CompactShell.applyScope(target, store: store)
+    }
+
+    private func clearSearch() {
+        store.searchText = ""
+        store.debounceSearch()
+    }
+
+    /// Points the shared store at a feed target's scope. Static so the Feeds tab's
+    /// navigation destination can apply it directly (see `FeedsTab`).
+    static func applyScope(_ target: FeedTarget, store: ReaderStore) {
+        switch target {
+        case .all:
+            store.selectSmartSource(.all)
+        case .folder(let name):
+            store.selectFolder(name)
+        case .feed(let id):
+            store.feedSelection = [id]
+            store.smartSelection = nil
+        }
+    }
+}
+
+// MARK: - Home tab
+
+/// The default tab: a segmented Unread / Today / All filter over the article
+/// list, with inline search. The tab item carries the unread badge.
+private struct HomeTab: View {
+    @Bindable var store: ReaderStore
+    @Binding var filter: SmartSource
+    var goToSettings: () -> Void
+
+    private let filters: [SmartSource] = [.unread, .today, .all]
+
+    /// Short labels for the nav-bar segmented control — "All Articles" is too wide
+    /// there, so it shows as "All".
+    private func segmentTitle(_ source: SmartSource) -> String {
+        source == .all ? String(localized: "All") : source.title
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if store.isStorageConfigured {
+                    // The segmented filter lives in the navigation bar itself (no
+                    // separate strip, no redundant title), so the header stays
+                    // compact and there's no black band above the warm list.
+                    ReaderPushingList(store: store)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                Picker("Filter", selection: $filter) {
+                                    ForEach(filters) { source in
+                                        Text(segmentTitle(source)).tag(source)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(minWidth: 240)
+                            }
+                        }
+                } else {
+                    ContentUnavailableView {
+                        Label("Set Up Sync", systemImage: "icloud.and.arrow.up")
+                    } description: {
+                        Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
+                    } actions: {
+                        Button("Choose Sync Folder") { goToSettings() }
+                    }
+                    .background(Color("ListBackground").ignoresSafeArea())
                 }
             }
         }
+    }
+}
+
+// MARK: - Starred tab
+
+private struct StarredTab: View {
+    let store: ReaderStore
+
+    var body: some View {
+        NavigationStack {
+            ReaderPushingList(store: store)
+        }
+    }
+}
+
+// MARK: - Feeds tab
+
+/// The library: an "All Articles" row, ungrouped feeds, and folders as
+/// disclosure groups. Tapping a row drills into that source's article list
+/// (which pushes the reader). Folders navigate via their label link and expand
+/// via the disclosure chevron.
+private struct FeedsTab: View {
+    @Bindable var store: ReaderStore
+    @Binding var path: [FeedTarget]
+
+    @State private var isAddingFeed = false
+    @State private var isCreatingFolder = false
+    @State private var newFolderName = ""
+    @State private var folderPendingRename: String?
+    @State private var renameFolderName = ""
+    @State private var feedPendingRename: Feed.ID?
+    @State private var renameFeedName = ""
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            List {
+                Section {
+                    NavigationLink(value: FeedTarget.all) {
+                        Label(SmartSource.all.title, systemImage: SmartSource.all.systemImage)
+                    }
+                }
+                .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+
+                if !store.feedFolders.isEmpty || !store.ungroupedFeeds.isEmpty {
+                    Section("Feeds") {
+                        ForEach(store.ungroupedFeeds) { feed in
+                            feedRow(feed)
+                        }
+                        ForEach(store.feedFolders, id: \.self) { folder in
+                            DisclosureGroup {
+                                ForEach(store.feeds(inFolder: folder)) { feed in
+                                    feedRow(feed)
+                                }
+                            } label: {
+                                NavigationLink(value: FeedTarget.folder(folder)) {
+                                    Label(folder, systemImage: "folder")
+                                }
+                                .contextMenu {
+                                    Button {
+                                        renameFolderName = folder
+                                        folderPendingRename = folder
+                                    } label: {
+                                        Label("Rename Folder", systemImage: "pencil")
+                                    }
+                                    Button(role: .destructive) {
+                                        store.removeFolder(folder)
+                                    } label: {
+                                        Label("Delete Folder", systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color("ListBackground").ignoresSafeArea())
+            .navigationTitle("Feeds")
+            .navigationDestination(for: FeedTarget.self) { target in
+                // Apply this target's scope as the screen appears, so the shown
+                // articles come from the navigation value itself rather than an
+                // out-of-band side effect.
+                ReaderPushingList(store: store)
+                    .task(id: target) { CompactShell.applyScope(target, store: store) }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            isAddingFeed = true
+                        } label: {
+                            Label("Add Feed", systemImage: "plus")
+                        }
+                        Button {
+                            isCreatingFolder = true
+                        } label: {
+                            Label("New Folder", systemImage: "folder.badge.plus")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .refreshable { await store.refreshAllAndWait() }
+        }
+        .sheet(isPresented: $isAddingFeed) {
+            AddFeedView(folders: store.feedFolders) { feedURL, folder in
+                try await store.addFeed(urlString: feedURL, toFolder: folder)
+            }
+        }
+        .alert("New Folder", isPresented: $isCreatingFolder) {
+            TextField("Folder Name", text: $newFolderName)
+            Button("Cancel", role: .cancel) { newFolderName = "" }
+            Button("Create") {
+                let name = newFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty { store.createFolder(name) }
+                newFolderName = ""
+            }
+        }
+        .alert(
+            "Rename Folder",
+            isPresented: Binding(
+                get: { folderPendingRename != nil },
+                set: { if !$0 { folderPendingRename = nil } }
+            ),
+            presenting: folderPendingRename
+        ) { folder in
+            TextField("Folder Name", text: $renameFolderName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") { store.renameFolder(folder, to: renameFolderName) }
+        } message: { _ in
+            Text("Enter a new name for the folder.")
+        }
+        .alert(
+            "Rename Feed",
+            isPresented: Binding(
+                get: { feedPendingRename != nil },
+                set: { if !$0 { feedPendingRename = nil } }
+            ),
+            presenting: feedPendingRename
+        ) { feedID in
+            TextField("Feed Name", text: $renameFeedName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") { store.renameFeed(feedID, to: renameFeedName) }
+        } message: { _ in
+            Text("Enter a new name, or leave empty to use the feed's own name.")
+        }
+    }
+
+    @ViewBuilder
+    private func feedRow(_ feed: Feed) -> some View {
+        let isRefreshing = store.isRefreshing(feedID: feed.id)
+        NavigationLink(value: FeedTarget.feed(feed.id)) {
+            HStack {
+                ZStack {
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                            .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                    } else if let icon = store.faviconImage(for: feed) {
+                        icon.resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 18, height: 18)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    } else {
+                        Image(systemName: feed.systemImage)
+                            .frame(width: 18, height: 18)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+                .frame(width: 18, height: 18)
+                .animation(.easeInOut(duration: 0.18), value: isRefreshing)
+                .feedActivityFlash(trigger: store.feedUpdateToken(feedID: feed.id))
+                Text(feed.displayTitle).lineLimit(1)
+                Spacer()
+                let count = store.unreadCount(feedID: feed.id)
+                if count > 0 {
+                    Text(count, format: .number).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                store.removeFeeds(ids: [feed.id])
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .swipeActions(edge: .leading) {
+            Button {
+                store.markFeedsRead(ids: [feed.id])
+            } label: {
+                Label("Mark Read", systemImage: "checkmark")
+            }
+            .tint(.blue)
+        }
+        .contextMenu {
+            Button {
+                store.markFeedsRead(ids: [feed.id])
+            } label: {
+                Label("Mark All as Read", systemImage: "checkmark.circle")
+            }
+            Button {
+                renameFeedName = feed.displayTitle
+                feedPendingRename = feed.id
+            } label: {
+                Label("Rename Feed", systemImage: "pencil")
+            }
+            if !store.feedFolders.isEmpty {
+                Menu {
+                    Button("None") { store.moveFeed(feed.id, toFolder: "") }
+                    ForEach(store.feedFolders, id: \.self) { folder in
+                        Button(folder) { store.moveFeed(feed.id, toFolder: folder) }
+                    }
+                } label: {
+                    Label("Move to Folder", systemImage: "folder")
+                }
+            }
+            Divider()
+            Button(role: .destructive) {
+                store.removeFeeds(ids: [feed.id])
+            } label: {
+                Label("Delete Feed", systemImage: "trash")
+            }
+        }
+    }
+}
+
+// MARK: - Article list that pushes the reader
+
+/// Wraps `ArticleList` with a navigation destination that pushes
+/// `ReaderDetailView` when a row is selected. Used by Home, Starred, and each
+/// drilled-into feed source. Selection is local to this view (so switching tabs
+/// never pushes the reader in an inactive tab) and mirrored to
+/// `store.selectedArticleID` so the reader and mark-read dwell work.
+private struct ReaderPushingList<Top: View>: View {
+    let store: ReaderStore
+    let top: () -> Top
+    /// The article captured when a row is tapped — the value the reader renders.
+    /// Local to this stack, so another tab's scope change never blanks or swaps
+    /// what this pushed reader shows.
+    @State private var pushed: Article?
+
+    init(store: ReaderStore, @ViewBuilder top: @escaping () -> Top = { EmptyView() }) {
+        self.store = store
+        self.top = top
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            top()
+            ArticleList(store: store, selection: selectionBinding)
+        }
+        .navigationDestination(item: $pushed) { article in
+            ReaderDetailView(store: store, articleOverride: article)
+        }
+    }
+
+    /// Selecting a row captures the article's value (while it's still in the
+    /// current scope) and mirrors its id into the store so the mark-read dwell
+    /// runs. Clearing (back navigation) pops the reader.
+    private var selectionBinding: Binding<Article.ID?> {
+        Binding(
+            get: { pushed?.id },
+            set: { id in
+                if let id, let article = store.visibleArticles.first(where: { $0.id == id }) {
+                    pushed = article
+                    store.selectedArticleID = id
+                } else {
+                    pushed = nil
+                }
+            }
+        )
     }
 }
 
@@ -535,10 +982,11 @@ private struct Sidebar: View {
 
 private struct ArticleList: View {
     @Bindable var store: ReaderStore
+    @Binding var selection: Article.ID?
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
 
     var body: some View {
-        List(store.visibleArticles, selection: $store.selectedArticleID) { article in
+        List(store.visibleArticles, selection: $selection) { article in
             row(article)
                 .tag(article.id)
                 .swipeActions(edge: .leading) {

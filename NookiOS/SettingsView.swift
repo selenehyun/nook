@@ -2,6 +2,7 @@ import BackgroundTasks
 import NookKit
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 import UserNotifications
 
 /// iOS settings. Mirrors the macOS Settings tabs (General, Reading, Reader,
@@ -11,7 +12,20 @@ import UserNotifications
 /// macOS-only and intentionally omitted.
 struct SettingsView: View {
     @Bindable var store: ReaderStore
+    /// True when hosted as the iPhone Settings tab (no "Done" button, and the
+    /// OPML import/export + sync-folder actions the sidebar owns on iPad move
+    /// into a "Data" section here). Defaults to sheet presentation (iPad),
+    /// leaving that path unchanged.
+    var isTab: Bool = false
     @Environment(\.dismiss) private var dismiss
+
+    /// A single file importer backs both the sync-folder picker and OPML import;
+    /// stacking two `.fileImporter` modifiers on one view makes only one work.
+    private enum ImportKind { case folder, opml }
+    @State private var importKind: ImportKind = .folder
+    @State private var isImporting = false
+    @State private var isExportingOPML = false
+    @State private var opmlImport: OPMLImportRequest?
 
     var body: some View {
         NavigationStack {
@@ -46,14 +60,104 @@ struct SettingsView: View {
                 } label: {
                     Label("About", systemImage: "info.circle")
                 }
+
+                if isTab {
+                    Section("Data") {
+                        Button {
+                            importKind = .folder
+                            isImporting = true
+                        } label: {
+                            Label(
+                                store.isStorageConfigured ? "Change Sync Folder" : "Choose Sync Folder",
+                                systemImage: store.isStorageConfigured ? "checkmark.icloud" : "icloud"
+                            )
+                        }
+                        Button {
+                            importKind = .opml
+                            isImporting = true
+                        } label: {
+                            Label("Import OPML", systemImage: "square.and.arrow.down")
+                        }
+                        Button {
+                            isExportingOPML = true
+                        } label: {
+                            Label("Export OPML", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(store.feeds.isEmpty)
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                if !isTab {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
             }
+            .modifier(DataActionsModifier(
+                isTab: isTab,
+                store: store,
+                importIsFolder: importKind == .folder,
+                isImporting: $isImporting,
+                isExportingOPML: $isExportingOPML,
+                opmlImport: $opmlImport
+            ))
+        }
+    }
+}
+
+/// Attaches the sync-folder / OPML importers and exporters — but only when
+/// Settings is hosted as the iPhone tab. On iPad (sheet) this adds nothing, so
+/// that presentation path is unchanged.
+private struct DataActionsModifier: ViewModifier {
+    let isTab: Bool
+    let store: ReaderStore
+    let importIsFolder: Bool
+    @Binding var isImporting: Bool
+    @Binding var isExportingOPML: Bool
+    @Binding var opmlImport: OPMLImportRequest?
+
+    func body(content: Content) -> some View {
+        if isTab {
+            content
+                .fileImporter(
+                    isPresented: $isImporting,
+                    allowedContentTypes: importIsFolder ? [.folder] : [.opml, .xml],
+                    allowsMultipleSelection: false
+                ) { result in
+                    guard case .success(let urls) = result, let url = urls.first else { return }
+                    if importIsFolder {
+                        _ = url.startAccessingSecurityScopedResource()
+                        store.configureSyncFolder(url)
+                    } else {
+                        let candidates = store.parseOPML(at: url)
+                        if candidates.isEmpty {
+                            store.errorMessage = String(localized: "No feeds found in the OPML file.")
+                        } else {
+                            opmlImport = OPMLImportRequest(feeds: candidates)
+                        }
+                    }
+                }
+                .fileExporter(
+                    isPresented: $isExportingOPML,
+                    document: OPMLDocument(feeds: store.feeds),
+                    contentType: .opml,
+                    defaultFilename: "NookSubscriptions.opml"
+                ) { result in
+                    store.handleOPMLExport(result)
+                }
+                .sheet(item: $opmlImport) { request in
+                    OPMLImportView(
+                        feeds: request.feeds,
+                        existingKeys: Set(store.feeds.flatMap { [$0.feedURL.feedIdentityKey, $0.siteURL.feedIdentityKey] })
+                    ) { selected in
+                        store.importFeeds(selected)
+                    }
+                }
+        } else {
+            content
         }
     }
 }

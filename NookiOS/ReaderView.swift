@@ -8,6 +8,11 @@ import Translation
 /// page presented as a sheet.
 struct ReaderDetailView: View {
     @Bindable var store: ReaderStore
+    /// The article to show, captured at push time. The compact tab shell passes
+    /// this so the pushed reader is driven by its own value, not the shared,
+    /// scope-dependent `store.selectedArticle` (which another tab's scope change
+    /// can null out). nil on iPad, where the split-view detail follows selection.
+    var articleOverride: Article? = nil
 
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
@@ -124,7 +129,7 @@ struct ReaderDetailView: View {
                 } description: {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
-            } else if let article = store.selectedArticle {
+            } else if let article = articleOverride ?? store.selectedArticle {
                 reader(article)
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
