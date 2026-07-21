@@ -1493,6 +1493,13 @@ public final class ReaderStore {
         browserMode = resolvedBrowserMode(for: article)
     }
 
+    /// The live article for an ID from the full set (not the filtered visible
+    /// list), so a reader driven by a captured snapshot can re-resolve fresh
+    /// read/starred state even after the article leaves the current scope.
+    public func article(withID id: Article.ID) -> Article? {
+        articles.first { $0.id == id }
+    }
+
     /// The article shown right after `id` in the current visible list, or nil if
     /// `id` is the last one. Lets the UI preview what "next" would open.
     public func article(after id: Article.ID) -> Article? {

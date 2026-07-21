@@ -137,8 +137,13 @@ struct ReaderDetailView: View {
                 } description: {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
-            } else if let article = articleOverride?.wrappedValue ?? store.selectedArticle {
-                reader(article)
+            } else if let base = articleOverride?.wrappedValue ?? store.selectedArticle {
+                // Re-resolve the article live from the store by ID so mutations
+                // made in the reader (star, read) reflect immediately — the
+                // captured `pushed` snapshot the compact shell drives this with
+                // wouldn't otherwise update. Falls back to the snapshot if the
+                // store no longer has it.
+                reader(store.article(withID: base.id) ?? base)
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
