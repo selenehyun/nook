@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The launch animation: the app icon's twig layers drop in from above, one by
 /// one under gravity, and settle into the nest — matching the twigs' real
@@ -10,7 +11,7 @@ struct NestAssemblyView: View {
     /// Flip to true to drop the twigs in.
     var assembled: Bool
 
-    private struct Twig: Identifiable {
+    fileprivate struct Twig: Identifiable {
         let id: Int
         let x, y, w, h, rx, rotation, tx, ty: CGFloat
         let color: Color
@@ -18,8 +19,9 @@ struct NestAssemblyView: View {
 
     // Twig geometry (AppIcon.icon SVG layers) + per-layer fill/translation
     // (icon.json), on the 1024pt canvas. Ordered back-to-front so the ZStack
-    // and the drop stagger build the nest up naturally.
-    private static let twigs: [Twig] = [
+    // and the drop stagger build the nest up naturally. fileprivate so the tab
+    // glyph below can reuse the exact same geometry.
+    fileprivate static let twigs: [Twig] = [
         Twig(id: 0, x: 455, y: 671.174, w: 532.752, h: 60.7009, rx: 30.3504, rotation: -38.5727, tx: 0, ty: 0,
              color: Color(.displayP3, red: 0.52707, green: 0.34104, blue: 0.16485)),
         Twig(id: 1, x: 176.275, y: 619, w: 462.978, h: 74, rx: 37, rotation: 2.5362, tx: 0, ty: 0,
@@ -37,8 +39,8 @@ struct NestAssemblyView: View {
     // The twigs' rotated bounding box isn't centered on the 1024pt canvas — its
     // center sits at (512.5, 573.9), i.e. ~62pt low. Shift the whole group by
     // this so the assembled nest lands dead-center.
-    private static let centerDX: CGFloat = 512 - 512.5
-    private static let centerDY: CGFloat = 512 - 573.88
+    fileprivate static let centerDX: CGFloat = 512 - 512.5
+    fileprivate static let centerDY: CGFloat = 512 - 573.88
 
     var body: some View {
         let k = size / 1024
@@ -72,4 +74,43 @@ struct NestAssemblyView: View {
 
     /// Roughly how long the full drop-and-settle takes.
     static var duration: Double { Double(twigs.count) * 0.09 + 0.6 }
+}
+
+/// The nest mark drawn statically as a single-color silhouette, from the same
+/// twig geometry as the icon/splash. The twigs are thin, so a stroked "outline"
+/// would vanish at tab size — instead it's a filled silhouette and the tab bar's
+/// tint (secondary when unselected, accent when selected) carries the state, the
+/// standard treatment for a custom template glyph.
+private struct NestGlyphView: View {
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: 1024, height: 1024)
+            ForEach(NestAssemblyView.twigs) { twig in
+                RoundedRectangle(cornerRadius: 37, style: .continuous)
+                    .fill(Color.black)
+                    .frame(width: twig.w, height: twig.h)
+                    .rotationEffect(.degrees(twig.rotation), anchor: .topLeading)
+                    .offset(
+                        x: twig.x + twig.tx + NestAssemblyView.centerDX,
+                        y: twig.y + twig.ty + NestAssemblyView.centerDY
+                    )
+            }
+        }
+        .frame(width: 1024, height: 1024)
+    }
+}
+
+/// The app's nest mark as a bottom-tab glyph. Rendered once to a template
+/// `UIImage` so the tab bar tints it (gray unselected, accent selected) like any
+/// SF Symbol. Main-actor isolated because `ImageRenderer` is.
+@MainActor
+enum NestTabIcon {
+    static let image: UIImage = {
+        let glyph = NestGlyphView()
+            .scaleEffect(28.0 / 1024.0)
+            .frame(width: 28, height: 28)
+        let renderer = ImageRenderer(content: glyph)
+        renderer.scale = 3
+        return (renderer.uiImage ?? UIImage()).withRenderingMode(.alwaysTemplate)
+    }()
 }

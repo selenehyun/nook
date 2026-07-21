@@ -300,22 +300,41 @@ private struct CompactShell: View {
     var body: some View {
         TabView(selection: $selection) {
             HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
-                .tabItem { Image(systemName: selection == .home ? "house.fill" : "house").accessibilityLabel(Text("Home")) }
+                // Nook's own nest mark (from the icon/splash twig geometry) —
+                // on-brand and distinct from a generic house. Tinted by the tab bar.
+                .tabItem {
+                    Image(uiImage: NestTabIcon.image)
+                        .accessibilityLabel(Text("Home"))
+                }
                 .badge(store.count(for: .unread))
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
                 // `list.bullet` has no filled variant, so use `square.stack` which
                 // does, keeping the outline→fill-on-select behavior consistent.
-                .tabItem { Image(systemName: selection == .feeds ? "square.stack.fill" : "square.stack").accessibilityLabel(Text("Feeds")) }
+                // `.symbolVariant(.none)` stops the tab bar from auto-filling the
+                // unselected icons (iOS 26 forces `.fill` on tab symbols otherwise).
+                .tabItem {
+                    Image(systemName: selection == .feeds ? "square.stack.fill" : "square.stack")
+                        .symbolVariant(.none)
+                        .accessibilityLabel(Text("Feeds"))
+                }
                 .tag(AppTab.feeds)
 
             StarredTab(store: store)
-                .tabItem { Image(systemName: selection == .starred ? "star.fill" : "star").accessibilityLabel(Text("Starred")) }
+                .tabItem {
+                    Image(systemName: selection == .starred ? "star.fill" : "star")
+                        .symbolVariant(.none)
+                        .accessibilityLabel(Text("Starred"))
+                }
                 .tag(AppTab.starred)
 
             SettingsView(store: store, isTab: true)
-                .tabItem { Image(systemName: selection == .settings ? "gearshape.fill" : "gearshape").accessibilityLabel(Text("Settings")) }
+                .tabItem {
+                    Image(systemName: selection == .settings ? "gearshape.fill" : "gearshape")
+                        .symbolVariant(.none)
+                        .accessibilityLabel(Text("Settings"))
+                }
                 .tag(AppTab.settings)
         }
         // Shrink the tab bar into a compact pill while scrolling the list, so the
