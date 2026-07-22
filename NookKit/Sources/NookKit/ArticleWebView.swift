@@ -73,6 +73,9 @@ public struct ArticleWebView {
         // Reuse the process pool warmed at launch so the first article opens
         // without WebKit's cold-start delay.
         configuration.processPool = WebViewWarmer.processPool
+        // Persistent, shared data store so logged-in sessions (cookies,
+        // localStorage) survive across launches and are shared between web views.
+        configuration.websiteDataStore = WebViewWarmer.dataStore
         let controller = configuration.userContentController
 
         coordinator.usesReaderMode = useReaderMode
@@ -268,6 +271,7 @@ extension ArticleWebView: NSViewRepresentable {
     public func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView(frame: .zero, configuration: makeConfiguration(coordinator: context.coordinator))
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.attach(to: webView)
@@ -308,6 +312,7 @@ extension ArticleWebView: UIViewRepresentable {
     public func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView(frame: .zero, configuration: makeConfiguration(coordinator: context.coordinator))
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         // Bounce vertically even when the content fits, so a short (non-scrollable)
         // page can still be pulled up past its bottom to reveal the affordance.
@@ -343,7 +348,7 @@ extension ArticleWebView: UIViewRepresentable {
 // MARK: - Coordinator
 
 extension ArticleWebView {
-    public final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, @unchecked Sendable {
+    public final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, @unchecked Sendable {
         var linkOpensInApp: Bool
         var onOverscroll: (CGFloat) -> Void
         var onOverscrollEnded: (CGFloat) -> Void
@@ -931,6 +936,27 @@ extension ArticleWebView {
                 return
             }
             decisionHandler(.allow)
+        }
+
+        // MARK: WKUIDelegate
+
+        /// Sign-in flows commonly open a popup (`window.open` / `target="_blank"`,
+        /// where `targetFrame` is nil). WKWebView drops these unless the UI delegate
+        /// handles them, which is why some logins appeared to do nothing. Load the
+        /// popup's request in the current web view so the flow proceeds (redirect-
+        /// based OAuth and "open in new tab" links both work, and the resulting
+        /// cookies land in the shared persistent store). Returning nil means we
+        /// didn't open a separate web view.
+        public func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            if navigationAction.targetFrame?.isMainFrame != true, navigationAction.request.url != nil {
+                webView.load(navigationAction.request)
+            }
+            return nil
         }
 
         /// Observes `estimatedProgress` (0...1) via KVO and forwards it so the UI

@@ -69,6 +69,9 @@ private final class ExtractionSession: NSObject, WKNavigationDelegate, WKScriptM
     func start() {
         let configuration = WKWebViewConfiguration()
         configuration.processPool = WebViewWarmer.processPool
+        // Share the persistent session so extraction sees the same logged-in state
+        // as the browser (e.g. subscriber-only articles).
+        configuration.websiteDataStore = WebViewWarmer.dataStore
         let controller = configuration.userContentController
         if let readability = ArticleWebView.readabilitySource {
             controller.addUserScript(WKUserScript(source: readability, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
