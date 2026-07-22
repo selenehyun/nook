@@ -614,9 +614,8 @@ private struct SortableSegmentedControl: View {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Track/highlight height and the full 44pt hit target around it.
-    private let visualHeight: CGFloat = 38
-    private let hitHeight: CGFloat = 44
+    /// Track/highlight height — matched to the adjacent nav-bar toolbar button.
+    private let visualHeight: CGFloat = 44
 
     private var slide: Animation? {
         reduceMotion ? nil : .spring(duration: 0.38, bounce: 0.18)
@@ -649,7 +648,6 @@ private struct SortableSegmentedControl: View {
             }
         }
         .frame(height: visualHeight)
-        .frame(height: hitHeight)
     }
 
     @ViewBuilder
@@ -691,13 +689,15 @@ private struct SortableSegmentedControl: View {
             .minimumScaleFactor(0.85)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // The unread indicator sits at the leading corner, outside the text
-            // flow, so it never squeezes the label into an ellipsis.
-            .overlay(alignment: .topLeading) {
+            // The unread indicator sits outside the text flow so it never squeezes
+            // the label. Focused: a number chip pinned to the far leading edge (out
+            // of the way of the centered label). Unfocused: a dot centered
+            // horizontally at the top.
+            .overlay(alignment: selected ? .topLeading : .top) {
                 if let count = badge(source) {
                     UnreadSegmentBadge(count: count, focused: selected)
-                        .padding(.leading, 6)
-                        .padding(.top, 2)
+                        .padding(.leading, selected ? 2 : 0)
+                        .padding(.top, selected ? 1 : 3)
                 }
             }
             .contentShape(Rectangle())
