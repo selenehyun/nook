@@ -79,10 +79,6 @@ public struct BottomPullAffordance: View {
         return .hint
     }
 
-    /// Pulled far enough to commit, but not yet held long enough — so the hint
-    /// tells the user to keep holding rather than "keep pulling".
-    private var isHolding: Bool { !armed && pull >= nextThreshold }
-
     private var isPresented: Bool { pull > 6 }
 
     /// A stepped value that climbs as the pull grows through the "hint" zone, so
@@ -196,16 +192,9 @@ public struct BottomPullAffordance: View {
 
     private var hintCard: some View {
         pill {
-            if isHolding {
-                // Far enough, but keep holding until the min-hold elapses.
-                Image(systemName: "hand.tap").font(.headline)
-                Text("Hold to open", bundle: .module)
-                    .font(.subheadline.weight(.semibold))
-            } else {
-                Image(systemName: edge == .bottom ? "chevron.up" : "chevron.down").font(.headline)
-                Text("Keep pulling", bundle: .module)
-                    .font(.subheadline.weight(.semibold))
-            }
+            Image(systemName: edge == .bottom ? "chevron.up" : "chevron.down").font(.headline)
+            Text("Keep pulling", bundle: .module)
+                .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(.secondary)
     }
@@ -240,7 +229,7 @@ public struct BottomPullAffordance: View {
 
     private var accessibilityLabel: Text {
         switch stage {
-        case .hint: isHolding ? Text("Hold to open", bundle: .module) : Text("Keep pulling", bundle: .module)
+        case .hint: Text("Keep pulling", bundle: .module)
         case .next: Text(nextTitle ?? emptyActionTitle)
         case .close: Text("Release to close", bundle: .module)
         }
