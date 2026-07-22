@@ -35,6 +35,11 @@ public struct BottomPullAffordance: View {
     /// defaults to the shared `nextThreshold`. Must match the caller's commit
     /// threshold so the indicator fills exactly when release will navigate.
     private let nextThreshold: CGFloat
+    /// Whether the pull has been held long enough to be allowed to commit. While
+    /// false, the reel never rolls to the "next/previous" action no matter how far
+    /// it's pulled — it shows a "hold" hint instead — so a quick flick can't look
+    /// ready. Defaults to true so the web reader's own affordance is unaffected.
+    private let armed: Bool
 
     public init(
         pull: CGFloat,
@@ -42,7 +47,8 @@ public struct BottomPullAffordance: View {
         edge: VerticalEdge = .bottom,
         includeClose: Bool = true,
         forward: Bool = true,
-        nextThreshold: CGFloat = BottomPullAffordance.nextThreshold
+        nextThreshold: CGFloat = BottomPullAffordance.nextThreshold,
+        armed: Bool = true
     ) {
         self.pull = pull
         self.nextTitle = nextTitle
@@ -50,6 +56,7 @@ public struct BottomPullAffordance: View {
         self.includeClose = includeClose
         self.forward = forward
         self.nextThreshold = nextThreshold
+        self.armed = armed
     }
 
     /// +1 for the bottom edge, -1 to mirror the reel geometry for the top edge.
@@ -64,10 +71,17 @@ public struct BottomPullAffordance: View {
     private enum PullDirection: Equatable { case forward, backward }
 
     private var stage: Stage {
+        // Not armed yet (held too briefly): stay in the hint stage regardless of
+        // distance, so pulling fast/far can't roll the reel to "next".
+        guard armed else { return .hint }
         if includeClose, pull >= Self.closeThreshold { return .close }
         if pull >= nextThreshold { return .next }
         return .hint
     }
+
+    /// Pulled far enough to commit, but not yet held long enough — so the hint
+    /// tells the user to keep holding rather than "keep pulling".
+    private var isHolding: Bool { !armed && pull >= nextThreshold }
 
     private var isPresented: Bool { pull > 6 }
 
@@ -182,9 +196,16 @@ public struct BottomPullAffordance: View {
 
     private var hintCard: some View {
         pill {
-            Image(systemName: edge == .bottom ? "chevron.up" : "chevron.down").font(.headline)
-            Text("Keep pulling", bundle: .module)
-                .font(.subheadline.weight(.semibold))
+            if isHolding {
+                // Far enough, but keep holding until the min-hold elapses.
+                Image(systemName: "hand.tap").font(.headline)
+                Text("Hold to open", bundle: .module)
+                    .font(.subheadline.weight(.semibold))
+            } else {
+                Image(systemName: edge == .bottom ? "chevron.up" : "chevron.down").font(.headline)
+                Text("Keep pulling", bundle: .module)
+                    .font(.subheadline.weight(.semibold))
+            }
         }
         .foregroundStyle(.secondary)
     }
@@ -219,7 +240,7 @@ public struct BottomPullAffordance: View {
 
     private var accessibilityLabel: Text {
         switch stage {
-        case .hint: Text("Keep pulling", bundle: .module)
+        case .hint: isHolding ? Text("Hold to open", bundle: .module) : Text("Keep pulling", bundle: .module)
         case .next: Text(nextTitle ?? emptyActionTitle)
         case .close: Text("Release to close", bundle: .module)
         }

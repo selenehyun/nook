@@ -406,6 +406,28 @@
         }
       }
     },
+    "Hold to open" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "길게 눌러 열기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長押しで開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住打开"
+          }
+        }
+      }
+    },
     "Keep pulling" : {
       "localizations" : {
         "en" : {

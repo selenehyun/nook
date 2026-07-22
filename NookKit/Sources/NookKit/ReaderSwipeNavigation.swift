@@ -44,6 +44,14 @@ private struct EdgePull: Equatable {
     var bottom: CGFloat = 0
 }
 
+/// Minimum time the edge pull must be actively held (from when the overscroll
+/// starts until release) before a release commits. A pull that crosses the
+/// distance threshold but is let go faster than this reads as an accidental flick
+/// while scrolling, so it snaps back instead of navigating. Measured from the
+/// overscroll's start — not the whole scroll — so a long scroll that ends in a
+/// quick flick is still caught.
+private let readerCommitMinHold: TimeInterval = 0.3
+
 private struct ReaderSwipeNavigation: ViewModifier {
     let nextTitle: String?
     let previousTitle: String?
@@ -66,16 +74,42 @@ private struct ReaderSwipeNavigation: ViewModifier {
     @State private var beganAtTop = false
     @State private var beganAtBottom = false
 
+    /// Whether the current pull has been held long enough to be allowed to commit.
+    /// Drives BOTH the visual (the reel only rolls to "next" once armed) and the
+    /// commit decision, so what the user sees and what happens always agree. Set by
+    /// a timer started when the overscroll begins; cleared when it ends.
+    @State private var armed = false
+    @State private var armTask: Task<Void, Never>?
+
     func body(content: Content) -> some View {
         platformContent(content)
+            // Arm the pull once the overscroll has been held for the min hold, and
+            // disarm the moment it returns to rest. Timed off the pull itself, so it
+            // covers both platforms (each drives `pull`).
+            .onChange(of: pull) { _, newValue in
+                let engaged = newValue.top > 0 || newValue.bottom > 0
+                if engaged {
+                    if armTask == nil, !armed {
+                        armTask = Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(readerCommitMinHold))
+                            if !Task.isCancelled { armed = true }
+                        }
+                    }
+                } else {
+                    armTask?.cancel()
+                    armTask = nil
+                    armed = false
+                }
+            }
             // Reuse the web reader's affordance so the gradual emerge and the
             // selection roll are identical — bottom pulls to the next article,
-            // top mirrors it to the previous one (no "close" stage here).
+            // top mirrors it to the previous one (no "close" stage here). `armed`
+            // holds the reel in the hint stage until the min hold passes.
             .overlay(alignment: .bottom) {
-                BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true, nextThreshold: Self.threshold)
+                BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true, nextThreshold: Self.threshold, armed: armed)
             }
             .overlay(alignment: .top) {
-                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false, nextThreshold: Self.topThreshold)
+                BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false, nextThreshold: Self.topThreshold, armed: armed)
             }
     }
 
@@ -131,12 +165,17 @@ private struct ReaderSwipeNavigation: ViewModifier {
                 default:
                     // Commit from the overscroll AT RELEASE (not the peak), so
                     // pulling past the threshold and then easing back before
-                    // lifting cancels instead of still navigating.
+                    // lifting cancels instead of still navigating. Also require the
+                    // pull to have been held long enough — a faster release reads as
+                    // an accidental flick and snaps back.
                     if oldPhase == .interacting || oldPhase == .tracking {
                         let released = Self.pull(from: context.geometry)
-                        if beganAtBottom, released.bottom >= Self.threshold {
+                        // `armed` is the same signal that rolled the reel, so a
+                        // release only commits when the indicator actually showed
+                        // "ready".
+                        if armed, beganAtBottom, released.bottom >= Self.threshold {
                             commit(.bottom)
-                        } else if beganAtTop, released.top >= Self.topThreshold {
+                        } else if armed, beganAtTop, released.top >= Self.topThreshold {
                             commit(.top)
                         }
                     }
@@ -217,6 +256,7 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
         private weak var cachedScrollView: NSScrollView?
         private var monitor: Any?
         private var engaged: ReaderPullEdge?
+        private var engagedAt: Date?
         private var raw: CGFloat = 0
         private var beganAtTop = false
         private var beganAtBottom = false
@@ -285,6 +325,7 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
 
         private func reset() {
             engaged = nil
+            engagedAt = nil
             raw = 0
             lastReported = 0
             didCrossThreshold = false
@@ -323,9 +364,11 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
                 let atEdge = edges()
                 if delta > 0, beganAtTop, atEdge.top {
                     engaged = .top
+                    engagedAt = Date()
                     raw = 0
                 } else if delta < 0, beganAtBottom, atEdge.bottom {
                     engaged = .bottom
+                    engagedAt = Date()
                     raw = 0
                 } else {
                     return false
@@ -355,9 +398,12 @@ private struct ScrollWheelOverscrollMonitor: NSViewRepresentable {
             if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
                 let amount = lastReported
                 let edge = engaged
+                // Require the pull to have been held long enough; a faster release
+                // reads as an accidental flick while scrolling and cancels.
+                let heldLongEnough = engagedAt.map { Date().timeIntervalSince($0) >= readerCommitMinHold } ?? false
                 reset()
                 onPull(EdgePull())
-                if let edge, amount >= threshold { onCommit(edge) }
+                if let edge, amount >= threshold, heldLongEnough { onCommit(edge) }
                 return true
             }
             // Pulled all the way back: hand scrolling back to the scroll view.
