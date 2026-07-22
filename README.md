@@ -3,7 +3,7 @@
   Nook
 </h1>
 
-<p align="center">A native RSS reader for macOS and iOS that keeps your feeds in a plain folder — on whatever cloud you already use.</p>
+<p align="center">A small, native RSS reader for macOS and iOS — offline-first, free, and stored in a plain folder on whatever cloud you already use.</p>
 
 <p align="center">
   <a href="https://github.com/selenehyun/nook/releases/latest">
@@ -24,13 +24,17 @@
   <img src="docs/screenshots/main.png" width="900" alt="Nook on macOS — sidebar, article list, and reader" />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/ios-splash.png" width="200" alt="Nook launch screen on iPhone" />
+</p>
+
 > **New to RSS?** RSS lets you follow sites, blogs, and newsletters in one place — no algorithm, no ads, no account, and nothing tracking what you read. You decide what you subscribe to and see everything, in order. [Why use RSS feeds →](https://openrss.org/guides/what-are-rss-feeds#why-use-rss-feeds)
 
 ## Why Nook
 
-Most RSS readers are either a web app behind a login or an Electron shell pretending to be native. Nook is neither. It's a real SwiftUI/AppKit app on Mac and a real SwiftUI app on iPhone and iPad — and it stores **all** of your data in a plain folder you choose.
+Nook isn't trying to be special. It's a small, native RSS reader built around a few plain ideas: it works **offline first**, it's **free** and stays out of your way, and it runs **entirely on infrastructure you already have** — your own folder, synced by whatever cloud you already use. There's no server to sign in to and no account to create, and nothing of yours passes through anything the author runs.
 
-That one decision means **no lock-in**:
+Because your library is just a folder, there's **no lock-in**:
 
 - **Any cloud you like.** It's just a folder, so sync it however you already do — iCloud Drive, Dropbox, Google Drive, OneDrive, Syncthing, even a Git repo. Nook doesn't run a server or ask for an account.
 - **One library, every device.** Point the Mac and iOS apps at the same folder and your feeds, read state, and stars stay in step — Nook watches the folder and merges another device's changes the moment they arrive, so a read on one device is never overwritten by another.
@@ -38,7 +42,7 @@ That one decision means **no lock-in**:
 
 ## Features
 
-- 🪶 **Truly native, everywhere.** One shared Swift core (`NookKit`) under a SwiftUI + AppKit Mac app and a SwiftUI iPhone/iPad app — `NavigationSplitView`, native toolbars, menus, commands, swipe actions, and share sheets. Not a webview wrapper, not Electron.
+- 🪶 **Native on every device.** One shared Swift core (`NookKit`) under a SwiftUI + AppKit Mac app and a SwiftUI iPhone/iPad app — `NavigationSplitView`, native toolbars, menus, commands, swipe actions, and share sheets.
 - 🗂️ **Your data, your folder — any cloud.** Feeds, articles, bodies, and user state live as plain per-device JSON shards in a folder you pick, Obsidian-vault style. Point it at iCloud Drive, Dropbox, Google Drive, OneDrive — whatever syncs folders for you. No account, no telemetry.
 - 🔁 **Conflict-free cross-device sync.** Every device writes only its own content and state files, so two devices can't clobber the same authoritative file. Nook accumulates last-writer-wins CRDT registers in a rebuildable local SQLite cache and republishes learned peer state; delayed, duplicated, missing, or out-of-order cloud files cannot make an observed article disappear.
 - 📥 **Painless migration, no lock-in.** Bring subscriptions in from any reader with **OPML import**, and **export** them whenever you want to move on.
