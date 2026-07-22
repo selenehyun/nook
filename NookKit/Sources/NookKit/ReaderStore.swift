@@ -1237,6 +1237,11 @@ public final class ReaderStore {
             if cached.status == .success, let html = cached.html, !html.isEmpty {
                 await warmReaderContent(html: html, baseURL: article.url)
                 readerContentStates[article.id] = .ready(html)
+                // Cached content can outlive the source page. Check the original's
+                // status in the background (non-blocking) and offer deletion if it
+                // now returns 404/410 — a fresh extraction would catch this, but a
+                // cache hit never re-fetches.
+                revalidateCachedOriginal(article: article)
             } else {
                 readerContentStates[article.id] = .failed
             }
@@ -1261,6 +1266,28 @@ public final class ReaderStore {
         default:
             readerContentStates[article.id] = .failed
             await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
+        }
+    }
+
+    /// Background HEAD check of a cached article's original URL. If the source now
+    /// returns 404/410 the page is gone, so flip to `.gone` (offering deletion)
+    /// while leaving the cached content up until then. Only ever downgrades from
+    /// `.ready`, only on an explicit gone status (so a server that rejects HEAD or
+    /// is briefly unreachable never produces a false "deleted" prompt).
+    private func revalidateCachedOriginal(article: Article) {
+        guard let scheme = article.url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
+        let id = article.id
+        let url = article.url
+        Task { [weak self] in
+            var request = URLRequest(url: url)
+            request.httpMethod = "HEAD"
+            request.timeoutInterval = 12
+            let status = (try? await URLSession.shared.data(for: request))
+                .flatMap { ($0.1 as? HTTPURLResponse)?.statusCode }
+            guard let self, status == 404 || status == 410 else { return }
+            if case .ready = self.readerContentStates[id] {
+                self.readerContentStates[id] = .gone
+            }
         }
     }
 
