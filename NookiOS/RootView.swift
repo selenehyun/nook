@@ -297,16 +297,23 @@ private struct CompactShell: View {
     @State private var homeFilter: SmartSource = .unread
     @State private var feedsPath: [FeedTarget] = []
 
-    /// The Home tab badge: the unread count while the Unread filter is on screen
-    /// (Home selected + Unread filter), a plain dot when unread exist otherwise,
-    /// and nothing when all caught up. `nil` renders no badge.
+    /// Whether the Home tab is actively showing the Unread filter — the only time
+    /// the loud numeric badge appears; otherwise a small baked-in dot is used.
+    private var viewingUnread: Bool {
+        selection == .home && homeFilter == .unread
+    }
+
+    /// The numeric Home badge, shown only while viewing Unread (nil = no badge).
     private var homeBadge: Text? {
         let unread = store.count(for: .unread)
-        guard unread > 0 else { return nil }
-        if selection == .home, homeFilter == .unread {
-            return Text(unread, format: .number)
-        }
-        return Text(verbatim: "●")
+        guard unread > 0, viewingUnread else { return nil }
+        return Text(unread, format: .number)
+    }
+
+    /// A small dot on the nest icon when there are unread articles but the count
+    /// isn't being shown as the numeric badge.
+    private var homeDot: Bool {
+        store.count(for: .unread) > 0 && !viewingUnread
     }
 
     var body: some View {
@@ -315,12 +322,13 @@ private struct CompactShell: View {
                 // Nook's own nest mark (from the icon/splash twig geometry) —
                 // on-brand and distinct from a generic house.
                 .tabItem {
-                    Image(uiImage: TabGlyph.nest)
+                    Image(uiImage: homeDot ? TabGlyph.nestUnread : TabGlyph.nest)
                         .renderingMode(.template)
                         .accessibilityLabel(Text("Home"))
                 }
-                // Quiet by default: a plain dot when unread exist, expanding to the
-                // actual count only while the Unread filter is what's on screen.
+                // Quiet by default: a small dot baked into the icon when unread
+                // exist, expanding to the actual count (numeric badge) only while
+                // the Unread filter is what's on screen.
                 .badge(homeBadge)
                 .tag(AppTab.home)
 
