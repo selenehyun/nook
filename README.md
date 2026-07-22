@@ -20,13 +20,14 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4c71f2" alt="MIT License" /></a>
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/main.png" width="900" alt="Nook on macOS — sidebar, article list, and reader" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/ios-splash.png" width="200" alt="Nook launch screen on iPhone" />
-</p>
+<div align="center">
+  <table>
+    <tr>
+      <td valign="middle"><img src="docs/screenshots/main.png" width="660" alt="Nook on macOS — sidebar, article list, and reader"></td>
+      <td valign="middle"><img src="docs/screenshots/ios-splash.png" width="180" alt="Nook launch screen on iPhone"></td>
+    </tr>
+  </table>
+</div>
 
 > **New to RSS?** RSS lets you follow sites, blogs, and newsletters in one place — no algorithm, no ads, no account, and nothing tracking what you read. You decide what you subscribe to and see everything, in order. [Why use RSS feeds →](https://openrss.org/guides/what-are-rss-feeds#why-use-rss-feeds)
 
