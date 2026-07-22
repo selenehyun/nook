@@ -43,6 +43,15 @@ Because your library is just a folder, there's **no lock-in**:
 - **One library, every device.** Point the Mac and iOS apps at the same folder and your feeds, read state, and stars stay in step — Nook watches the folder and merges another device's changes the moment they arrive, so a read on one device is never overwritten by another.
 - **Come and go via OPML.** Import your subscriptions from Reeder, NetNewsWire, Feedly, or anywhere else in seconds — and export them back out any time. Your feed list is always yours to take with you.
 
+## A few things that set it apart
+
+Not better or worse than the other good native readers out there — just a different set of choices, in case they're the ones you're after:
+
+- **No backend, no account.** There's no Nook server and nothing to sign up for. Your whole library is a plain folder you point at, so your data never leaves storage you already trust.
+- **Sync without a sync service.** Most readers reach multi-device sync through iCloud, Feedbin, Feedly, and the like. Nook syncs by merging plain files in that folder — conflict-free, so two devices never clobber each other — with no service in between.
+- **On-device translation.** When an article isn't in your language, it's translated in place with Apple Intelligence right on your device — no cloud translation call.
+- **Free and offline-first.** It's free, and built to be fully usable without a connection; a refresh just tops things up when you're online.
+
 ## Features
 
 - 🪶 **Native on every device.** One shared Swift core (`NookKit`) under a SwiftUI + AppKit Mac app and a SwiftUI iPhone/iPad app — `NavigationSplitView`, native toolbars, menus, commands, swipe actions, and share sheets.
