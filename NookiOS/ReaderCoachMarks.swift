@@ -192,9 +192,6 @@ struct ReaderCoachMarks: View {
     @Binding var step: ReaderCoachStep?
     /// The full-screen space to lay out in (from the hosting overlay's geometry).
     var size: CGSize
-    /// The document button's resolved frame (from its anchor); nil falls back to
-    /// an approximate bottom-trailing region.
-    var originalButtonRect: CGRect?
     var onNext: (ReaderCoachStep) -> Void
     var onSkip: () -> Void
 
@@ -209,15 +206,20 @@ struct ReaderCoachMarks: View {
         .animation(.easeInOut(duration: 0.28), value: step)
     }
 
-    private var fallbackOriginalRect: CGRect {
-        CGRect(x: size.width - 74, y: size.height - 86, width: 58, height: 46)
+    /// The bottom-bar strip to reveal for the "read the original" step. The exact
+    /// per-button frame isn't obtainable from a UIKit-hosted `.bottomBar`, so the
+    /// spotlight reveals the whole bar (a generous bottom strip that covers it on
+    /// both home-indicator and home-button iPhones); the callout points at the
+    /// document button on its trailing side.
+    private var bottomBarRect: CGRect {
+        let height: CGFloat = 100
+        return CGRect(x: 8, y: size.height - height, width: size.width - 16, height: height - 6)
     }
 
     @ViewBuilder
     private func scrim(_ step: ReaderCoachStep) -> some View {
         if step == .original {
-            let rect = (originalButtonRect ?? fallbackOriginalRect).insetBy(dx: -10, dy: -8)
-            CoachScrim(spotlight: rect, cornerRadius: min(rect.width, rect.height) / 2)
+            CoachScrim(spotlight: bottomBarRect, cornerRadius: 22)
         } else {
             Rectangle().fill(Color.black.opacity(0.55)).allowsHitTesting(false)
         }
@@ -282,7 +284,7 @@ struct ReaderCoachMarks: View {
             CoachCallout(
                 systemImage: "doc.plaintext",
                 title: "Read the original",
-                message: "Tap the highlighted button to open the full web page — with a reader view and translation.",
+                message: "In the bar below, tap the document button on the right to open the full web page — with a reader view and translation.",
                 primaryTitle: "Next", onPrimary: { onNext(.original) }, onSkip: onSkip
             )
         case .back:
@@ -303,28 +305,6 @@ struct FirstRowFrameKey: PreferenceKey {
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         let next = nextValue()
         if next != .zero { value = next }
-    }
-}
-
-/// The measured global frame of the reader's "open original" document button
-/// (now a normal SwiftUI control in a custom bottom bar, so this propagates).
-struct OriginalButtonFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero { value = next }
-    }
-}
-
-extension View {
-    /// Publishes this view's global frame under the given key, so a coach overlay
-    /// can spotlight the real control instead of guessing a screen region.
-    func reportGlobalFrame<K: PreferenceKey>(_ key: K.Type) -> some View where K.Value == CGRect {
-        background(
-            GeometryReader { g in
-                Color.clear.preference(key: key, value: g.frame(in: .global))
-            }
-        )
     }
 }
 

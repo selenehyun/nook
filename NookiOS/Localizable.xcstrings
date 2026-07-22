@@ -1883,6 +1883,9 @@
         }
       }
     },
+    "In the bar below, tap the document button on the right to open the full web page — with a reader view and translation." : {
+
+    },
     "In-App Browser" : {
       "localizations" : {
         "en" : {
@@ -4530,6 +4533,7 @@
       }
     },
     "Tap the highlighted button to open the full web page — with a reader view and translation." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {

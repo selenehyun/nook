@@ -54,9 +54,6 @@ struct ReaderDetailView: View {
     /// lives on the parent so it survives the per-article `.id` reset (letting the
     /// pull-to-next step carry over to the next article).
     @State private var coachStep: ReaderCoachStep?
-    /// The reader's document (open-original) button's measured global frame, so the
-    /// "read the original" coach step spotlights the real control precisely.
-    @State private var originalButtonFrame: CGRect = .zero
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
@@ -203,14 +200,12 @@ struct ReaderDetailView: View {
         // The interactive coach marks live here — outside the per-article `.id`
         // subtree in `reader(_:)` — so their step survives an article change (the
         // pull-to-next step advances onto the next article without resetting).
-        .onPreferenceChange(OriginalButtonFrameKey.self) { originalButtonFrame = $0 }
         .overlay {
             GeometryReader { proxy in
                 if coachStep != nil, currentArticle != nil {
                     ReaderCoachMarks(
                         step: $coachStep,
                         size: proxy.size,
-                        originalButtonRect: originalButtonFrame == .zero ? nil : originalButtonFrame,
                         onNext: { advanceCoach(from: $0) },
                         onSkip: { withAnimation { coachStep = nil } }
                     )
@@ -358,6 +353,7 @@ struct ReaderDetailView: View {
         // reveals the body beneath — Safari-style — top and bottom. Controls fade
         // via opacity alongside (below).
         .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .navigationBar)
+        .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .bottomBar)
         // Hide the system back button too while immersed (its own glass capsule
         // would otherwise linger); the edge-swipe back gesture still works, and
         // scrolling up brings the bar — and the button — right back.
@@ -376,12 +372,6 @@ struct ReaderDetailView: View {
                 TranslationProgressBanner()
             }
         }
-        // Custom bottom bar (share / star / open-original). Replaces the system
-        // `.bottomBar`: as a content overlay it never participates in layout (so it
-        // can't reintroduce the old collapse/shift/bounce), it fades with the
-        // chrome, content still scrolls under it, and — crucially — its buttons are
-        // ordinary SwiftUI views whose frames the coach mark can measure exactly.
-        .overlay(alignment: .bottom) { readerBottomBar(article) }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
             // The button controls carry iOS 26 glass capsules, so remove them (not
@@ -425,6 +415,30 @@ struct ReaderDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                }
+
+                // Frequent actions on the native bottom toolbar (the tab bar is
+                // hidden while reading, so this owns the bottom edge): share, star,
+                // and the full web reader/original.
+                ToolbarItemGroup(placement: .bottomBar) {
+                    ShareLink(item: article.url) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    Button {
+                        let willStar = !article.isStarred
+                        store.toggleStarred(articleID: article.id)
+                        haptics.star(on: willStar)
+                    } label: {
+                        Image(systemName: article.isStarred ? "star.fill" : "star")
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    Spacer()
+                    Button {
+                        openBrowser(for: article)
+                    } label: {
+                        Image(systemName: "doc.plaintext")
+                    }
+                    .help("Open Reader / Original")
                 }
             }
         }
@@ -650,53 +664,6 @@ struct ReaderDetailView: View {
     private func openBrowser(for article: Article) {
         store.browserMode = store.resolvedBrowserMode(for: article)
         store.isBrowserPresented = true
-    }
-
-    /// The reader's bottom action bar (share / star / open-original). A content
-    /// overlay rather than a system `.bottomBar`, so its controls are ordinary
-    /// SwiftUI views (measurable for the coach mark) and it never affects layout.
-    /// Fades with the chrome; content scrolls under it; it sits above the home
-    /// indicator (respects the bottom safe area).
-    private func readerBottomBar(_ article: Article) -> some View {
-        HStack(spacing: 0) {
-            ShareLink(item: article.url) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 19))
-                    .frame(width: 46, height: 44)
-            }
-            Button {
-                let willStar = !article.isStarred
-                store.toggleStarred(articleID: article.id)
-                haptics.star(on: willStar)
-            } label: {
-                Image(systemName: article.isStarred ? "star.fill" : "star")
-                    .font(.system(size: 19))
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 46, height: 44)
-            }
-            Spacer()
-            Button {
-                openBrowser(for: article)
-            } label: {
-                Image(systemName: "doc.plaintext")
-                    .font(.system(size: 19))
-                    .frame(width: 46, height: 44)
-                    // Publish the real button frame so the coach mark spotlights it.
-                    .reportGlobalFrame(OriginalButtonFrameKey.self)
-            }
-            .help("Open Reader / Original")
-        }
-        .tint(Color("AccentColor"))
-        .foregroundStyle(Color.accentColor)
-        .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity)
-        .frame(height: 48)
-        // Extend the bar material down through the home-indicator area, like a
-        // system bottom bar, while the buttons stay above it.
-        .background { Rectangle().fill(.bar).ignoresSafeArea(edges: .bottom) }
-        .opacity(chromeHidden ? 0 : 1)
-        .allowsHitTesting(!chromeHidden)
-        .animation(.easeInOut(duration: 0.25), value: chromeHidden)
     }
 
     // MARK: - Translation
