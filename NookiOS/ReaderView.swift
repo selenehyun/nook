@@ -203,7 +203,6 @@ struct ReaderDetailView: View {
         // The interactive coach marks live here — outside the per-article `.id`
         // subtree in `reader(_:)` — so their step survives an article change (the
         // pull-to-next step advances onto the next article without resetting).
-        .onPreferenceChange(OriginalButtonFrameKey.self) { originalButtonFrame = $0 }
         .overlay {
             GeometryReader { proxy in
                 if coachStep != nil, currentArticle != nil {
@@ -442,9 +441,10 @@ struct ReaderDetailView: View {
                         openBrowser(for: article)
                     } label: {
                         Image(systemName: "doc.plaintext")
-                            // Publish the button's real global frame so the coach
-                            // mark spotlights it exactly (not a guessed region).
-                            .reportGlobalFrame(OriginalButtonFrameKey.self)
+                            // Bridge out of the UIKit-hosted bottom bar to report
+                            // the real button frame (window space) so the coach
+                            // mark spotlights it exactly.
+                            .reportToolbarButtonFrame { originalButtonFrame = $0 }
                     }
                     .help("Open Reader / Original")
                 }

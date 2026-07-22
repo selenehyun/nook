@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Spotlight scrim
 
@@ -243,7 +244,7 @@ struct ReaderCoachMarks: View {
                 PullUpDemo()
                 Spacer().frame(height: 40)
             }
-            .padding(.top, 90)
+            .padding(.top, 140)
         case .back:
             VStack(spacing: 24) {
                 calloutCard(step)
@@ -251,13 +252,15 @@ struct ReaderCoachMarks: View {
                 SwipeBackDemo()
                 Spacer()
             }
-            .padding(.top, 90)
+            .padding(.top, 140)
         case .original:
             VStack {
                 calloutCard(step)
                 Spacer()
             }
-            .padding(.top, 90)
+            // Clear the top navigation bar (its trailing buttons) so the card
+            // doesn't overlap them.
+            .padding(.top, 140)
         }
     }
 
@@ -304,24 +307,66 @@ struct FirstRowFrameKey: PreferenceKey {
     }
 }
 
-/// The measured global frame of the reader's "open original" document button.
-struct OriginalButtonFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero { value = next }
+extension View {
+    /// Reports the window-space frame of the nearest enclosing control. Use this
+    /// for a control hosted in a UIKit-backed `.toolbar` (e.g. `.bottomBar`),
+    /// where SwiftUI preferences/anchors don't propagate to the content view and a
+    /// GeometryReader would measure the wrong coordinate space.
+    func reportToolbarButtonFrame(_ onChange: @escaping (CGRect) -> Void) -> some View {
+        background(ToolbarButtonFrameReporter(onChange: onChange))
     }
 }
 
-extension View {
-    /// Publishes this view's global frame under the given key, so a coach overlay
-    /// can spotlight the real control instead of guessing a screen region.
-    func reportGlobalFrame<K: PreferenceKey>(_ key: K.Type) -> some View where K.Value == CGRect {
-        background(
-            GeometryReader { g in
-                Color.clear.preference(key: key, value: g.frame(in: .global))
+/// Bridges out of a UIKit-hosted toolbar: finds the nearest enclosing `UIControl`
+/// (the real bar button, not just the SF Symbol glyph) and reports its frame in
+/// window coordinates — which line up with a full-screen, safe-area-ignoring
+/// SwiftUI coach overlay.
+struct ToolbarButtonFrameReporter: UIViewRepresentable {
+    var onChange: (CGRect) -> Void
+
+    func makeUIView(context: Context) -> ReporterView { ReporterView(onChange: onChange) }
+    func updateUIView(_ view: ReporterView, context: Context) {
+        view.onChange = onChange
+        view.report()
+    }
+
+    final class ReporterView: UIView {
+        var onChange: (CGRect) -> Void
+        private var last: CGRect = .zero
+
+        init(onChange: @escaping (CGRect) -> Void) {
+            self.onChange = onChange
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            backgroundColor = .clear
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        override func didMoveToWindow() { super.didMoveToWindow(); report() }
+        override func layoutSubviews() { super.layoutSubviews(); report() }
+
+        func report() {
+            guard let window else { return }
+            // Prefer the nearest UIControl (the tappable 44pt button); fall back to
+            // the immediate host if none is found.
+            var candidate: UIView? = self
+            var control: UIView?
+            while let view = candidate {
+                if view is UIControl { control = view; break }
+                candidate = view.superview
             }
-        )
+            let target = control ?? superview ?? self
+            let rect = target.convert(target.bounds, to: window)
+            guard rect.width > 1, rect.height > 1 else { return }
+            if abs(rect.minX - last.minX) > 0.5 || abs(rect.minY - last.minY) > 0.5
+                || abs(rect.width - last.width) > 0.5 || abs(rect.height - last.height) > 0.5 {
+                last = rect
+                // Defer out of the current layout pass to avoid mutating SwiftUI
+                // state during a view update.
+                DispatchQueue.main.async { [onChange] in onChange(rect) }
+            }
+        }
     }
 }
 
