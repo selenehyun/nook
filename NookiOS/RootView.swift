@@ -383,7 +383,7 @@ private struct CompactShell: View {
         // off to Home. Taps pass through the scrim, so tapping a spotlighted row
         // opens the reader (which then starts the reader coach marks).
         .overlay {
-            if showListHint, selection == .home, store.isStorageConfigured {
+            if showListHint, selection == .home, store.isStorageConfigured, !store.visibleArticles.isEmpty {
                 ListTapHint(onDismiss: dismissListHint)
                     .transition(.opacity)
             }
@@ -399,13 +399,16 @@ private struct CompactShell: View {
             // switch tabs, so both observers reliably see the same true edge.
             if want { selection = .feeds }
         }
-        .onChange(of: tour.wantsOpenFirstStoryHint) { _, want in
-            guard want else { return }
-            tour.wantsOpenFirstStoryHint = false
+        .onChange(of: tour.openFirstStoryToken) { _, _ in
             selection = .home
+            // Adding a feed leaves its first article selected; clear it so the
+            // baseline is "nothing open" and the next non-nil selection is the
+            // user's own tap on a spotlighted row (which then dismisses the hint).
+            store.selectedArticleID = nil
             if !seenListHint { withAnimation { showListHint = true } }
         }
-        // Opening a story satisfies the hint — dismiss it (the reader takes over).
+        // The user tapped a story (selection went from cleared to set) — dismiss
+        // the hint; the reader, and its coach marks, take over.
         .onChange(of: store.selectedArticleID) { _, id in
             if id != nil, showListHint { dismissListHint() }
         }
@@ -672,7 +675,9 @@ private struct FeedsTab: View {
         .sheet(isPresented: $isAddingFeed, onDismiss: { addFeedIsTutorial = false }) {
             AddFeedView(folders: store.feedFolders, tutorialPaste: addFeedIsTutorial) { feedURL, folder in
                 try await store.addFeed(urlString: feedURL, toFolder: folder)
-                if addFeedIsTutorial { tour.wantsOpenFirstStoryHint = true }
+                // Adding succeeds even when the feed already exists (a replay), so
+                // this reliably hands off to the "open a story" spotlight.
+                if addFeedIsTutorial { tour.openFirstStoryToken += 1 }
             }
         }
         .alert("New Folder", isPresented: $isCreatingFolder) {
