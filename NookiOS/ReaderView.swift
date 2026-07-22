@@ -54,6 +54,9 @@ struct ReaderDetailView: View {
     /// lives on the parent so it survives the per-article `.id` reset (letting the
     /// pull-to-next step carry over to the next article).
     @State private var coachStep: ReaderCoachStep?
+    /// The open-original glass button's measured global frame, so the coach mark
+    /// spotlights the real control exactly.
+    @State private var originalButtonFrame: CGRect = .zero
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
@@ -200,12 +203,14 @@ struct ReaderDetailView: View {
         // The interactive coach marks live here — outside the per-article `.id`
         // subtree in `reader(_:)` — so their step survives an article change (the
         // pull-to-next step advances onto the next article without resetting).
+        .onPreferenceChange(OriginalButtonFrameKey.self) { originalButtonFrame = $0 }
         .overlay {
             GeometryReader { proxy in
                 if coachStep != nil, currentArticle != nil {
                     ReaderCoachMarks(
                         step: $coachStep,
                         size: proxy.size,
+                        originalButtonRect: originalButtonFrame == .zero ? nil : originalButtonFrame,
                         onNext: { advanceCoach(from: $0) },
                         onSkip: { withAnimation { coachStep = nil } }
                     )
@@ -353,7 +358,6 @@ struct ReaderDetailView: View {
         // reveals the body beneath — Safari-style — top and bottom. Controls fade
         // via opacity alongside (below).
         .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .navigationBar)
-        .toolbarBackground(chromeHidden ? .hidden : .automatic, for: .bottomBar)
         // Hide the system back button too while immersed (its own glass capsule
         // would otherwise linger); the edge-swipe back gesture still works, and
         // scrolling up brings the bar — and the button — right back.
@@ -372,6 +376,11 @@ struct ReaderDetailView: View {
                 TranslationProgressBanner()
             }
         }
+        // Bottom action bar. Rendered as a content overlay of Liquid Glass capsules
+        // (matching the native `.bottomBar` look) rather than a system bottom bar,
+        // so its buttons are ordinary SwiftUI views the coach mark can measure and
+        // spotlight exactly — while never participating in layout (no shift/bounce).
+        .overlay(alignment: .bottom) { readerBottomBar(article) }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
             // The button controls carry iOS 26 glass capsules, so remove them (not
@@ -415,30 +424,6 @@ struct ReaderDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
-                }
-
-                // Frequent actions on the native bottom toolbar (the tab bar is
-                // hidden while reading, so this owns the bottom edge): share, star,
-                // and the full web reader/original.
-                ToolbarItemGroup(placement: .bottomBar) {
-                    ShareLink(item: article.url) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    Button {
-                        let willStar = !article.isStarred
-                        store.toggleStarred(articleID: article.id)
-                        haptics.star(on: willStar)
-                    } label: {
-                        Image(systemName: article.isStarred ? "star.fill" : "star")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                    Spacer()
-                    Button {
-                        openBrowser(for: article)
-                    } label: {
-                        Image(systemName: "doc.plaintext")
-                    }
-                    .help("Open Reader / Original")
                 }
             }
         }
@@ -664,6 +649,58 @@ struct ReaderDetailView: View {
     private func openBrowser(for article: Article) {
         store.browserMode = store.resolvedBrowserMode(for: article)
         store.isBrowserPresented = true
+    }
+
+    /// The reader's bottom action bar, built to look like the native iOS 26
+    /// `.bottomBar`: Liquid Glass capsules floating over the content (share + star
+    /// grouped on the leading side, open-original trailing), with content scrolling
+    /// under them. It's a content overlay — so it never affects layout (no
+    /// collapse/shift/bounce) and its buttons are ordinary SwiftUI views the coach
+    /// mark can measure. Fades with the chrome.
+    private func readerBottomBar(_ article: Article) -> some View {
+        GlassBarContainer {
+            HStack(spacing: 0) {
+                HStack(spacing: 2) {
+                    ShareLink(item: article.url) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 18))
+                            .frame(width: 44, height: 40)
+                    }
+                    Button {
+                        let willStar = !article.isStarred
+                        store.toggleStarred(articleID: article.id)
+                        haptics.star(on: willStar)
+                    } label: {
+                        Image(systemName: article.isStarred ? "star.fill" : "star")
+                            .font(.system(size: 18))
+                            .contentTransition(.symbolEffect(.replace))
+                            .frame(width: 44, height: 40)
+                    }
+                }
+                .glassCapsule()
+
+                Spacer(minLength: 0)
+
+                Button {
+                    openBrowser(for: article)
+                } label: {
+                    Image(systemName: "doc.plaintext")
+                        .font(.system(size: 18))
+                        .frame(width: 44, height: 40)
+                }
+                .glassCapsule()
+                // Publish the real capsule frame so the coach mark spotlights it.
+                .reportGlobalFrame(OriginalButtonFrameKey.self)
+                .help("Open Reader / Original")
+            }
+            .tint(Color("AccentColor"))
+            .foregroundStyle(Color.accentColor)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+        .opacity(chromeHidden ? 0 : 1)
+        .allowsHitTesting(!chromeHidden)
+        .animation(.easeInOut(duration: 0.25), value: chromeHidden)
     }
 
     // MARK: - Translation

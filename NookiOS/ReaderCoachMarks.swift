@@ -192,6 +192,9 @@ struct ReaderCoachMarks: View {
     @Binding var step: ReaderCoachStep?
     /// The full-screen space to lay out in (from the hosting overlay's geometry).
     var size: CGSize
+    /// The open-original glass button's measured global frame; nil falls back to
+    /// spotlighting the whole bottom-bar strip.
+    var originalButtonRect: CGRect?
     var onNext: (ReaderCoachStep) -> Void
     var onSkip: () -> Void
 
@@ -206,11 +209,7 @@ struct ReaderCoachMarks: View {
         .animation(.easeInOut(duration: 0.28), value: step)
     }
 
-    /// The bottom-bar strip to reveal for the "read the original" step. The exact
-    /// per-button frame isn't obtainable from a UIKit-hosted `.bottomBar`, so the
-    /// spotlight reveals the whole bar (a generous bottom strip that covers it on
-    /// both home-indicator and home-button iPhones); the callout points at the
-    /// document button on its trailing side.
+    /// Fallback strip if the button frame isn't measured yet: the bottom-bar band.
     private var bottomBarRect: CGRect {
         let height: CGFloat = 100
         return CGRect(x: 8, y: size.height - height, width: size.width - 16, height: height - 6)
@@ -219,7 +218,8 @@ struct ReaderCoachMarks: View {
     @ViewBuilder
     private func scrim(_ step: ReaderCoachStep) -> some View {
         if step == .original {
-            CoachScrim(spotlight: bottomBarRect, cornerRadius: 22)
+            let rect = (originalButtonRect ?? bottomBarRect).insetBy(dx: -8, dy: -6)
+            CoachScrim(spotlight: rect, cornerRadius: min(rect.width, rect.height) / 2)
         } else {
             Rectangle().fill(Color.black.opacity(0.55)).allowsHitTesting(false)
         }
@@ -284,7 +284,7 @@ struct ReaderCoachMarks: View {
             CoachCallout(
                 systemImage: "doc.plaintext",
                 title: "Read the original",
-                message: "In the bar below, tap the document button on the right to open the full web page — with a reader view and translation.",
+                message: "Tap the highlighted button to open the full web page — with a reader view and translation.",
                 primaryTitle: "Next", onPrimary: { onNext(.original) }, onSkip: onSkip
             )
         case .back:
@@ -305,6 +305,58 @@ struct FirstRowFrameKey: PreferenceKey {
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         let next = nextValue()
         if next != .zero { value = next }
+    }
+}
+
+// MARK: - Liquid Glass helpers (native look, with pre-iOS-26 fallback)
+
+/// Groups glass capsules for consistent Liquid Glass sampling on iOS 26; a plain
+/// passthrough before that.
+struct GlassBarContainer<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 10) { content }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// Wraps the view in an interactive Liquid Glass capsule (iOS 26), matching the
+    /// system bottom bar; falls back to a material capsule on earlier iOS.
+    @ViewBuilder
+    func glassCapsule() -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+        }
+    }
+}
+
+// MARK: - Frame measurement
+
+/// The measured global frame of the reader's open-original glass button.
+struct OriginalButtonFrameKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero { value = next }
+    }
+}
+
+extension View {
+    /// Publishes this view's global frame under the given key, so a coach overlay
+    /// can spotlight the real control instead of guessing a screen region.
+    func reportGlobalFrame<K: PreferenceKey>(_ key: K.Type) -> some View where K.Value == CGRect {
+        background(
+            GeometryReader { g in
+                Color.clear.preference(key: key, value: g.frame(in: .global))
+            }
+        )
     }
 }
 
