@@ -449,7 +449,10 @@ private struct HomeTab: View {
                                     }
                                 }
                                 .pickerStyle(.segmented)
-                                .frame(minWidth: 240)
+                                // Fill the whole principal region so the control
+                                // stretches across to the trailing search button
+                                // instead of sitting at a fixed width on the left.
+                                .frame(maxWidth: .infinity)
                             }
                         }
                 } else {
