@@ -673,6 +673,12 @@ private struct SortableSegmentedControl: View {
             }
         } label: {
             HStack(spacing: 4) {
+                // Unfocused: a small dot inline before the label — a natural,
+                // consistent gap (not pinned far off at the edge), vertically
+                // centered. The focused count is a chip overlay instead (below).
+                if badge(source) != nil, !selected {
+                    Circle().fill(Color.accentColor).frame(width: 6, height: 6)
+                }
                 Text(title(source))
                     .lineLimit(1)
                 if selected {
@@ -689,15 +695,15 @@ private struct SortableSegmentedControl: View {
             .minimumScaleFactor(0.85)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // The unread indicator sits outside the text flow so it never squeezes
-            // the label. Focused: a number chip pinned to the far leading edge (out
-            // of the way of the centered label). Unfocused: a dot centered
-            // horizontally at the top.
-            .overlay(alignment: selected ? .topLeading : .leading) {
-                if let count = badge(source) {
-                    UnreadSegmentBadge(count: count, focused: selected)
-                        .padding(.leading, selected ? 2 : 6)
-                        .padding(.top, selected ? 1 : 0)
+            // Focused: the count as a chip pinned to the top-leading corner (out of
+            // the centered label's way). It's centered within a fixed-width slot so
+            // a single digit sits at the same center as "99+" (stable anchor).
+            .overlay(alignment: .topLeading) {
+                if let count = badge(source), selected {
+                    UnreadCountChip(count: count)
+                        .frame(width: 30)
+                        .padding(.leading, 2)
+                        .padding(.top, 1)
                 }
             }
             .contentShape(Rectangle())
@@ -710,29 +716,21 @@ private struct SortableSegmentedControl: View {
     }
 }
 
-/// The Unread count indicator, shown at the segment's corner: a number chip when
-/// its segment is focused, a small dot when it isn't (still signaling unread).
-private struct UnreadSegmentBadge: View {
+/// The focused segment's unread-count chip (a small accent capsule with the
+/// number). Sized to its content; the caller centers it in a fixed-width slot so
+/// a single digit and "99+" share the same center.
+private struct UnreadCountChip: View {
     let count: Int
-    let focused: Bool
 
     var body: some View {
-        if focused {
-            Text(count > 99 ? "99+" : "\(count)")
-                .font(.system(size: 10, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(.white)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Capsule().fill(Color.accentColor))
-                .fixedSize()
-                .transition(.scale.combined(with: .opacity))
-        } else {
-            Circle()
-                .fill(Color.accentColor)
-                .frame(width: 6, height: 6)
-                .transition(.scale.combined(with: .opacity))
-        }
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: 10, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color.accentColor))
+            .fixedSize()
     }
 }
 
