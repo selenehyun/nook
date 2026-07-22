@@ -1,4 +1,8 @@
+import NookKit
+import Observation
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 /// Device-local flags for the first-run tutorial. Kept in the view layer (not
 /// ReaderStore) per the project's state split, and never synced — completing the
@@ -6,20 +10,54 @@ import SwiftUI
 enum TourFlags {
     static let hasCompletedWelcomeKey = "hasCompletedWelcome"
     static let seenReaderGestureHintKey = "seenReaderGestureHint"
+    static let seenListHintKey = "seenListTapHint"
 }
 
-/// The first-run welcome tour: a paged, swipeable cover that teaches the core
-/// gestures with small looping illustrations. Skippable at any moment (a Skip
-/// button on every page, and swipe-to-dismiss counts as done), and replayable
-/// from Settings. Renders identically on iPhone and iPad because nothing is
-/// anchored to the live UI.
+/// In-memory coordinator that lets the welcome cover drive the live app: hand the
+/// sample feed off to the Add Feed screen, then nudge the user to open their
+/// first story. View-layer only (never persisted or synced), shared down the tree
+/// via `.environment`.
+@MainActor
+@Observable
+final class TourCoordinator {
+    /// A popular, dependable starter feed the tour offers to copy so a brand-new
+    /// user has something to read immediately.
+    static let sampleFeedURL = "https://news.ycombinator.com/rss"
+
+    /// The welcome cover copied the sample feed and asked to add it: switch to the
+    /// Feeds tab and open Add Feed with a paste hint. Consumed (reset) by the shell.
+    var wantsAddSampleFeed = false
+    /// The sample feed was just added through the tutorial: switch to Home and
+    /// spotlight the list so the user opens their first story. Consumed by Home.
+    var wantsOpenFirstStoryHint = false
+}
+
+/// The first-run welcome tour: a paged, swipeable cover that gets a new user set
+/// up — choose a sync folder (skipped when one is already configured) and copy a
+/// starter feed to add. Skippable at any moment (a Skip button on every page, and
+/// swipe-to-dismiss counts as done), and replayable from Settings. The reading
+/// gestures are taught later, live, by the reader coach marks.
 struct WelcomeSheet: View {
+    @Bindable var store: ReaderStore
     /// Called when the tour is finished or skipped; the caller records completion
     /// and dismisses.
     var onFinish: () -> Void
 
-    @State private var page = 0
-    private let lastPage = 5
+    @Environment(TourCoordinator.self) private var tour
+
+    private enum Page: Hashable { case welcome, sync, addFeed }
+
+    @State private var page: Page = .welcome
+    @State private var isChoosingFolder = false
+    /// Whether to include the sync-folder step, captured once at presentation so
+    /// the page set stays stable (and doesn't reflow when the folder is chosen).
+    @State private var includeSyncStep: Bool
+
+    init(store: ReaderStore, onFinish: @escaping () -> Void) {
+        self.store = store
+        self.onFinish = onFinish
+        _includeSyncStep = State(initialValue: !store.isStorageConfigured)
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -27,48 +65,32 @@ struct WelcomeSheet: View {
 
             TabView(selection: $page) {
                 TourPage(
+                    illustration: AnyView(NestAssemblyView(size: 132, assembled: true)),
                     title: "Welcome to Nook",
-                    message: "Like a bird gathering twigs into a nest, gather the reading you care about into a space that's yours.",
-                    illustration: { NestAssemblyView(size: 132, assembled: true) }
+                    message: "Like a bird gathering twigs into a nest, gather the reading you care about into a space that's yours."
                 )
-                .tag(0)
+                .tag(Page.welcome)
+
+                if includeSyncStep {
+                    TourPage(
+                        illustration: AnyView(SyncIllustration()),
+                        title: "Pick a home for your feeds",
+                        message: "Nook keeps your feeds in a folder you choose. Put it in iCloud Drive and every device stays in sync — nothing ever leaves your own storage.",
+                        primaryTitle: store.isStorageConfigured ? "Folder Ready" : "Choose Folder",
+                        onPrimary: { isChoosingFolder = true }
+                    )
+                    .tag(Page.sync)
+                }
 
                 TourPage(
-                    title: "Add a feed",
-                    message: "Tap + to add a feed. Paste an RSS link or just a website — Nook finds the feed for you.",
-                    illustration: { AddFeedIllustration() }
+                    illustration: AnyView(AddFeedIllustration()),
+                    title: "Start with Hacker News",
+                    message: "We'll copy a popular feed for you. Tap below, then paste it on the Add Feed screen. You can add any RSS link or website the same way.",
+                    accessory: AnyView(FeedURLPill(url: TourCoordinator.sampleFeedURL)),
+                    primaryTitle: "Copy & Add",
+                    onPrimary: copyAndAdd
                 )
-                .tag(1)
-
-                TourPage(
-                    title: "Open a story",
-                    message: "Tap any story in the list to open it in the clean, native reader.",
-                    illustration: { TapIllustration() }
-                )
-                .tag(2)
-
-                TourPage(
-                    title: "On to the next",
-                    message: "At the end of a story, keep pulling up past the bottom to jump to the next one.",
-                    illustration: { PullUpIllustration() }
-                )
-                .tag(3)
-
-                TourPage(
-                    title: "Star what you love",
-                    message: "Double-tap anywhere on an article to star it — and find it later under Starred.",
-                    illustration: { DoubleTapStarIllustration() }
-                )
-                .tag(4)
-
-                TourPage(
-                    title: "The full page, and back",
-                    message: "Want the original? Tap the document button at the bottom. Swipe in from the left edge to return to your list.",
-                    illustration: { OriginalAndBackIllustration() },
-                    isLast: true,
-                    onStart: onFinish
-                )
-                .tag(5)
+                .tag(Page.addFeed)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -85,24 +107,49 @@ struct WelcomeSheet: View {
             .accessibilityLabel(Text("Skip tutorial"))
         }
         .tint(Color("AccentColor"))
+        .fileImporter(
+            isPresented: $isChoosingFolder,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            _ = url.startAccessingSecurityScopedResource()
+            store.configureSyncFolder(url)
+            // Move on to the starter feed once a home is set.
+            withAnimation { page = .addFeed }
+        }
+    }
+
+    /// Copies the starter feed and hands it to the Add Feed screen. If no sync
+    /// folder is set yet (the user swiped past that step), bounce back to it first
+    /// — a feed can't be stored without one.
+    private func copyAndAdd() {
+        guard store.isStorageConfigured else {
+            withAnimation { page = .sync }
+            return
+        }
+        UIPasteboard.general.string = TourCoordinator.sampleFeedURL
+        tour.wantsAddSampleFeed = true
+        onFinish()
     }
 }
 
-/// One tour page: a looping illustration, a title, a short message, and — on the
-/// final page — a prominent "Get Started" button.
-private struct TourPage<Illustration: View>: View {
+/// One tour page: a looping illustration, a title, a short message, an optional
+/// accessory (e.g. the copyable feed URL), and an optional primary button.
+private struct TourPage: View {
+    let illustration: AnyView
     let title: LocalizedStringKey
     let message: LocalizedStringKey
-    @ViewBuilder var illustration: Illustration
-    var isLast = false
-    var onStart: (() -> Void)? = nil
+    var accessory: AnyView? = nil
+    var primaryTitle: LocalizedStringKey? = nil
+    var onPrimary: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 26) {
+        VStack(spacing: 22) {
             Spacer()
             ZStack { illustration }
                 .frame(maxWidth: .infinity)
-                .frame(height: 240)
+                .frame(height: 220)
                 .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
                 .padding(.horizontal, 32)
 
@@ -118,16 +165,18 @@ private struct TourPage<Illustration: View>: View {
             }
             .padding(.horizontal, 32)
 
-            if isLast, let onStart {
-                Button(action: onStart) {
-                    Text("Get Started")
+            if let accessory { accessory }
+
+            if let primaryTitle, let onPrimary {
+                Button(action: onPrimary) {
+                    Text(primaryTitle)
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 44)
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
 
             Spacer()
@@ -137,7 +186,42 @@ private struct TourPage<Illustration: View>: View {
     }
 }
 
-// MARK: - Looping gesture illustrations (not anchored to any real view)
+/// The copyable feed URL, shown on the starter-feed page so the user sees exactly
+/// what they're about to copy and paste.
+private struct FeedURLPill: View {
+    let url: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "link").foregroundStyle(.secondary)
+            Text(url)
+                .font(.footnote.monospaced())
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+        .padding(.horizontal, 36)
+        .accessibilityElement()
+        .accessibilityLabel(Text("Feed URL"))
+        .accessibilityValue(Text(url))
+    }
+}
+
+// MARK: - Looping illustrations (not anchored to any real view)
+
+private struct SyncIllustration: View {
+    @State private var pulse = false
+    var body: some View {
+        Image(systemName: "icloud.and.arrow.up")
+            .font(.system(size: 86, weight: .regular))
+            .foregroundStyle(Color.accentColor)
+            .scaleEffect(pulse ? 1.05 : 0.95)
+            .shadow(color: .accentColor.opacity(0.22), radius: pulse ? 14 : 6)
+            .onAppear { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true } }
+    }
+}
 
 private struct AddFeedIllustration: View {
     @State private var pulse = false
@@ -148,104 +232,5 @@ private struct AddFeedIllustration: View {
             .scaleEffect(pulse ? 1.06 : 0.94)
             .shadow(color: .accentColor.opacity(0.25), radius: pulse ? 16 : 6)
             .onAppear { withAnimation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true)) { pulse = true } }
-    }
-}
-
-private struct TapIllustration: View {
-    @State private var ripple = false
-    var body: some View {
-        ZStack {
-            VStack(alignment: .leading, spacing: 10) {
-                mockLine(width: 150)
-                mockLine(width: 110).opacity(0.6)
-            }
-            .frame(width: 190, alignment: .leading)
-
-            ZStack {
-                Circle().stroke(Color.accentColor, lineWidth: 3)
-                    .frame(width: 46, height: 46)
-                    .scaleEffect(ripple ? 1.7 : 0.7)
-                    .opacity(ripple ? 0 : 0.9)
-                Image(systemName: "hand.tap.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(Color.accentColor)
-            }
-            .offset(x: 70, y: 30)
-        }
-        .onAppear { withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) { ripple = true } }
-    }
-
-    private func mockLine(width: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
-            .fill(Color.secondary.opacity(0.3))
-            .frame(width: width, height: 12)
-    }
-}
-
-private struct PullUpIllustration: View {
-    @State private var rise = false
-    var body: some View {
-        ZStack {
-            VStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { i in
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(Color.accentColor.opacity(0.9 - Double(i) * 0.25))
-                        .offset(y: rise ? -16 : 14)
-                        .opacity(rise ? 0.15 : 1)
-                        .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: false).delay(Double(i) * 0.12), value: rise)
-                }
-            }
-            Image(systemName: "hand.point.up.left.fill")
-                .font(.system(size: 34))
-                .foregroundStyle(.secondary)
-                .offset(y: 58)
-        }
-        .onAppear { rise = true }
-    }
-}
-
-private struct DoubleTapStarIllustration: View {
-    @State private var animate = false
-    var body: some View {
-        ZStack {
-            Circle().stroke(Color.accentColor, lineWidth: 3)
-                .frame(width: 44, height: 44)
-                .scaleEffect(animate ? 1.5 : 0.7)
-                .opacity(animate ? 0 : 0.9)
-            Image(systemName: "star.fill")
-                .font(.system(size: 62))
-                .foregroundStyle(.yellow)
-                .scaleEffect(animate ? 1.0 : 0.5)
-                .opacity(animate ? 1 : 0.4)
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.5).repeatForever(autoreverses: true)) { animate = true }
-        }
-    }
-}
-
-private struct OriginalAndBackIllustration: View {
-    @State private var slide = false
-    var body: some View {
-        HStack(spacing: 36) {
-            // Swipe-from-left-edge back.
-            ZStack {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .offset(x: slide ? -6 : 14)
-                    .opacity(slide ? 1 : 0.3)
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.secondary)
-                    .offset(x: 22)
-            }
-            // The document / original button.
-            Image(systemName: "doc.plaintext")
-                .font(.system(size: 42))
-                .foregroundStyle(Color.accentColor)
-        }
-        .onAppear { withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { slide = true } }
     }
 }

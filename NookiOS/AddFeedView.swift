@@ -1,10 +1,14 @@
 import NookKit
 import SwiftUI
+import UIKit
 
 /// Adds a feed by URL. Nook validates and fetches it first, then dismisses only
 /// after the feed has actually been accepted.
 struct AddFeedView: View {
     var folders: [String]
+    /// When true (opened from the tutorial), show a one-tap paste button and a
+    /// guiding hint so the user can drop in the feed they just copied.
+    var tutorialPaste: Bool = false
     var onAdd: (String, String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -57,6 +61,22 @@ struct AddFeedView: View {
                         .focused($focused)
                         .disabled(isSubmitting)
                         .onSubmit(add)
+
+                    if tutorialPaste {
+                        Button {
+                            if let pasted = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+                               !pasted.isEmpty {
+                                feedURL = pasted
+                            }
+                        } label: {
+                            Label("Paste Copied Link", systemImage: "doc.on.clipboard")
+                        }
+                        .disabled(isSubmitting)
+                    }
+                } footer: {
+                    if tutorialPaste {
+                        Text("Paste the Hacker News link you copied, then tap Add.")
+                    }
                 }
                 Section {
                     Picker("Folder", selection: $folderChoice) {

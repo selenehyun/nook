@@ -48,9 +48,12 @@ struct ReaderDetailView: View {
     @State private var isShowingInfo = false
     @State private var confirmingDelete = false
     @AppStorage(TourFlags.seenReaderGestureHintKey) private var seenReaderGestureHint = false
-    /// Drives the one-shot in-context gesture hint shown the first time the reader
-    /// opens (the persisted flag is marked immediately so it's strictly once).
-    @State private var showReaderHint = false
+    /// The interactive reader coach mark step shown the first time the reader ever
+    /// opens (nil = inactive). The persisted flag is marked immediately so it's
+    /// strictly one-shot; this drives the transient spotlight walkthrough, and
+    /// lives on the parent so it survives the per-article `.id` reset (letting the
+    /// pull-to-next step carry over to the next article).
+    @State private var coachStep: ReaderCoachStep?
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
@@ -167,6 +170,16 @@ struct ReaderDetailView: View {
         )
     }
 
+    /// The article currently on screen, re-resolved live from the store by ID so
+    /// mutations made in the reader (star, read) reflect immediately — the captured
+    /// `pushed` snapshot the compact shell drives this with wouldn't otherwise
+    /// update. Falls back to the snapshot if the store no longer has it.
+    private var currentArticle: Article? {
+        guard store.isStorageConfigured,
+              let base = articleOverride?.wrappedValue ?? store.selectedArticle else { return nil }
+        return store.article(withID: base.id) ?? base
+    }
+
     var body: some View {
         Group {
             if !store.isStorageConfigured {
@@ -175,13 +188,8 @@ struct ReaderDetailView: View {
                 } description: {
                     Text("Choose a sync folder so Nook keeps your feeds in sync across your devices.")
                 }
-            } else if let base = articleOverride?.wrappedValue ?? store.selectedArticle {
-                // Re-resolve the article live from the store by ID so mutations
-                // made in the reader (star, read) reflect immediately — the
-                // captured `pushed` snapshot the compact shell drives this with
-                // wouldn't otherwise update. Falls back to the snapshot if the
-                // store no longer has it.
-                reader(store.article(withID: base.id) ?? base)
+            } else if let article = currentArticle {
+                reader(article)
             } else {
                 ContentUnavailableView("Select an Article", systemImage: "newspaper")
             }
@@ -189,6 +197,36 @@ struct ReaderDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color("ListBackground").ignoresSafeArea())
         .articleImageOverlay(imagePresenter)
+        // The interactive coach marks live here — outside the per-article `.id`
+        // subtree in `reader(_:)` — so their step survives an article change (the
+        // pull-to-next step advances onto the next article without resetting).
+        .overlay {
+            if coachStep != nil, currentArticle != nil {
+                ReaderCoachMarks(
+                    step: $coachStep,
+                    onNext: { advanceCoach(from: $0) },
+                    onSkip: { withAnimation { coachStep = nil } }
+                )
+            }
+        }
+        // Advance the walkthrough when the taught action actually happens.
+        .onChange(of: currentArticle?.isStarred ?? false) { _, starred in
+            if starred { advanceCoach(from: .star) }
+        }
+        .onChange(of: currentArticle?.id) { _, _ in
+            advanceCoach(from: .pullNext)
+        }
+        .onChange(of: store.isBrowserPresented) { _, presented in
+            if presented { advanceCoach(from: .original) }
+        }
+    }
+
+    /// Advances the coach walkthrough from `step` to the next one (or ends it),
+    /// but only if that step is the one currently showing — so a live action and
+    /// the "Next" button share one path and out-of-order changes are ignored.
+    private func advanceCoach(from step: ReaderCoachStep) {
+        guard coachStep == step else { return }
+        withAnimation(.easeInOut(duration: 0.28)) { coachStep = step.next }
     }
 
     private func reader(_ article: Article) -> some View {
@@ -257,6 +295,9 @@ struct ReaderDetailView: View {
                 let maxY = max(0, geo.contentSize.height - geo.containerSize.height)
                 return ScrollSnapshot(y: geo.contentOffset.y, distanceToBottom: maxY - geo.contentOffset.y)
             } action: { _, snap in
+                // Freeze the chrome while the coach marks are up, so the bottom bar
+                // (and its document button, spotlighted in one step) stays put.
+                guard coachStep == nil else { return }
                 let newY = snap.y
                 // Content starts under the bar with 16pt top padding, so the inline
                 // title's bottom passes the bar after scrolling ~padding + height.
@@ -325,14 +366,6 @@ struct ReaderDetailView: View {
         .overlay(alignment: .top) {
             if translationBusy {
                 TranslationProgressBanner()
-            }
-        }
-        // First-reader-open reminder of the hidden gestures. Only while the chrome
-        // is visible, so it never points at a faded-out bottom bar.
-        .overlay(alignment: .bottom) {
-            if showReaderHint, !chromeHidden {
-                ReaderGestureHint(onDismiss: { showReaderHint = false })
-                    .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
@@ -417,12 +450,14 @@ struct ReaderDetailView: View {
             // Start reader-mode extraction first so it isn't delayed behind
             // language detection.
             store.ensureReaderContent(for: article)
-            // First time the reader is ever opened, reinforce the hidden gestures
-            // once. Mark the flag immediately so it's strictly one-shot; the local
-            // state drives the transient overlay (which self-dismisses).
+            // First time the reader is ever opened, run the interactive coach-mark
+            // walkthrough once. Mark the flag immediately so it's strictly
+            // one-shot; the walkthrough persists across article changes (its state
+            // lives on the parent), so this guard also keeps a later article change
+            // from restarting it.
             if !seenReaderGestureHint {
                 seenReaderGestureHint = true
-                showReaderHint = true
+                withAnimation { coachStep = .star }
             }
             // Detect the language off the main actor so the recognizer doesn't
             // run on the transition frame.

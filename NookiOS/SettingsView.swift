@@ -20,6 +20,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(TourFlags.hasCompletedWelcomeKey) private var hasCompletedWelcome = false
     @AppStorage(TourFlags.seenReaderGestureHintKey) private var seenReaderGestureHint = false
+    @AppStorage(TourFlags.seenListHintKey) private var seenListHint = false
 
     /// A single file importer backs both the sync-folder picker and OPML import;
     /// stacking two `.fileImporter` modifiers on one view makes only one work.
@@ -71,6 +72,7 @@ struct SettingsView: View {
                         // Reset every tour flag so replay and first-run share one
                         // path, then close (on iPad) so the cover shows over the app.
                         seenReaderGestureHint = false
+                        seenListHint = false
                         hasCompletedWelcome = false
                         if !isTab { dismiss() }
                     } label: {

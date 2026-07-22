@@ -21,6 +21,9 @@ struct RootView: View {
     @AppStorage(TourFlags.hasCompletedWelcomeKey) private var hasCompletedWelcome = false
     @State private var isReady = false
     @State private var showWelcome = false
+    /// Drives the tutorial's hand-off from the welcome cover into the live app
+    /// (add the sample feed, then hint the list). In-memory, shared via environment.
+    @State private var tour = TourCoordinator()
 
     var body: some View {
         ZStack {
@@ -29,7 +32,7 @@ struct RootView: View {
                 // iPhone tab shell and the iPad split view. Swipe-to-dismiss also
                 // completes it (onDismiss), so it won't re-appear next launch.
                 .fullScreenCover(isPresented: $showWelcome, onDismiss: { hasCompletedWelcome = true }) {
-                    WelcomeSheet(onFinish: { showWelcome = false })
+                    WelcomeSheet(store: store, onFinish: { showWelcome = false })
                 }
                 // Replaying from Settings flips this back to false; re-present the
                 // tour once the UI is up (the one-shot bootstrap trigger won't fire
@@ -152,6 +155,8 @@ struct RootView: View {
         // bar and iPad split view). The asset-catalog global accent alone didn't
         // take effect, so tint the whole app root here.
         .tint(Color("AccentColor"))
+        // Share the tutorial coordinator with both shells and the welcome cover.
+        .environment(tour)
     }
 
     @ViewBuilder
@@ -206,6 +211,7 @@ struct RootView: View {
 /// sheet/importer state that the sidebar's ellipsis menu drives.
 private struct RegularShell: View {
     @Bindable var store: ReaderStore
+    @Environment(TourCoordinator.self) private var tour
 
     /// A single file importer backs both the sync-folder picker and OPML import;
     /// stacking two `.fileImporter` modifiers on one view makes only one work.
@@ -213,6 +219,8 @@ private struct RegularShell: View {
     @State private var importKind: ImportKind = .folder
     @State private var isImporting = false
     @State private var isAddingFeed = false
+    /// True when Add Feed was opened by the tutorial, so it shows a paste hint.
+    @State private var addFeedIsTutorial = false
     @State private var isExportingOPML = false
     @State private var opmlImport: OPMLImportRequest?
     @State private var isCreatingFolder = false
@@ -263,8 +271,15 @@ private struct RegularShell: View {
         ) { result in
             store.handleOPMLExport(result)
         }
-        .sheet(isPresented: $isAddingFeed) {
-            AddFeedView(folders: store.feedFolders) { feedURL, folder in
+        .onChange(of: tour.wantsAddSampleFeed) { _, want in
+            if want {
+                tour.wantsAddSampleFeed = false
+                addFeedIsTutorial = true
+                isAddingFeed = true
+            }
+        }
+        .sheet(isPresented: $isAddingFeed, onDismiss: { addFeedIsTutorial = false }) {
+            AddFeedView(folders: store.feedFolders, tutorialPaste: addFeedIsTutorial) { feedURL, folder in
                 try await store.addFeed(urlString: feedURL, toFolder: folder)
             }
         }
@@ -311,6 +326,7 @@ private enum FeedTarget: Hashable {
 /// selected tab (or the Home filter / Feeds drill-down) changes.
 private struct CompactShell: View {
     @Bindable var store: ReaderStore
+    @Environment(TourCoordinator.self) private var tour
     @State private var selection: AppTab = .home
     @State private var homeFilter: SmartSource = .unread
     @State private var feedsPath: [FeedTarget] = []
@@ -360,6 +376,16 @@ private struct CompactShell: View {
         .modifier(TabBarMinimizeOnScroll())
         .onAppear { applySelection(selection) }
         .onChange(of: selection) { _, tab in applySelection(tab) }
+        // Tutorial hand-off: the welcome cover asks to add the starter feed (jump
+        // to Feeds, where Add Feed opens), then to open the first story (jump to
+        // Home, where the list is spotlighted). Each flag is consumed by the tab
+        // that acts on it.
+        .onChange(of: tour.wantsAddSampleFeed) { _, want in
+            if want { selection = .feeds }
+        }
+        .onChange(of: tour.wantsOpenFirstStoryHint) { _, want in
+            if want { selection = .home }
+        }
         .onChange(of: homeFilter) { _, _ in
             if selection == .home {
                 clearSearch()
@@ -431,6 +457,11 @@ private struct HomeTab: View {
     @Binding var filter: SmartSource
     var goToSettings: () -> Void
 
+    @Environment(TourCoordinator.self) private var tour
+    @AppStorage(TourFlags.seenListHintKey) private var seenListHint = false
+    /// Drives the one-shot "tap a story" spotlight after the first feed is added.
+    @State private var showListHint = false
+
     private let filters: [SmartSource] = [.unread, .today, .all]
 
     /// Width of the tab's content (≈ the nav bar), captured so the principal
@@ -496,7 +527,29 @@ private struct HomeTab: View {
                     .background(Color("ListBackground").ignoresSafeArea())
                 }
             }
+            .overlay {
+                if showListHint, store.isStorageConfigured {
+                    ListTapHint(onDismiss: dismissListHint)
+                        .transition(.opacity)
+                }
+            }
         }
+        // Show the "tap a story" spotlight once, right after the tutorial adds the
+        // first feed and switches here.
+        .onChange(of: tour.wantsOpenFirstStoryHint) { _, want in
+            guard want else { return }
+            tour.wantsOpenFirstStoryHint = false
+            if !seenListHint { withAnimation { showListHint = true } }
+        }
+        // Opening a story satisfies the hint — dismiss it.
+        .onChange(of: store.selectedArticleID) { _, id in
+            if id != nil, showListHint { dismissListHint() }
+        }
+    }
+
+    private func dismissListHint() {
+        seenListHint = true
+        withAnimation { showListHint = false }
     }
 }
 
@@ -522,7 +575,11 @@ private struct FeedsTab: View {
     @Bindable var store: ReaderStore
     @Binding var path: [FeedTarget]
 
+    @Environment(TourCoordinator.self) private var tour
     @State private var isAddingFeed = false
+    /// True when Add Feed was opened by the tutorial, so it shows a paste hint and
+    /// its success advances the tour to the "open a story" step.
+    @State private var addFeedIsTutorial = false
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderPendingRename: String?
@@ -603,9 +660,18 @@ private struct FeedsTab: View {
             }
             .refreshable { await store.refreshAllAndWait() }
         }
-        .sheet(isPresented: $isAddingFeed) {
-            AddFeedView(folders: store.feedFolders) { feedURL, folder in
+        // The tutorial asks to add the starter feed: open Add Feed with a paste hint.
+        .onChange(of: tour.wantsAddSampleFeed) { _, want in
+            if want {
+                tour.wantsAddSampleFeed = false
+                addFeedIsTutorial = true
+                isAddingFeed = true
+            }
+        }
+        .sheet(isPresented: $isAddingFeed, onDismiss: { addFeedIsTutorial = false }) {
+            AddFeedView(folders: store.feedFolders, tutorialPaste: addFeedIsTutorial) { feedURL, folder in
                 try await store.addFeed(urlString: feedURL, toFolder: folder)
+                if addFeedIsTutorial { tour.wantsOpenFirstStoryHint = true }
             }
         }
         .alert("New Folder", isPresented: $isCreatingFolder) {

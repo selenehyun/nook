@@ -4737,6 +4737,402 @@
           }
         }
       }
+    },
+    "Pick a home for your feeds" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードの置き場所を選ぶ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드를 담을 공간을 정하세요"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为你的订阅选个家"
+          }
+        }
+      }
+    },
+    "Nook keeps your feeds in a folder you choose. Put it in iCloud Drive and every device stays in sync — nothing ever leaves your own storage." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nookはフィードをあなたが選んだフォルダに保存します。iCloud Driveに置けば、すべてのデバイスで同期され、データがあなたのストレージの外に出ることはありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 피드를 사용자가 정한 폴더에 보관합니다. iCloud Drive에 두면 모든 기기가 동기화되며, 데이터는 사용자의 저장 공간을 벗어나지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook 会把你的订阅保存在你选择的文件夹里。放到 iCloud 云盘，所有设备都会保持同步——数据绝不会离开你自己的存储空间。"
+          }
+        }
+      }
+    },
+    "Folder Ready" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ設定済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 설정됨"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件夹已就绪"
+          }
+        }
+      }
+    },
+    "Choose Folder" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择文件夹"
+          }
+        }
+      }
+    },
+    "Start with Hacker News" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hacker Newsから始める"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "해커뉴스로 시작하기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 Hacker News 开始"
+          }
+        }
+      }
+    },
+    "We'll copy a popular feed for you. Tap below, then paste it on the Add Feed screen. You can add any RSS link or website the same way." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "人気のフィードをコピーします。下をタップして、フィード追加画面に貼り付けてください。他のRSSリンクやWebサイトも同じ方法で追加できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인기 피드 하나를 복사해 드릴게요. 아래를 누른 뒤 피드 추가 화면에 붙여넣으세요. 다른 RSS 링크나 웹사이트도 같은 방법으로 추가할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们会为你复制一个热门订阅。点按下方，然后在“添加订阅”界面粘贴即可。任何 RSS 链接或网站都能用同样的方式添加。"
+          }
+        }
+      }
+    },
+    "Copy & Add" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーして追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사하고 추가"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制并添加"
+          }
+        }
+      }
+    },
+    "Feed URL" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードURL"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅地址"
+          }
+        }
+      }
+    },
+    "Double-tap anywhere on the article to star it — try it now, or tap Next." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事のどこかをダブルタップするとスターを付けられます。今すぐ試すか、「次へ」をタップしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 아무 곳이나 더블 탭하면 별표됩니다. 지금 해보거나 다음을 누르세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击文章任意位置即可加星标——现在就试试，或点按“下一步”。"
+          }
+        }
+      }
+    },
+    "Read the original" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元の記事を読む"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 보기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读原文"
+          }
+        }
+      }
+    },
+    "Tap the document button to open the full web page — with a reader view and translation." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ドキュメントボタンをタップすると、リーダー表示や翻訳に対応した完全なWebページが開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문서 버튼을 누르면 리더 뷰와 번역을 지원하는 전체 웹 페이지가 열립니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按文档按钮，打开完整网页——支持阅读视图与翻译。"
+          }
+        }
+      }
+    },
+    "Back to your list" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストに戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록으로 돌아가기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回列表"
+          }
+        }
+      }
+    },
+    "Swipe in from the left edge to return to the article list. That's everything — enjoy Nook!" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面の左端から内側にスワイプすると記事リストに戻ります。以上です — Nookをお楽しみください！"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "화면 왼쪽 가장자리에서 안쪽으로 스와이프하면 글 목록으로 돌아갑니다. 이게 전부예요 — 즐거운 Nook 되세요!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从屏幕左边缘向内滑动即可返回文章列表。就这些啦——尽情享受 Nook 吧！"
+          }
+        }
+      }
+    },
+    "Tap any story to open it in the clean, native reader." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事をタップすると、すっきりとしたネイティブリーダーで開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글을 누르면 깔끔한 네이티브 리더로 열립니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按任意文章，即可在简洁的原生阅读器中打开。"
+          }
+        }
+      }
+    },
+    "Got it" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "知道了"
+          }
+        }
+      }
+    },
+    "Next" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次へ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
+          }
+        }
+      }
+    },
+    "Paste Copied Link" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーしたリンクを貼り付け"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사한 링크 붙여넣기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴已复制的链接"
+          }
+        }
+      }
+    },
+    "Paste the Hacker News link you copied, then tap Add." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーしたHacker Newsのリンクを貼り付けて、「追加」をタップしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사한 해커뉴스 링크를 붙여넣은 뒤 추가를 누르세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴你复制的 Hacker News 链接，然后点按“添加”。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
