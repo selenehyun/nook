@@ -213,7 +213,7 @@ private struct RegularShell: View {
                 isShowingSettings: $isShowingSettings
             )
         } content: {
-            ArticleList(store: store, selection: $store.selectedArticleID)
+            ArticleList(store: store, selection: $store.selectedArticleID, onShowAllArticles: { store.selectSmartSource(.all) })
         } detail: {
             ReaderDetailView(store: store)
         }
@@ -444,7 +444,7 @@ private struct HomeTab: View {
                     // search bar, revealed on demand by the toolbar button
                     // (ReaderPushingList's CompactSearchButton) — not an always-
                     // visible row, and not a cramped custom field.
-                    ReaderPushingList(store: store)
+                    ReaderPushingList(store: store, onShowAllArticles: { filter = .all })
                         .navigationBarTitleDisplayMode(.inline)
                         .background(
                             GeometryReader { geo in
@@ -722,6 +722,9 @@ private struct ReaderPushingList<Top: View>: View {
     /// reveals the search field on demand). Home passes false and provides its own
     /// segment-morphing search bar instead.
     var providesSearch: Bool = true
+    /// Forwarded to the article list's empty state (Home passes the switch-to-All
+    /// action; other sources pass nil).
+    var onShowAllArticles: (() -> Void)? = nil
     let top: () -> Top
     /// The article captured when a row is tapped — the value the reader renders.
     /// Local to this stack, so another tab's scope change never blanks or swaps
@@ -729,16 +732,22 @@ private struct ReaderPushingList<Top: View>: View {
     @State private var pushed: Article?
     @State private var isSearching = false
 
-    init(store: ReaderStore, providesSearch: Bool = true, @ViewBuilder top: @escaping () -> Top = { EmptyView() }) {
+    init(
+        store: ReaderStore,
+        providesSearch: Bool = true,
+        onShowAllArticles: (() -> Void)? = nil,
+        @ViewBuilder top: @escaping () -> Top = { EmptyView() }
+    ) {
         self.store = store
         self.providesSearch = providesSearch
+        self.onShowAllArticles = onShowAllArticles
         self.top = top
     }
 
     var body: some View {
         VStack(spacing: 0) {
             top()
-            ArticleList(store: store, selection: selectionBinding, managesSearch: false)
+            ArticleList(store: store, selection: selectionBinding, managesSearch: false, onShowAllArticles: onShowAllArticles)
         }
         .modifier(CompactSearchButton(searchText: $store.searchText, isSearching: $isSearching, enabled: providesSearch))
         .navigationDestination(item: $pushed) { _ in
@@ -1116,6 +1125,9 @@ private struct ArticleList: View {
     /// shows the standard always-available search drawer); false in the compact
     /// tab shell, where `ReaderPushingList` presents search from a toolbar button.
     var managesSearch: Bool = true
+    /// Provided only where switching to "All Articles" makes sense (the Unread
+    /// view). When set and the empty Unread list is shown, a button offers it.
+    var onShowAllArticles: (() -> Void)? = nil
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
 
     var body: some View {
@@ -1179,9 +1191,28 @@ private struct ArticleList: View {
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
         .refreshable { await refreshCurrent() }
         .overlay {
-            if store.visibleArticles.isEmpty {
-                ContentUnavailableView("No Articles", systemImage: "newspaper")
+            if store.visibleArticles.isEmpty { emptyState }
+        }
+    }
+
+    /// When the Unread view is empty, offer a shortcut to All Articles; otherwise
+    /// the plain "No Articles" state.
+    @ViewBuilder
+    private var emptyState: some View {
+        if let onShowAllArticles,
+           store.smartSelection == .unread,
+           store.feedSelection.isEmpty,
+           store.activeSearchQuery.isEmpty {
+            ContentUnavailableView {
+                Label("You're All Caught Up", systemImage: "checkmark.circle")
+            } description: {
+                Text("No unread articles right now.")
+            } actions: {
+                Button("View All Articles") { onShowAllArticles() }
+                    .buttonStyle(.borderedProminent)
             }
+        } else {
+            ContentUnavailableView("No Articles", systemImage: "newspaper")
         }
     }
 

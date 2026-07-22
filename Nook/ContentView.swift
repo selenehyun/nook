@@ -1078,10 +1078,21 @@ private struct ArticleListView: View {
                     Text("Nook stores its RSS library in a folder you choose, so iCloud Drive can sync it like a vault.")
                 }
             } else if store.visibleArticles.isEmpty {
-                ContentUnavailableView {
-                    Label("No Articles", systemImage: "newspaper")
-                } description: {
-                    Text(store.activeSearchQuery.isEmpty ? "Add an RSS or Atom feed, then refresh." : "No article matches the current search.")
+                if store.activeSearchQuery.isEmpty, store.feedSelection.isEmpty, store.smartSelection == .unread {
+                    ContentUnavailableView {
+                        Label("You're All Caught Up", systemImage: "checkmark.circle")
+                    } description: {
+                        Text("No unread articles right now.")
+                    } actions: {
+                        Button("View All Articles") { store.selectSmartSource(.all) }
+                            .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("No Articles", systemImage: "newspaper")
+                    } description: {
+                        Text(store.activeSearchQuery.isEmpty ? "Add an RSS or Atom feed, then refresh." : "No article matches the current search.")
+                    }
                 }
             } else {
                 List(selection: $store.selectedArticleID) {
