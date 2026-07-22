@@ -526,18 +526,18 @@ private struct HomeTab: View {
     @State private var contentWidth: CGFloat = 0
 
     /// Short labels for the nav-bar segmented control — "All Articles" is too wide
-    /// there, so it shows as "All". The Unread segment carries the unread count
-    /// after a separator (e.g. "Unread · 12") so it isn't shown when there are none.
+    /// there, so it shows as "All". The unread count is shown separately as a
+    /// badge (see `segmentBadge`), not inline.
     private func segmentTitle(_ source: SmartSource) -> String {
-        switch source {
-        case .all:
-            return String(localized: "All")
-        case .unread:
-            let count = store.count(for: .unread)
-            return count > 0 ? "\(source.title) · \(count)" : source.title
-        default:
-            return source.title
-        }
+        source == .all ? String(localized: "All") : source.title
+    }
+
+    /// The unread count to badge on the Unread segment (nil when zero or for
+    /// other segments) — rendered as a number chip when focused, a dot otherwise.
+    private func segmentBadge(_ source: SmartSource) -> Int? {
+        guard source == .unread else { return nil }
+        let count = store.count(for: .unread)
+        return count > 0 ? count : nil
     }
 
     var body: some View {
@@ -567,6 +567,7 @@ private struct HomeTab: View {
                                     sources: filters,
                                     selection: $filter,
                                     title: segmentTitle,
+                                    badge: segmentBadge,
                                     sortImage: { store.sortOrder(for: $0).systemImage },
                                     onReselect: { store.toggleSortOrder(for: $0) }
                                 )
@@ -600,10 +601,15 @@ private struct SortableSegmentedControl: View {
     let sources: [SmartSource]
     @Binding var selection: SmartSource
     var title: (SmartSource) -> String
+    var badge: (SmartSource) -> Int?
     var sortImage: (SmartSource) -> String
     var onReselect: (SmartSource) -> Void
 
     @Namespace private var highlight
+
+    /// The elastic move of the glass pill between segments — matches the native
+    /// segmented control's springy feel.
+    private var transition: Animation { .spring(response: 0.38, dampingFraction: 0.68) }
 
     var body: some View {
         GlassBarContainer {
@@ -617,7 +623,6 @@ private struct SortableSegmentedControl: View {
         // segment is a Liquid Glass capsule that slides between segments.
         .padding(2)
         .background(Capsule(style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.6)))
-        .animation(.snappy(duration: 0.3), value: selection)
     }
 
     @ViewBuilder
@@ -627,12 +632,16 @@ private struct SortableSegmentedControl: View {
             if selected {
                 onReselect(source)
             } else {
-                selection = source
+                // Animate the change so the glass pill morphs/slides elastically.
+                withAnimation(transition) { selection = source }
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Text(title(source))
                     .lineLimit(1)
+                if let count = badge(source) {
+                    UnreadSegmentBadge(count: count, focused: selected)
+                }
                 if selected {
                     Image(systemName: sortImage(source))
                         .font(.caption2.weight(.bold))
@@ -643,8 +652,9 @@ private struct SortableSegmentedControl: View {
             .foregroundStyle(selected ? Color.primary : Color.secondary)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
-            .padding(.vertical, 7)
-            .padding(.horizontal, 10)
+            // Taller than before, matching the native nav-bar segmented control.
+            .padding(.vertical, 9)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
             // Apply the glass to the label itself (not a background) so the text
             // is composited as the glass's content and stays crisp; the selected
@@ -655,6 +665,31 @@ private struct SortableSegmentedControl: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title(source)))
         .accessibilityHint(selected ? Text("Double-tap to change the sort order") : Text(""))
+    }
+}
+
+/// The Unread count indicator: a number chip when its segment is focused, a small
+/// dot when it isn't (so an unfocused Unread still signals there's something new).
+private struct UnreadSegmentBadge: View {
+    let count: Int
+    let focused: Bool
+
+    var body: some View {
+        if focused {
+            Text(count > 99 ? "99+" : "\(count)")
+                .font(.caption2.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(Color.accentColor))
+                .transition(.scale.combined(with: .opacity))
+        } else {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 6, height: 6)
+                .transition(.scale.combined(with: .opacity))
+        }
     }
 }
 
