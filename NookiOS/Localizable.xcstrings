@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "— Diagnostics (helps with troubleshooting; feel free to delete) —" : {
       "localizations" : {
         "en" : {
@@ -1187,6 +1190,28 @@
         }
       }
     },
+    "Double-tap to change the sort order" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルタップすると並び順が変わります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 번 탭하면 정렬 순서가 바뀝니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击可切换排序方式"
+          }
+        }
+      }
+    },
     "Double-tap to star · pull up for the next story" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1516,9 +1541,6 @@
           }
         }
       }
-    },
-    "Filter" : {
-
     },
     "Folder" : {
       "localizations" : {
@@ -5139,28 +5161,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部看完啦"
-          }
-        }
-      }
-    },
-    "Double-tap to change the sort order" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ダブルタップすると並び順が変わります"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "두 번 탭하면 정렬 순서가 바뀝니다"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "双击可切换排序方式"
           }
         }
       }

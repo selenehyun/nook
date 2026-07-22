@@ -606,14 +606,18 @@ private struct SortableSegmentedControl: View {
     @Namespace private var highlight
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(sources) { source in
-                segment(source)
+        GlassBarContainer {
+            HStack(spacing: 0) {
+                ForEach(sources) { source in
+                    segment(source)
+                }
             }
         }
+        // A faint track so it still reads as a segmented control; the selected
+        // segment is a Liquid Glass capsule that slides between segments.
         .padding(2)
-        .background(Capsule(style: .continuous).fill(Color(.tertiarySystemFill)))
-        .animation(.snappy(duration: 0.22), value: selection)
+        .background(Capsule(style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.6)))
+        .animation(.snappy(duration: 0.3), value: selection)
     }
 
     @ViewBuilder
@@ -639,22 +643,32 @@ private struct SortableSegmentedControl: View {
             .foregroundStyle(selected ? Color.primary : Color.secondary)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
-            .background {
-                if selected {
-                    Capsule(style: .continuous)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                        .matchedGeometryEffect(id: "segmentHighlight", in: highlight)
-                }
-            }
+            .background { if selected { highlightPill } }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title(source)))
         .accessibilityHint(selected ? Text("Double-tap to change the sort order") : Text(""))
+    }
+
+    /// The sliding selected-segment highlight: a native Liquid Glass capsule on
+    /// iOS 26, a material capsule before that. `matchedGeometryEffect` glides it
+    /// between segments as the selection changes.
+    @ViewBuilder
+    private var highlightPill: some View {
+        if #available(iOS 26, *) {
+            Color.clear
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .matchedGeometryEffect(id: "segmentHighlight", in: highlight)
+        } else {
+            Capsule(style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                .matchedGeometryEffect(id: "segmentHighlight", in: highlight)
+        }
     }
 }
 
