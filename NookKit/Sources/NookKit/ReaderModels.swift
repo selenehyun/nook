@@ -261,6 +261,18 @@ extension Article {
         return lhs.id > rhs.id
     }
 
+    /// Orders two articles by the given sort order (a stable id tiebreak keeps the
+    /// order deterministic when publish dates match).
+    public static func isOrdered(_ lhs: Article, _ rhs: Article, by order: ArticleSortOrder) -> Bool {
+        switch order {
+        case .newest:
+            return isOrderedBefore(lhs, rhs)
+        case .oldest:
+            if lhs.publishedAt != rhs.publishedAt { return lhs.publishedAt < rhs.publishedAt }
+            return lhs.id < rhs.id
+        }
+    }
+
     public func matches(_ source: SourceSelection) -> Bool {
         switch source {
         case .smart(.all): true
@@ -285,6 +297,25 @@ public struct ParsedFeed: Sendable {
 public enum SourceSelection: Hashable, Sendable {
     case smart(SmartSource)
     case feed(Feed.ID)
+}
+
+/// How an article list is ordered. Toggled per category and persisted.
+public enum ArticleSortOrder: String, CaseIterable, Sendable {
+    /// Most recently published first (the default).
+    case newest
+    /// Oldest published first.
+    case oldest
+
+    /// The next order when the user re-taps the active segment.
+    public func toggled() -> ArticleSortOrder { self == .newest ? .oldest : .newest }
+
+    /// A glyph indicating the current direction (newest = descending).
+    public var systemImage: String {
+        switch self {
+        case .newest: "arrow.down"
+        case .oldest: "arrow.up"
+        }
+    }
 }
 
 public enum SmartSource: String, CaseIterable, Identifiable, Sendable {

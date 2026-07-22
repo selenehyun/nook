@@ -61,6 +61,11 @@ public final class ReaderStore {
     public private(set) var activeSearchQuery = "" { didSet { scheduleArticleFilter(animated: false) } }
     private var searchDebounceTask: Task<Void, Never>?
 
+    /// Per-category sort order (SmartSource rawValue → order), persisted locally
+    /// as a device UI preference. Feed drill-downs share the "feed" bucket.
+    private var sortOrders: [String: ArticleSortOrder] = ReaderStore.loadSortOrders()
+    private static let sortOrdersKey = "articleSortOrders"
+
     /// The filtered, sorted articles shown in the list. Recomputed off the main
     /// thread for large libraries so typing/scrolling never blocks the UI.
     private(set) var displayedArticles: [Article] = []
@@ -305,6 +310,7 @@ public final class ReaderStore {
         let smartSelection = self.smartSelection
         let retained = retainedArticleIDs
         let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let order = currentSortOrder
 
         // Only the empty-query, small-library path filters synchronously (cheap set
         // /enum checks + sort, and it should stay sync so it can still animate). Any
@@ -313,7 +319,7 @@ public final class ReaderStore {
         if query.isEmpty && snapshot.count < Self.backgroundFilterThreshold {
             applyDisplayed(Self.computeVisibleArticles(
                 snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
-                smartSelection: smartSelection, retained: retained, query: query
+                smartSelection: smartSelection, retained: retained, query: query, order: order
             ), animated: animated)
             return
         }
@@ -322,7 +328,7 @@ public final class ReaderStore {
             let result = await Task.detached(priority: .userInitiated) {
                 Self.computeVisibleArticles(
                     snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
-                    smartSelection: smartSelection, retained: retained, query: query
+                    smartSelection: smartSelection, retained: retained, query: query, order: order
                 )
             }.value
             guard !Task.isCancelled, let self else { return }
@@ -361,7 +367,8 @@ public final class ReaderStore {
         feedSelection: Set<Feed.ID>,
         smartSelection: SmartSource?,
         retained: Set<Article.ID>,
-        query: String
+        query: String,
+        order: ArticleSortOrder
     ) -> [Article] {
         func matchesSource(_ article: Article) -> Bool {
             if !feedSelection.isEmpty { return feedSelection.contains(article.feedID) }
@@ -389,7 +396,7 @@ public final class ReaderStore {
 
         return articles
             .filter { (matchesSource($0) || (retained.contains($0.id) && matchesSourceIgnoringReadState($0))) && matchesQuery($0) }
-            .sorted(by: Article.isOrderedBefore)
+            .sorted { Article.isOrdered($0, $1, by: order) }
     }
 
     public var syncFolderName: String? {
@@ -417,6 +424,39 @@ public final class ReaderStore {
         feedSelection = []
         clearRetainedArticles()
         pruneSelectionIfHidden()
+    }
+
+    // MARK: - Sort order (per category, persisted)
+
+    /// The saved sort order for a category (defaults to newest-first).
+    public func sortOrder(for source: SmartSource) -> ArticleSortOrder {
+        sortOrders[source.rawValue] ?? .newest
+    }
+
+    /// Toggles a category's sort order (re-tapping its segment), persists it, and
+    /// re-sorts the list immediately.
+    public func toggleSortOrder(for source: SmartSource) {
+        sortOrders[source.rawValue] = sortOrder(for: source).toggled()
+        persistSortOrders()
+        scheduleArticleFilter()
+    }
+
+    /// The order to apply to the list currently on screen: the selected smart
+    /// source's, or the shared "feed" bucket when a specific feed is shown.
+    private var currentSortOrder: ArticleSortOrder {
+        if let smartSelection { return sortOrders[smartSelection.rawValue] ?? .newest }
+        return sortOrders["feed"] ?? .newest
+    }
+
+    private func persistSortOrders() {
+        UserDefaults.standard.set(sortOrders.mapValues(\.rawValue), forKey: Self.sortOrdersKey)
+    }
+
+    private static func loadSortOrders() -> [String: ArticleSortOrder] {
+        guard let raw = UserDefaults.standard.dictionary(forKey: sortOrdersKey) as? [String: String] else { return [:] }
+        return raw.reduce(into: [:]) { result, pair in
+            if let order = ArticleSortOrder(rawValue: pair.value) { result[pair.key] = order }
+        }
     }
 
     func handleSyncFolderSelection(_ result: Result<[URL], Error>) {

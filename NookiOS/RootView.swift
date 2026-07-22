@@ -559,12 +559,17 @@ private struct HomeTab: View {
                         )
                         .toolbar {
                             ToolbarItem(placement: .principal) {
-                                Picker("Filter", selection: $filter) {
-                                    ForEach(filters) { source in
-                                        Text(segmentTitle(source)).tag(source)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
+                                // A custom segmented control: tap a segment to switch
+                                // category; tap the active one again to flip its sort
+                                // order (saved per category). Native-looking (sliding
+                                // capsule), like the reader's custom bottom bar.
+                                SortableSegmentedControl(
+                                    sources: filters,
+                                    selection: $filter,
+                                    title: segmentTitle,
+                                    sortImage: { store.sortOrder(for: $0).systemImage },
+                                    onReselect: { store.toggleSortOrder(for: $0) }
+                                )
                                 // Principal items only get their intrinsic size, so
                                 // give an explicit width: the full content width
                                 // minus room for the trailing search button, so the
@@ -584,6 +589,72 @@ private struct HomeTab: View {
                 }
             }
         }
+    }
+}
+
+/// A segmented control where tapping the already-selected segment re-fires
+/// `onReselect` (used to flip the sort order) and shows a sort-direction glyph on
+/// the active segment. Styled like a native segmented control — a track capsule
+/// with a sliding highlight — so it fits the nav bar.
+private struct SortableSegmentedControl: View {
+    let sources: [SmartSource]
+    @Binding var selection: SmartSource
+    var title: (SmartSource) -> String
+    var sortImage: (SmartSource) -> String
+    var onReselect: (SmartSource) -> Void
+
+    @Namespace private var highlight
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(sources) { source in
+                segment(source)
+            }
+        }
+        .padding(2)
+        .background(Capsule(style: .continuous).fill(Color(.tertiarySystemFill)))
+        .animation(.snappy(duration: 0.22), value: selection)
+    }
+
+    @ViewBuilder
+    private func segment(_ source: SmartSource) -> some View {
+        let selected = source == selection
+        Button {
+            if selected {
+                onReselect(source)
+            } else {
+                selection = source
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(title(source))
+                    .lineLimit(1)
+                if selected {
+                    Image(systemName: sortImage(source))
+                        .font(.caption2.weight(.bold))
+                        .contentTransition(.symbolEffect(.replace))
+                }
+            }
+            .font(.subheadline.weight(selected ? .semibold : .regular))
+            .foregroundStyle(selected ? Color.primary : Color.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
+            .background {
+                if selected {
+                    Capsule(style: .continuous)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                        .matchedGeometryEffect(id: "segmentHighlight", in: highlight)
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(title(source)))
+        .accessibilityHint(selected ? Text("Double-tap to change the sort order") : Text(""))
     }
 }
 
