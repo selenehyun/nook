@@ -1248,6 +1248,16 @@ public final class ReaderStore {
             return
         }
 
+        // Check the original's status up front. WKWebView can be served a cached
+        // 200 for a page that's really gone (so extraction "succeeds" on the error
+        // page and Try Again would show it as content) — an explicit HEAD 404/410
+        // is authoritative, so treat it as gone without extracting.
+        if await originalIsGone(url: article.url) {
+            readerContentStates[article.id] = .gone
+            await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
+            return
+        }
+
         if readerModeExtractor == nil { readerModeExtractor = ReaderModeExtractor() }
         let outcome = await readerModeExtractor?.extract(url: article.url) ?? .failed
         switch outcome {
@@ -1272,23 +1282,29 @@ public final class ReaderStore {
     /// Background HEAD check of a cached article's original URL. If the source now
     /// returns 404/410 the page is gone, so flip to `.gone` (offering deletion)
     /// while leaving the cached content up until then. Only ever downgrades from
-    /// `.ready`, only on an explicit gone status (so a server that rejects HEAD or
-    /// is briefly unreachable never produces a false "deleted" prompt).
+    /// `.ready`.
     private func revalidateCachedOriginal(article: Article) {
-        guard let scheme = article.url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return }
         let id = article.id
         let url = article.url
         Task { [weak self] in
-            var request = URLRequest(url: url)
-            request.httpMethod = "HEAD"
-            request.timeoutInterval = 12
-            let status = (try? await URLSession.shared.data(for: request))
-                .flatMap { ($0.1 as? HTTPURLResponse)?.statusCode }
-            guard let self, status == 404 || status == 410 else { return }
+            guard let gone = await self?.originalIsGone(url: url), gone, let self else { return }
             if case .ready = self.readerContentStates[id] {
                 self.readerContentStates[id] = .gone
             }
         }
+    }
+
+    /// Whether the article's original URL explicitly reports gone (404/410) via a
+    /// lightweight HEAD request. Conservative: any other status, a rejected HEAD,
+    /// or a transient error returns false, so a live page is never flagged.
+    private func originalIsGone(url: URL) async -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 12
+        let status = (try? await URLSession.shared.data(for: request))
+            .flatMap { ($0.1 as? HTTPURLResponse)?.statusCode }
+        return status == 404 || status == 410
     }
 
     /// Warms both caches the reader reads from before content is shown: the block
