@@ -24,14 +24,6 @@
   <img src="docs/screenshots/main.png" width="900" alt="Nook on macOS — sidebar, article list, and reader" />
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/ios-library.png" width="200" alt="Library with folders" />&nbsp;&nbsp;
-  <img src="docs/screenshots/ios-articles.png" width="200" alt="Article list" />&nbsp;&nbsp;
-  <img src="docs/screenshots/ios-reader.png" width="200" alt="In-app reader" />&nbsp;&nbsp;
-  <img src="docs/screenshots/ios-settings.png" width="200" alt="Settings" />
-</p>
-<p align="center"><sub>On iPhone &amp; iPad — library and folders, the article list, the in-app reader, and settings.</sub></p>
-
 > **New to RSS?** RSS lets you follow sites, blogs, and newsletters in one place — no algorithm, no ads, no account, and nothing tracking what you read. You decide what you subscribe to and see everything, in order. [Why use RSS feeds →](https://openrss.org/guides/what-are-rss-feeds#why-use-rss-feeds)
 
 ## Why Nook
@@ -62,6 +54,68 @@ That one decision means **no lock-in**:
 - 🔔 **Smart new-article alerts.** A local notification when genuinely new articles arrive — never for ones you've already seen in the list. That "seen" state syncs across devices, so catching up on your Mac won't re-ping your iPhone. Each device still keeps its own at-most-once receipts, and iOS Settings has a test notification plus background-refresh diagnostics (and a nudge to turn on Background App Refresh if it's off).
 - 🌓 **Adaptive icon** (light/dark) and a **localized UI** — English, 한국어, 日本語, 简体中文.
 - ⬆️ **Auto-updates** on macOS via [Sparkle](https://sparkle-project.org) — quiet, never a modal.
+
+## On iPhone & iPad
+
+<table>
+  <tr>
+    <td width="240" align="center"><img src="docs/screenshots/ios-articles.png" width="230" alt="Article list with Unread / Today / All"></td>
+    <td valign="top">
+      <h3>Everything to read, in one place</h3>
+      <p>Open straight to the article list. Switch <strong>Unread</strong>, <strong>Today</strong>, or <strong>All</strong> from the segmented control in the navigation bar, and swipe a row to mark it read or star it.</p>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td valign="top">
+      <h3>A clean, native reader</h3>
+      <p>Articles render as real native text — typography, images, code blocks, quotes, and tables — not a webview. Translate in place with on-device Apple Intelligence, or jump to the full-page reader or the original site when you want.</p>
+    </td>
+    <td width="240" align="center"><img src="docs/screenshots/ios-reader.png" width="230" alt="Native article reader"></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="240" align="center"><img src="docs/screenshots/ios-reader-swipe.png" width="230" alt="Pull past the edge to change article"></td>
+    <td valign="top">
+      <h3>Flip between articles with a pull</h3>
+      <p>Pull past the top or bottom of an article to jump to the previous or next one. It takes a firm, deliberate pull held for a moment, so a stray scroll never flips the article by accident.</p>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td valign="top">
+      <h3>Feeds and folders</h3>
+      <p>Add an RSS/Atom URL or just paste a website — Nook finds the feed from the page. Group your subscriptions into folders, rename and reorganize, right from the phone.</p>
+    </td>
+    <td width="240" align="center"><img src="docs/screenshots/ios-library.png" width="230" alt="Feeds and folders"></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="240" align="center"><img src="docs/screenshots/ios-starred.png" width="230" alt="Starred articles"></td>
+    <td valign="top">
+      <h3>Keep the good ones</h3>
+      <p>Star an article from a swipe or a double-tap on its body, and find everything you saved under the Starred tab.</p>
+    </td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td valign="top">
+      <h3>Make it yours</h3>
+      <p>Appearance, reader font and spacing, per-feed reading mode, OPML import/export, and an Experimental section — all as native iOS settings.</p>
+    </td>
+    <td width="240" align="center"><img src="docs/screenshots/ios-settings.png" width="230" alt="Settings"></td>
+  </tr>
+</table>
 
 ## Install
 
