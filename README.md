@@ -71,10 +71,10 @@ That one decision means **no lock-in**:
 brew install --cask selenehyun/tap/nook
 ```
 
-Nook is ad-hoc signed (not notarized), so on first launch either right-click **Nook** in Applications → **Open**, or install without the quarantine flag so it opens straight away:
+Nook is ad-hoc signed (not notarized), so on first launch either right-click **Nook** in Applications → **Open**, or install without quarantine so it opens straight away:
 
 ```sh
-brew install --cask --no-quarantine selenehyun/tap/nook
+HOMEBREW_CASK_OPTS="--no-quarantine" brew install --cask selenehyun/tap/nook
 ```
 
 Updates thereafter come through the app itself (Sparkle).

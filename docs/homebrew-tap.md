@@ -48,7 +48,8 @@ setup**; after it's in place, releases keep the cask up to date automatically.
 
 - **Not notarized.** The build is ad-hoc signed, so a cask-installed copy is
   still quarantined by default. The cask's `caveats` explain the right-click /
-  `xattr` unlock, and `--no-quarantine` skips it. Notarizing (an Apple Developer
+  `xattr` unlock, and `HOMEBREW_CASK_OPTS="--no-quarantine" brew install …`
+  skips it. Notarizing (an Apple Developer
   account) would remove that friction and is the prerequisite for submitting to
   the official `homebrew/cask` tap.
 - **Updates.** The cask sets `auto_updates true` because the app updates itself
