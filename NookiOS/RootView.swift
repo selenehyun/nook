@@ -646,28 +646,44 @@ private struct SortableSegmentedControl: View {
             .padding(.vertical, 7)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity)
-            .background { if selected { highlightPill } }
+            // Apply the glass to the label itself (not a background) so the text
+            // is composited as the glass's content and stays crisp; the selected
+            // pill morphs between segments via glassEffectID.
+            .modifier(SelectedSegmentGlass(selected: selected, namespace: highlight))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title(source)))
         .accessibilityHint(selected ? Text("Double-tap to change the sort order") : Text(""))
     }
+}
 
-    /// The sliding selected-segment highlight: a native Liquid Glass capsule on
-    /// iOS 26, a material capsule before that. `matchedGeometryEffect` glides it
-    /// between segments as the selection changes.
-    @ViewBuilder
-    private var highlightPill: some View {
+/// Gives the selected segment a native Liquid Glass capsule (iOS 26), applied to
+/// the label so its text renders legibly on top; the glass morphs between
+/// segments as the selection moves. Before iOS 26, a material capsule that slides
+/// via `matchedGeometryEffect`.
+private struct SelectedSegmentGlass: ViewModifier {
+    let selected: Bool
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            Color.clear
-                .glassEffect(.regular.interactive(), in: .capsule)
-                .matchedGeometryEffect(id: "segmentHighlight", in: highlight)
+            if selected {
+                content
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .glassEffectID("segmentHighlight", in: namespace)
+            } else {
+                content
+            }
         } else {
-            Capsule(style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                .matchedGeometryEffect(id: "segmentHighlight", in: highlight)
+            content.background {
+                if selected {
+                    Capsule(style: .continuous)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                        .matchedGeometryEffect(id: "segmentHighlight", in: namespace)
+                }
+            }
         }
     }
 }
