@@ -65,7 +65,21 @@ That one decision means **no lock-in**:
 
 ## Install
 
-### macOS
+### macOS (Homebrew)
+
+```sh
+brew install --cask selenehyun/tap/nook
+```
+
+Nook is ad-hoc signed (not notarized), so on first launch either right-click **Nook** in Applications → **Open**, or install without the quarantine flag so it opens straight away:
+
+```sh
+brew install --cask --no-quarantine selenehyun/tap/nook
+```
+
+Updates thereafter come through the app itself (Sparkle).
+
+### macOS (DMG)
 
 1. Download the latest **[Nook DMG](https://github.com/selenehyun/nook/releases/latest)**.
 2. Open it and drag **Nook** into **Applications**.

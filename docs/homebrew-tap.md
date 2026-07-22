@@ -1,0 +1,47 @@
+# Homebrew tap setup
+
+Nook ships a Homebrew **cask** through a custom tap so people can install it with:
+
+```sh
+brew install --cask selenehyun/tap/nook
+```
+
+The release workflow (`.github/workflows/release.yml`) generates the cask
+(`Casks/nook.rb`) on every published release — filling in the version and the
+DMG's SHA-256 — and pushes it to the tap repository. This is a **one-time
+setup**; after it's in place, releases keep the cask up to date automatically.
+
+## One-time setup
+
+1. **Create the tap repository.** A Homebrew tap must be a repo named
+   `homebrew-<tap>`. Create a public repo **`selenehyun/homebrew-tap`** (empty is
+   fine — the workflow creates `Casks/nook.rb`). Users reference it as
+   `selenehyun/tap`.
+
+2. **Create a token with write access to the tap.** A fine-grained personal
+   access token scoped to `selenehyun/homebrew-tap` with **Contents: Read and
+   write** is enough. (A classic `repo`-scoped PAT also works.)
+
+3. **Add it as a secret on this repo.** In `selenehyun/nook` →
+   Settings → Secrets and variables → Actions → **New repository secret**:
+   - Name: `HOMEBREW_TAP_TOKEN`
+   - Value: the token from step 2
+
+   Without this secret the cask-publish step logs a message and skips, so
+   releases still succeed.
+
+4. **Cut a release** (push a `vX.Y.Z` tag). The workflow publishes the DMG, then
+   writes `Casks/nook.rb` into the tap and pushes it.
+
+## Notes
+
+- **Not notarized.** The build is ad-hoc signed, so a cask-installed copy is
+  still quarantined by default. The cask's `caveats` explain the right-click /
+  `xattr` unlock, and `--no-quarantine` skips it. Notarizing (an Apple Developer
+  account) would remove that friction and is the prerequisite for submitting to
+  the official `homebrew/cask` tap.
+- **Updates.** The cask sets `auto_updates true` because the app updates itself
+  via Sparkle; `brew upgrade` still re-installs the latest cask version.
+- **Uninstall.** `brew uninstall --cask nook`; `brew uninstall --zap --cask nook`
+  also removes preferences/caches. Zap never touches your chosen sync folder —
+  that's your data.
