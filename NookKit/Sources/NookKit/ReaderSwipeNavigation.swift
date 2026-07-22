@@ -50,7 +50,7 @@ private struct EdgePull: Equatable {
 /// while scrolling, so it snaps back instead of navigating. Measured from the
 /// overscroll's start — not the whole scroll — so a long scroll that ends in a
 /// quick flick is still caught.
-private let readerCommitMinHold: TimeInterval = 0.3
+private let readerCommitMinHold: TimeInterval = 0.25
 
 private struct ReaderSwipeNavigation: ViewModifier {
     let nextTitle: String?
