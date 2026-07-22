@@ -13,17 +13,28 @@ import WebKit
 public final class ReaderModeExtractor {
     public init() {}
 
-    /// Loads `url`, runs Readability, and returns the extracted content HTML —
-    /// or `nil` when extraction fails (no article found, load error, timeout).
-    public func extract(url: URL, timeout: TimeInterval = 15) async -> String? {
+    /// The result of an extraction attempt.
+    public enum Outcome: Sendable {
+        /// Reader content HTML was extracted.
+        case success(String)
+        /// The original page is gone (HTTP 404/410) — the article can be deleted.
+        case gone
+        /// Extraction failed for another reason (no article found, load error, timeout).
+        case failed
+    }
+
+    /// Loads `url`, runs Readability, and returns the extracted content — or a
+    /// `.gone`/`.failed` outcome so the caller can distinguish a removed page
+    /// (offer deletion) from a transient failure (offer retry).
+    public func extract(url: URL, timeout: TimeInterval = 15) async -> Outcome {
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
-            return nil
+            return .failed
         }
         return await withCheckedContinuation { continuation in
             var session: ExtractionSession!
-            session = ExtractionSession(url: url, timeout: timeout) { [weak self] html in
+            session = ExtractionSession(url: url, timeout: timeout) { [weak self] outcome in
                 self?.retain.remove(session)
-                continuation.resume(returning: html)
+                continuation.resume(returning: outcome)
             }
             retain.insert(session)
             session.start()
@@ -44,12 +55,12 @@ private final class ExtractionSession: NSObject, WKNavigationDelegate, WKScriptM
     private let timeout: TimeInterval
     // Optional so it can be released after firing, breaking the session↔closure
     // retain cycle (the completion captures the session to deregister it).
-    private var onFinish: ((String?) -> Void)?
+    private var onFinish: ((ReaderModeExtractor.Outcome) -> Void)?
     private var webView: WKWebView?
     private var timeoutTask: Task<Void, Never>?
     private var finished = false
 
-    init(url: URL, timeout: TimeInterval, onFinish: @escaping (String?) -> Void) {
+    init(url: URL, timeout: TimeInterval, onFinish: @escaping (ReaderModeExtractor.Outcome) -> Void) {
         self.url = url
         self.timeout = timeout
         self.onFinish = onFinish
@@ -75,12 +86,12 @@ private final class ExtractionSession: NSObject, WKNavigationDelegate, WKScriptM
 
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(self?.timeout ?? 15))
-            self?.finish(nil)
+            self?.finish(.failed)
         }
         webView.load(URLRequest(url: url))
     }
 
-    private func finish(_ html: String?) {
+    private func finish(_ outcome: ReaderModeExtractor.Outcome) {
         guard !finished else { return }
         finished = true
         timeoutTask?.cancel()
@@ -94,7 +105,7 @@ private final class ExtractionSession: NSObject, WKNavigationDelegate, WKScriptM
         webView = nil
         let callback = onFinish
         onFinish = nil
-        callback?(html)
+        callback?(outcome)
     }
 
     // MARK: WKScriptMessageHandler
@@ -105,20 +116,38 @@ private final class ExtractionSession: NSObject, WKNavigationDelegate, WKScriptM
            (body["ok"] as? NSNumber)?.boolValue == true,
            let content = body["content"] as? String,
            !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            finish(content)
+            finish(.success(content))
         } else {
-            finish(nil)
+            finish(.failed)
         }
     }
 
     // MARK: WKNavigationDelegate
 
+    /// Inspect the main-frame response status: a 404/410 means the original is
+    /// gone, so report `.gone` (the reader offers deletion) instead of loading the
+    /// server's error page and trying to extract from it.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+    ) {
+        if navigationResponse.isForMainFrame,
+           let http = navigationResponse.response as? HTTPURLResponse,
+           http.statusCode == 404 || http.statusCode == 410 {
+            decisionHandler(.cancel)
+            finish(.gone)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        finish(nil)
+        finish(.failed)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        finish(nil)
+        finish(.failed)
     }
 
     /// Runs after the page settles. Mirrors `ArticleWebView`'s reader extraction

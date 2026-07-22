@@ -461,6 +461,14 @@ struct ReaderDetailView: View {
         }
     }
 
+    /// Deletes the article (its original is gone) and leaves the reader: clears
+    /// the pushed binding to pop on iPhone; on iPad the store clears the selection
+    /// so the detail column empties.
+    private func deleteAndClose(_ article: Article) {
+        store.deleteArticle(articleID: article.id)
+        articleOverride?.wrappedValue = nil
+    }
+
     /// The reader body: reader-mode-extracted content when the experiment is on,
     /// falling back to the original feed content (with a notice) on failure.
     @ViewBuilder
@@ -472,6 +480,14 @@ struct ReaderDetailView: View {
             case .failed:
                 VStack(alignment: .leading, spacing: 14) {
                     ReaderFallbackNotice { store.retryReaderContent(for: article) }
+                    originalArticleBody(article)
+                }
+            case .gone:
+                VStack(alignment: .leading, spacing: 14) {
+                    ReaderGoneNotice(
+                        onDelete: { deleteAndClose(article) },
+                        onRetry: { store.retryReaderContent(for: article) }
+                    )
                     originalArticleBody(article)
                 }
             case .loading, .none:

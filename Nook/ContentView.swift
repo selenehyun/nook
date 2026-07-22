@@ -1881,6 +1881,14 @@ private struct ReaderDetailView: View {
                     ReaderFallbackNotice { store.retryReaderContent(for: article) }
                     originalArticleBody(article)
                 }
+            case .gone:
+                VStack(alignment: .leading, spacing: 16) {
+                    ReaderGoneNotice(
+                        onDelete: { store.deleteArticle(articleID: article.id) },
+                        onRetry: { store.retryReaderContent(for: article) }
+                    )
+                    originalArticleBody(article)
+                }
             case .loading, .none:
                 ReaderLoadingPlaceholder()
             }

@@ -193,6 +193,9 @@ public final class ReaderStore {
         case loading
         case ready(String)
         case failed
+        /// The original page returned 404/410 — it's gone from the source, so the
+        /// reader offers to delete the lingering local copy.
+        case gone
     }
 
     /// Per-article reader-mode extraction state, observed by the reader views.
@@ -1241,8 +1244,9 @@ public final class ReaderStore {
         }
 
         if readerModeExtractor == nil { readerModeExtractor = ReaderModeExtractor() }
-        let html = await readerModeExtractor?.extract(url: article.url)
-        if let html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let outcome = await readerModeExtractor?.extract(url: article.url) ?? .failed
+        switch outcome {
+        case .success(let html) where !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty:
             // Parse into native blocks AND import their styled text into the caches
             // BEFORE flipping to .ready, so the reader renders fully styled from a
             // warm cache on the first frame — no parse or importer burst on the
@@ -1250,7 +1254,11 @@ public final class ReaderStore {
             await warmReaderContent(html: html, baseURL: article.url)
             readerContentStates[article.id] = .ready(html)
             await readerContentStore?.record(ReaderContentValue(status: .success, html: html), for: article.id)
-        } else {
+        case .gone:
+            // The original is gone (404/410); the reader will offer to delete it.
+            readerContentStates[article.id] = .gone
+            await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
+        default:
             readerContentStates[article.id] = .failed
             await readerContentStore?.record(ReaderContentValue(status: .failed, html: nil), for: article.id)
         }
@@ -1367,6 +1375,20 @@ public final class ReaderStore {
 
     public func removeFeeds(ids: [Feed.ID]) {
         ids.forEach { removeFeed(feedID: $0) }
+    }
+
+    /// Deletes a single article the user no longer wants — used when the original
+    /// page is gone (404/410) but the local copy lingers. Records a tombstone in
+    /// this device's shard so the deletion syncs and the baseline (which still
+    /// carries the article) can't resurrect it at the next merge.
+    public func deleteArticle(articleID: Article.ID) {
+        guard articles.contains(where: { $0.id == articleID }) else { return }
+        if selectedArticleID == articleID { selectedArticleID = nil }
+        articles.removeAll { $0.id == articleID }
+        readerContentStates[articleID] = nil
+        retainedArticleIDs.remove(articleID)
+        recordArticleDeleted(articleID)
+        scheduleShardSave()
     }
 
     public func markArticleOpened(articleID: Article.ID) {
@@ -2140,6 +2162,10 @@ public final class ReaderStore {
 
     private func recordStarred(_ id: Article.ID, _ value: Bool) {
         ownShard.setArticleStarred(id, value, hlc: nextHLC())
+    }
+
+    private func recordArticleDeleted(_ id: Article.ID) {
+        ownShard.setArticleTombstone(id, true, hlc: nextHLC())
     }
 
     private func recordCategory(_ id: Feed.ID, _ value: String) {

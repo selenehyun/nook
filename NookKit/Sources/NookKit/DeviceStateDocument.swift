@@ -24,24 +24,31 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         /// device never fires a "new article" notification on another. Distinct
         /// from `isRead`: you can see a title in the list without reading it.
         public var seen: LWWRegister<Bool>?
+        /// User deletion of a single article (a tombstone, so it syncs and a
+        /// baseline that still carries the article can't resurrect it). Used when
+        /// the original is gone (e.g. a 404) but the local copy lingers in the list.
+        public var tombstone: LWWRegister<Bool>?
 
         public init(
             isRead: LWWRegister<Bool>? = nil,
             isStarred: LWWRegister<Bool>? = nil,
-            seen: LWWRegister<Bool>? = nil
+            seen: LWWRegister<Bool>? = nil,
+            tombstone: LWWRegister<Bool>? = nil
         ) {
             self.isRead = isRead
             self.isStarred = isStarred
             self.seen = seen
+            self.tombstone = tombstone
         }
 
-        var isEmpty: Bool { isRead == nil && isStarred == nil && seen == nil }
+        var isEmpty: Bool { isRead == nil && isStarred == nil && seen == nil && tombstone == nil }
 
         func merged(with other: ArticleState) -> ArticleState {
             ArticleState(
                 isRead: mergeRegisters(isRead, other.isRead),
                 isStarred: mergeRegisters(isStarred, other.isStarred),
-                seen: mergeRegisters(seen, other.seen)
+                seen: mergeRegisters(seen, other.seen),
+                tombstone: mergeRegisters(tombstone, other.tombstone)
             )
         }
     }
@@ -197,6 +204,12 @@ extension DeviceStateDocument {
         articleState[id] = state
     }
 
+    public mutating func setArticleTombstone(_ id: Article.ID, _ deleted: Bool, hlc: HLC) {
+        var state = articleState[id] ?? ArticleState()
+        state.tombstone = LWWRegister(value: deleted, hlc: hlc)
+        articleState[id] = state
+    }
+
     public mutating func setFeedCategory(_ id: Feed.ID, _ value: String, hlc: HLC) {
         var state = feedState[id] ?? FeedState()
         state.category = LWWRegister(value: value, hlc: hlc)
@@ -316,11 +329,13 @@ extension DeviceStateDocument {
             feeds.append(feed)
         }
 
-        // Articles: drop those orphaned by a deleted feed, apply read/starred.
+        // Articles: drop those orphaned by a deleted feed or tombstoned directly,
+        // apply read/starred.
         var articles: [Article] = []
         articles.reserveCapacity(base.articles.count)
         for var article in base.articles where !deletedFeedIDs.contains(article.feedID) {
             let state = merged.articles[article.id]
+            if state?.tombstone?.value == true { continue }
             if let isRead = state?.isRead?.value { article.isRead = isRead }
             if let isStarred = state?.isStarred?.value { article.isStarred = isStarred }
             articles.append(article)
