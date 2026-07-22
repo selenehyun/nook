@@ -32,6 +32,8 @@
 
 ## Why Nook
 
+A bird builds its nest one twig at a time — a small place that's entirely its own. Nook is that idea for reading: gather the writing you care about, one feed at a time, into a space that fits you, and settle in with it comfortably whenever you like.
+
 Nook isn't trying to be special. It's a small, native RSS reader built around a few plain ideas: it works **offline first**, it's **free** and stays out of your way, and it runs **entirely on infrastructure you already have** — your own folder, synced by whatever cloud you already use. There's no server to sign in to and no account to create, and nothing of yours passes through anything the author runs.
 
 Because your library is just a folder, there's **no lock-in**:
