@@ -693,11 +693,11 @@ private struct SortableSegmentedControl: View {
             // the label. Focused: a number chip pinned to the far leading edge (out
             // of the way of the centered label). Unfocused: a dot centered
             // horizontally at the top.
-            .overlay(alignment: selected ? .topLeading : .top) {
+            .overlay(alignment: selected ? .topLeading : .leading) {
                 if let count = badge(source) {
                     UnreadSegmentBadge(count: count, focused: selected)
-                        .padding(.leading, selected ? 2 : 0)
-                        .padding(.top, selected ? 1 : 3)
+                        .padding(.leading, selected ? 2 : 6)
+                        .padding(.top, selected ? 1 : 0)
                 }
             }
             .contentShape(Rectangle())
