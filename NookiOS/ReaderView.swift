@@ -46,6 +46,7 @@ struct ReaderDetailView: View {
     @AppStorage("readerTextHex") private var readerTextHex = "#1A1A1A"
 
     @State private var isShowingInfo = false
+    @State private var confirmingDelete = false
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
@@ -356,6 +357,12 @@ struct ReaderDetailView: View {
                         Link(destination: article.url) {
                             Label("Open Original", systemImage: "safari")
                         }
+                        Divider()
+                        Button(role: .destructive) {
+                            confirmingDelete = true
+                        } label: {
+                            Label("Delete Article", systemImage: "trash")
+                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -436,6 +443,16 @@ struct ReaderDetailView: View {
         }
         .sheet(isPresented: $isShowingInfo) {
             ArticleInfoView(store: store, article: article)
+        }
+        .confirmationDialog(
+            "Delete this article?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Article", role: .destructive) { deleteAndClose(article) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It's removed from your list on all your devices. This can't be undone.")
         }
         .id(article.id)
         .transition(.push(from: readerNavForward ? .bottom : .top))

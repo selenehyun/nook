@@ -1647,6 +1647,7 @@ private struct ReaderDetailView: View {
     @State private var isTranslated = false
     @State private var isTranslating = false
     @State private var isShowingTranslation = false
+    @State private var confirmingDelete = false
 
     private var targetLanguage: Locale.Language {
         (appLanguage == .system ? Locale.current : appLanguage.locale).language
@@ -1814,6 +1815,14 @@ private struct ReaderDetailView: View {
                     ShareLink(item: article.url) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
+
+                    Spacer()
+
+                    Button(role: .destructive) {
+                        confirmingDelete = true
+                    } label: {
+                        Label("Delete Article", systemImage: "trash")
+                    }
                 }
                 .buttonStyle(.bordered)
             }
@@ -1824,6 +1833,16 @@ private struct ReaderDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .textBackgroundColor))
+        .confirmationDialog(
+            "Delete this article?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Article", role: .destructive) { store.deleteArticle(articleID: article.id) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It's removed from your list on all your devices. This can't be undone.")
+        }
         .overlay(alignment: .top) {
             if translationBusy {
                 TranslationBanner()
