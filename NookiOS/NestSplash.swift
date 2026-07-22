@@ -121,14 +121,7 @@ enum TabGlyph {
     /// The nest mark, trimmed to its content then redrawn into a fixed point-size
     /// context so the tab icon is a sane size (never the raw render canvas, which
     /// blew up to hundreds of points and covered the whole bar).
-    static let nest = renderNest(dotted: false)
-    /// The same mark with a small unread dot in the top-right. Baked into the icon
-    /// (not a system `.badge`, whose size can't be shrunk) so the dot is genuinely
-    /// small; it's part of the template, so it tints with the tab (secondary when
-    /// unselected, accent when selected).
-    static let nestUnread = renderNest(dotted: true)
-
-    private static func renderNest(dotted: Bool) -> UIImage {
+    static let nest: UIImage = {
         let glyph = NestGlyphView().scaleEffect(0.5).frame(width: 512, height: 512)
         let renderer = ImageRenderer(content: glyph)
         renderer.scale = 3
@@ -140,25 +133,14 @@ enum TabGlyph {
         let aspect = source.size.height > 0 ? source.size.width / source.size.height : 1
         let targetHeight: CGFloat = 20
         let maxWidth: CGFloat = 44
-        var nestSize = CGSize(width: targetHeight * aspect, height: targetHeight)
-        if nestSize.width > maxWidth { nestSize = CGSize(width: maxWidth, height: maxWidth / max(aspect, 0.01)) }
+        var size = CGSize(width: targetHeight * aspect, height: targetHeight)
+        if size.width > maxWidth { size = CGSize(width: maxWidth, height: maxWidth / max(aspect, 0.01)) }
 
-        // Reserve a little headroom at the top-right for the dot so it never
-        // overlaps a twig; keep the same canvas when undotted.
-        let dot: CGFloat = 7
-        let pad = dotted ? dot * 0.5 : 0
-        let canvas = CGSize(width: nestSize.width + pad, height: nestSize.height + pad)
-
-        let image = UIGraphicsImageRenderer(size: canvas).image { ctx in
-            source.draw(in: CGRect(x: 0, y: canvas.height - nestSize.height,
-                                   width: nestSize.width, height: nestSize.height))
-            if dotted {
-                UIColor.black.setFill()
-                ctx.cgContext.fillEllipse(in: CGRect(x: canvas.width - dot, y: 0, width: dot, height: dot))
-            }
+        let resized = UIGraphicsImageRenderer(size: size).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
         }
-        return image.withRenderingMode(.alwaysTemplate)
-    }
+        return resized.withRenderingMode(.alwaysTemplate)
+    }()
 }
 
 private extension UIImage {

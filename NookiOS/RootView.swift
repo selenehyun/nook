@@ -297,39 +297,16 @@ private struct CompactShell: View {
     @State private var homeFilter: SmartSource = .unread
     @State private var feedsPath: [FeedTarget] = []
 
-    /// Whether the Home tab is actively showing the Unread filter — the only time
-    /// the loud numeric badge appears; otherwise a small baked-in dot is used.
-    private var viewingUnread: Bool {
-        selection == .home && homeFilter == .unread
-    }
-
-    /// The numeric Home badge, shown only while viewing Unread (nil = no badge).
-    private var homeBadge: Text? {
-        let unread = store.count(for: .unread)
-        guard unread > 0, viewingUnread else { return nil }
-        return Text(unread, format: .number)
-    }
-
-    /// A small dot on the nest icon when there are unread articles but the count
-    /// isn't being shown as the numeric badge.
-    private var homeDot: Bool {
-        store.count(for: .unread) > 0 && !viewingUnread
-    }
-
     var body: some View {
         TabView(selection: $selection) {
             HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
                 // Nook's own nest mark (from the icon/splash twig geometry) —
                 // on-brand and distinct from a generic house.
                 .tabItem {
-                    Image(uiImage: homeDot ? TabGlyph.nestUnread : TabGlyph.nest)
+                    Image(uiImage: TabGlyph.nest)
                         .renderingMode(.template)
                         .accessibilityLabel(Text("Home"))
                 }
-                // Quiet by default: a small dot baked into the icon when unread
-                // exist, expanding to the actual count (numeric badge) only while
-                // the Unread filter is what's on screen.
-                .badge(homeBadge)
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
@@ -439,9 +416,18 @@ private struct HomeTab: View {
     private let filters: [SmartSource] = [.unread, .today, .all]
 
     /// Short labels for the nav-bar segmented control — "All Articles" is too wide
-    /// there, so it shows as "All".
+    /// there, so it shows as "All". The Unread segment carries the unread count
+    /// after a separator (e.g. "Unread · 12") so it isn't shown when there are none.
     private func segmentTitle(_ source: SmartSource) -> String {
-        source == .all ? String(localized: "All") : source.title
+        switch source {
+        case .all:
+            return String(localized: "All")
+        case .unread:
+            let count = store.count(for: .unread)
+            return count > 0 ? "\(source.title) · \(count)" : source.title
+        default:
+            return source.title
+        }
     }
 
     var body: some View {
