@@ -569,6 +569,11 @@ private struct HomeTab: View {
                                     title: segmentTitle,
                                     badge: segmentBadge,
                                     sortImage: { store.sortOrder(for: $0).systemImage },
+                                    sortValue: {
+                                        store.sortOrder(for: $0) == .newest
+                                            ? String(localized: "Newest first")
+                                            : String(localized: "Oldest first")
+                                    },
                                     onReselect: { store.toggleSortOrder(for: $0) }
                                 )
                                 // Principal items only get their intrinsic size, so
@@ -603,26 +608,60 @@ private struct SortableSegmentedControl: View {
     var title: (SmartSource) -> String
     var badge: (SmartSource) -> Int?
     var sortImage: (SmartSource) -> String
+    var sortValue: (SmartSource) -> String
     var onReselect: (SmartSource) -> Void
 
-    @Namespace private var highlight
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The elastic move of the glass pill between segments — matches the native
-    /// segmented control's springy feel.
-    private var transition: Animation { .spring(response: 0.38, dampingFraction: 0.68) }
+    /// Track/highlight height and the full 44pt hit target around it.
+    private let visualHeight: CGFloat = 38
+    private let hitHeight: CGFloat = 44
+
+    private var slide: Animation? {
+        reduceMotion ? nil : .spring(duration: 0.38, bounce: 0.18)
+    }
 
     var body: some View {
-        GlassBarContainer {
+        ZStack {
+            Capsule(style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.55))
+
+            // A single, always-present Liquid Glass pill that slides to the
+            // selected segment (offset only). Per the review this is simpler and
+            // more robust in a toolbar than glassEffectID/matchedGeometry, and as a
+            // separate layer below the labels it never washes out the text.
+            GeometryReader { proxy in
+                let count = max(1, sources.count)
+                let segmentWidth = proxy.size.width / CGFloat(count)
+                let logical = sources.firstIndex(of: selection) ?? 0
+                let visual = layoutDirection == .leftToRight ? logical : count - 1 - logical
+                pill
+                    .frame(width: segmentWidth, height: visualHeight)
+                    .offset(x: CGFloat(visual) * segmentWidth)
+                    .animation(slide, value: selection)
+                    .allowsHitTesting(false)
+            }
+
             HStack(spacing: 0) {
                 ForEach(sources) { source in
                     segment(source)
                 }
             }
         }
-        // A faint track so it still reads as a segmented control; the selected
-        // segment is a Liquid Glass capsule that slides between segments.
-        .padding(2)
-        .background(Capsule(style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.6)))
+        .frame(height: visualHeight)
+        .frame(height: hitHeight)
+    }
+
+    @ViewBuilder
+    private var pill: some View {
+        if #available(iOS 26, *) {
+            // Decorative (non-interactive) → .regular, not .interactive().
+            Color.clear.glassEffect(.regular, in: .capsule)
+        } else {
+            Capsule(style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+        }
     }
 
     @ViewBuilder
@@ -632,44 +671,47 @@ private struct SortableSegmentedControl: View {
             if selected {
                 onReselect(source)
             } else {
-                // Animate the change so the glass pill morphs/slides elastically.
-                withAnimation(transition) { selection = source }
+                withAnimation(slide) { selection = source }
             }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Text(title(source))
                     .lineLimit(1)
-                if let count = badge(source) {
-                    UnreadSegmentBadge(count: count, focused: selected)
-                }
                 if selected {
                     Image(systemName: sortImage(source))
                         .font(.caption2.weight(.bold))
                         .contentTransition(.symbolEffect(.replace))
                 }
             }
+            // Match the native segmented control: a light weight/contrast step,
+            // semantic colors (adapt to light/dark), never a fixed white/accent.
             .font(.subheadline.weight(selected ? .semibold : .regular))
-            .foregroundStyle(selected ? Color.primary : Color.secondary)
+            .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.6))
             .lineLimit(1)
             .minimumScaleFactor(0.85)
-            // Taller than before, matching the native nav-bar segmented control.
-            .padding(.vertical, 9)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-            // Apply the glass to the label itself (not a background) so the text
-            // is composited as the glass's content and stays crisp; the selected
-            // pill morphs between segments via glassEffectID.
-            .modifier(SelectedSegmentGlass(selected: selected, namespace: highlight))
-            .contentShape(Capsule())
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The unread indicator sits at the leading corner, outside the text
+            // flow, so it never squeezes the label into an ellipsis.
+            .overlay(alignment: .topLeading) {
+                if let count = badge(source) {
+                    UnreadSegmentBadge(count: count, focused: selected)
+                        .padding(.leading, 6)
+                        .padding(.top, 2)
+                }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title(source)))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityValue(selected ? Text(sortValue(source)) : Text(""))
         .accessibilityHint(selected ? Text("Double-tap to change the sort order") : Text(""))
     }
 }
 
-/// The Unread count indicator: a number chip when its segment is focused, a small
-/// dot when it isn't (so an unfocused Unread still signals there's something new).
+/// The Unread count indicator, shown at the segment's corner: a number chip when
+/// its segment is focused, a small dot when it isn't (still signaling unread).
 private struct UnreadSegmentBadge: View {
     let count: Int
     let focused: Bool
@@ -677,48 +719,19 @@ private struct UnreadSegmentBadge: View {
     var body: some View {
         if focused {
             Text(count > 99 ? "99+" : "\(count)")
-                .font(.caption2.weight(.bold))
+                .font(.system(size: 10, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(.white)
-                .padding(.horizontal, 6)
+                .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(Capsule().fill(Color.accentColor))
+                .fixedSize()
                 .transition(.scale.combined(with: .opacity))
         } else {
             Circle()
                 .fill(Color.accentColor)
                 .frame(width: 6, height: 6)
                 .transition(.scale.combined(with: .opacity))
-        }
-    }
-}
-
-/// Gives the selected segment a native Liquid Glass capsule (iOS 26), applied to
-/// the label so its text renders legibly on top; the glass morphs between
-/// segments as the selection moves. Before iOS 26, a material capsule that slides
-/// via `matchedGeometryEffect`.
-private struct SelectedSegmentGlass: ViewModifier {
-    let selected: Bool
-    let namespace: Namespace.ID
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            if selected {
-                content
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                    .glassEffectID("segmentHighlight", in: namespace)
-            } else {
-                content
-            }
-        } else {
-            content.background {
-                if selected {
-                    Capsule(style: .continuous)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                        .matchedGeometryEffect(id: "segmentHighlight", in: namespace)
-                }
-            }
         }
     }
 }

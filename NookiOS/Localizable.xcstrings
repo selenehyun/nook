@@ -60,6 +60,9 @@
         }
       }
     },
+    "%lld" : {
+
+    },
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -144,6 +147,9 @@
           }
         }
       }
+    },
+    "99+" : {
+
     },
     "About" : {
       "localizations" : {
@@ -5161,6 +5167,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部看完啦"
+          }
+        }
+      }
+    },
+    "Newest first" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい順"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최신순"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新在前"
+          }
+        }
+      }
+    },
+    "Oldest first" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古い順"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오래된순"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最早在前"
           }
         }
       }
