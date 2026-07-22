@@ -415,6 +415,11 @@ private struct HomeTab: View {
 
     private let filters: [SmartSource] = [.unread, .today, .all]
 
+    /// Width of the tab's content (≈ the nav bar), captured so the principal
+    /// segmented control can be given an explicit width — a principal toolbar item
+    /// only gets its intrinsic size, so maxWidth:.infinity can't stretch it.
+    @State private var contentWidth: CGFloat = 0
+
     /// Short labels for the nav-bar segmented control — "All Articles" is too wide
     /// there, so it shows as "All". The Unread segment carries the unread count
     /// after a separator (e.g. "Unread · 12") so it isn't shown when there are none.
@@ -441,6 +446,12 @@ private struct HomeTab: View {
                     // visible row, and not a cramped custom field.
                     ReaderPushingList(store: store)
                         .navigationBarTitleDisplayMode(.inline)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onChange(of: geo.size.width, initial: true) { _, w in contentWidth = w }
+                            }
+                        )
                         .toolbar {
                             ToolbarItem(placement: .principal) {
                                 Picker("Filter", selection: $filter) {
@@ -449,10 +460,11 @@ private struct HomeTab: View {
                                     }
                                 }
                                 .pickerStyle(.segmented)
-                                // Fill the whole principal region so the control
-                                // stretches across to the trailing search button
-                                // instead of sitting at a fixed width on the left.
-                                .frame(maxWidth: .infinity)
+                                // Principal items only get their intrinsic size, so
+                                // give an explicit width: the full content width
+                                // minus room for the trailing search button, so the
+                                // control stretches across to it.
+                                .frame(width: max(240, contentWidth - 88))
                             }
                         }
                 } else {
