@@ -125,26 +125,33 @@ jobs:
             Requires macOS 26 or later.
 
       # --- Homebrew cask: publish/update a cask in the custom tap ---
-      # Requires repo secret HOMEBREW_TAP_TOKEN (a PAT with write access to the
-      # tap repo selenehyun/homebrew-tap). Users then:
+      # Requires repo secret HOMEBREW_TAP_DEPLOY_KEY: the PRIVATE half of an SSH
+      # deploy key added (with write access) to the tap repo
+      # selenehyun/homebrew-tap. Users then:
       #   brew install --cask selenehyun/tap/nook
       - name: Publish Homebrew cask
         if: github.event_name == 'push'
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
           VERSION: ${{ steps.version.outputs.version }}
           DMG_PATH: ${{ steps.dmg.outputs.path }}
           TAP_REPO: selenehyun/homebrew-tap
         run: |
           set -euo pipefail
-          if [ -z "${HOMEBREW_TAP_TOKEN:-}" ]; then
-            echo "HOMEBREW_TAP_TOKEN not set — skipping cask publish."
+          if [ -z "${HOMEBREW_TAP_DEPLOY_KEY:-}" ]; then
+            echo "HOMEBREW_TAP_DEPLOY_KEY not set — skipping cask publish."
             exit 0
           fi
 
+          # Authenticate to the tap over SSH with its repo-scoped deploy key.
+          KEY="$RUNNER_TEMP/tap_deploy_key"
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
           SHA="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
           TAP_DIR="$RUNNER_TEMP/homebrew-tap"
-          git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_REPO}.git" "$TAP_DIR"
+          git clone --depth 1 "git@github.com:${TAP_REPO}.git" "$TAP_DIR"
           mkdir -p "$TAP_DIR/Casks"
 
           # Build the cask line by line (no reliance on heredoc indentation) so the
@@ -199,8 +206,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/nook.rb
-          git commit -m "nook ${VERSION}" || { echo "No cask change."; exit 0; }
-          git push
+          if git commit -m "nook ${VERSION}"; then
+            git push
+          else
+            echo "No cask change."
+          fi
+          rm -f "$KEY"
 
       # --- Sparkle auto-update: sign the DMG and publish an appcast ---
       # Requires repo secret SPARKLE_PRIVATE_KEY (from Sparkle's generate_keys)

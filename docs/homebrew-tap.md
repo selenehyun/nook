@@ -18,17 +18,28 @@ setup**; after it's in place, releases keep the cask up to date automatically.
    fine — the workflow creates `Casks/nook.rb`). Users reference it as
    `selenehyun/tap`.
 
-2. **Create a token with write access to the tap.** A fine-grained personal
-   access token scoped to `selenehyun/homebrew-tap` with **Contents: Read and
-   write** is enough. (A classic `repo`-scoped PAT also works.)
+2. **Add a write deploy key to the tap.** A deploy key is scoped to the single
+   repo, so it's cleaner than an account-wide token. Generate a keypair:
 
-3. **Add it as a secret on this repo.** In `selenehyun/nook` →
+   ```sh
+   ssh-keygen -t ed25519 -f homebrew-tap-deploy -N "" -C "nook-cask-publish"
+   ```
+
+   Then in **`selenehyun/homebrew-tap`** → Settings → Deploy keys → **Add deploy
+   key**: paste the contents of `homebrew-tap-deploy.pub` and **check "Allow
+   write access"**.
+
+3. **Add the private key as a secret on this repo.** In `selenehyun/nook` →
    Settings → Secrets and variables → Actions → **New repository secret**:
-   - Name: `HOMEBREW_TAP_TOKEN`
-   - Value: the token from step 2
+   - Name: `HOMEBREW_TAP_DEPLOY_KEY`
+   - Value: the full contents of `homebrew-tap-deploy` (the **private** key,
+     including the `-----BEGIN/END OPENSSH PRIVATE KEY-----` lines)
 
-   Without this secret the cask-publish step logs a message and skips, so
-   releases still succeed.
+   Delete the local key files afterward. Without this secret the cask-publish
+   step logs a message and skips, so releases still succeed.
+
+   (A fine-grained PAT with Contents: write would also work, but then the
+   workflow would need to clone over HTTPS instead of SSH.)
 
 4. **Cut a release** (push a `vX.Y.Z` tag). The workflow publishes the DMG, then
    writes `Casks/nook.rb` into the tap and pushes it.
