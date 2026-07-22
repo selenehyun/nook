@@ -1462,14 +1462,20 @@ private struct NativeArticleTable: View {
     let table: HTMLTable
     let selectable: Bool
 
+    /// The logical column count: the widest row. Ragged rows are padded to this so
+    /// every row is a full rectangle (stable, aligned columns).
+    private var columnCount: Int { max(1, table.rows.map(\.cells.count).max() ?? 0) }
+
     var body: some View {
-        Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
-            ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
-                GridRow {
-                    ForEach(Array(row.cells.enumerated()), id: \.offset) { _, cell in
-                        cellView(cell, isHeader: row.isHeader)
-                    }
-                }
+        let columns = columnCount
+        // A fixed equal-width column layout: column boundaries are derived from the
+        // available width (÷ column count), never from cell content. So a cell's
+        // text — including when its attributed form resolves asynchronously or a
+        // translation swaps in — can only change its row's height, never the column
+        // widths. That removes the "each cell a different size" instability.
+        FixedColumnTableLayout(columns: columns) {
+            ForEach(cellItems(columns: columns)) { item in
+                cellView(item.html, isHeader: item.isHeader)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -1479,13 +1485,93 @@ private struct NativeArticleTable: View {
         )
     }
 
+    private struct CellItem: Identifiable {
+        let id: String
+        let html: String
+        let isHeader: Bool
+    }
+
+    /// Row-major cells padded to a full `rows × columns` rectangle, with stable
+    /// per-position ids (so translation swaps content in place, never reshuffles).
+    private func cellItems(columns: Int) -> [CellItem] {
+        table.rows.enumerated().flatMap { row -> [CellItem] in
+            let (r, data) = row
+            return (0..<columns).map { c in
+                CellItem(
+                    id: "\(r)-\(c)",
+                    html: c < data.cells.count ? data.cells[c] : "",
+                    isHeader: data.isHeader
+                )
+            }
+        }
+    }
+
     private func cellView(_ html: String, isHeader: Bool) -> some View {
         HTMLContentText(html: html, selectable: selectable, bold: isHeader)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Fill the exact cell rect the layout assigns (uniform row height), so
+            // short cells share the row's height and their background/borders line up.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(isHeader ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(Color.clear))
-            .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
+            // Draw only the trailing + bottom hairline per cell so interior grid
+            // lines are drawn exactly once (no doubled/darkened seams); the outer
+            // rounded border covers the table's edges.
+            .overlay(alignment: .trailing) { Rectangle().fill(.quaternary).frame(width: 0.5) }
+            .overlay(alignment: .bottom) { Rectangle().fill(.quaternary).frame(height: 0.5) }
+    }
+}
+
+/// Lays out table cells (row-major, exactly `rows × columns`) in equal-width
+/// columns derived from the proposed width, with each row as tall as its tallest
+/// cell. Column geometry never depends on cell content, so it stays stable as
+/// content resolves or changes.
+private struct FixedColumnTableLayout: Layout {
+    let columns: Int
+
+    struct Cache { var rowHeights: [CGFloat] = [] }
+    func makeCache(subviews: Subviews) -> Cache { Cache() }
+    func updateCache(_ cache: inout Cache, subviews: Subviews) { cache.rowHeights = [] }
+
+    private func rowCount(_ count: Int) -> Int {
+        columns > 0 ? Int(ceil(Double(count) / Double(columns))) : 0
+    }
+
+    private func measuredRowHeights(width: CGFloat, subviews: Subviews) -> [CGFloat] {
+        let colWidth = width / CGFloat(max(1, columns))
+        var heights = [CGFloat](repeating: 0, count: rowCount(subviews.count))
+        for (i, sub) in subviews.enumerated() where !heights.isEmpty {
+            let h = sub.sizeThatFits(ProposedViewSize(width: colWidth, height: nil)).height
+            heights[i / columns] = max(heights[i / columns], h)
+        }
+        return heights
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+        let width = proposal.width ?? 320
+        let heights = measuredRowHeights(width: width, subviews: subviews)
+        cache.rowHeights = heights
+        return CGSize(width: width, height: heights.reduce(0, +))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        let colWidth = bounds.width / CGFloat(max(1, columns))
+        let heights = cache.rowHeights.isEmpty
+            ? measuredRowHeights(width: bounds.width, subviews: subviews)
+            : cache.rowHeights
+        var rowY = [CGFloat](repeating: bounds.minY, count: heights.count)
+        var acc = bounds.minY
+        for r in heights.indices { rowY[r] = acc; acc += heights[r] }
+        for (i, sub) in subviews.enumerated() {
+            let r = i / columns, c = i % columns
+            guard r < heights.count else { continue }
+            sub.place(
+                at: CGPoint(x: bounds.minX + CGFloat(c) * colWidth, y: rowY[r]),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: colWidth, height: heights[r])
+            )
+        }
     }
 }
 
