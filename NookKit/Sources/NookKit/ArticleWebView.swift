@@ -940,24 +940,110 @@ extension ArticleWebView {
 
         // MARK: WKUIDelegate
 
+        #if canImport(UIKit)
+        private var popupOverlays: [(web: WKWebView, container: UIView)] = []
+        #elseif canImport(AppKit)
+        private var popupOverlays: [(web: WKWebView, container: NSView)] = []
+        #endif
+
         /// Sign-in flows commonly open a popup (`window.open` / `target="_blank"`,
         /// where `targetFrame` is nil). WKWebView drops these unless the UI delegate
-        /// handles them, which is why some logins appeared to do nothing. Load the
-        /// popup's request in the current web view so the flow proceeds (redirect-
-        /// based OAuth and "open in new tab" links both work, and the resulting
-        /// cookies land in the shared persistent store). Returning nil means we
-        /// didn't open a separate web view.
+        /// returns a web view to host them — which is why some logins did nothing.
+        /// Create a real popup web view with the delegate-provided configuration (so
+        /// `window.opener` / `postMessage`, used by "Sign in with Apple/GitHub"
+        /// popup mode, keep working) and overlay it on the current web view with a
+        /// Done button; WebKit loads the request into it. Falls back to loading in
+        /// the current web view if there's no host.
         public func webView(
             _ webView: WKWebView,
             createWebViewWith configuration: WKWebViewConfiguration,
             for navigationAction: WKNavigationAction,
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
-            if navigationAction.targetFrame?.isMainFrame != true, navigationAction.request.url != nil {
-                webView.load(navigationAction.request)
+            let popup = WKWebView(frame: webView.bounds, configuration: configuration)
+            popup.navigationDelegate = self
+            popup.uiDelegate = self
+            guard presentPopup(popup, over: webView) else {
+                if navigationAction.request.url != nil { webView.load(navigationAction.request) }
+                return nil
             }
-            return nil
+            return popup
         }
+
+        /// The popup asked to close itself (e.g. the OAuth flow finished and called
+        /// `window.close()`).
+        public func webViewDidClose(_ webView: WKWebView) {
+            closePopup(webView)
+        }
+
+        private func closePopup(_ popup: WKWebView) {
+            guard let index = popupOverlays.firstIndex(where: { $0.web === popup }) else { return }
+            let entry = popupOverlays.remove(at: index)
+            popup.stopLoading()
+            popup.navigationDelegate = nil
+            popup.uiDelegate = nil
+            entry.container.removeFromSuperview()
+        }
+
+        #if canImport(UIKit)
+        @discardableResult
+        private func presentPopup(_ popup: WKWebView, over source: WKWebView) -> Bool {
+            let container = UIView(frame: source.bounds)
+            container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            container.backgroundColor = .systemBackground
+
+            popup.frame = container.bounds
+            popup.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            popup.scrollView.contentInset.top = 44
+            popup.scrollView.verticalScrollIndicatorInsets.top = 44
+            container.addSubview(popup)
+
+            let bar = UIView(frame: CGRect(x: 0, y: 0, width: container.bounds.width, height: 44))
+            bar.autoresizingMask = [.flexibleWidth]
+            let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
+            blur.frame = bar.bounds
+            blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            bar.addSubview(blur)
+            let done = UIButton(type: .system, primaryAction: UIAction(title: String(localized: "Done")) { [weak self] _ in
+                self?.closePopup(popup)
+            })
+            done.frame = CGRect(x: container.bounds.width - 76, y: 6, width: 68, height: 32)
+            done.autoresizingMask = [.flexibleLeftMargin]
+            bar.addSubview(done)
+            container.addSubview(bar)
+
+            source.addSubview(container)
+            popupOverlays.append((popup, container))
+            return true
+        }
+        #elseif canImport(AppKit)
+        @discardableResult
+        private func presentPopup(_ popup: WKWebView, over source: WKWebView) -> Bool {
+            let container = NSView(frame: source.bounds)
+            container.autoresizingMask = [.width, .height]
+            container.wantsLayer = true
+            container.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+
+            let barHeight: CGFloat = 40
+            popup.frame = NSRect(x: 0, y: 0, width: container.bounds.width, height: max(0, container.bounds.height - barHeight))
+            popup.autoresizingMask = [.width, .height]
+            container.addSubview(popup)
+
+            let done = NSButton(title: String(localized: "Done"), target: self, action: #selector(closeTopPopup))
+            done.bezelStyle = .rounded
+            done.frame = NSRect(x: container.bounds.width - 80, y: container.bounds.height - barHeight + 6, width: 68, height: 28)
+            done.autoresizingMask = [.minXMargin, .minYMargin]
+            container.addSubview(done)
+
+            source.addSubview(container)
+            popupOverlays.append((popup, container))
+            return true
+        }
+
+        @objc private func closeTopPopup() {
+            if let last = popupOverlays.last { closePopup(last.web) }
+        }
+        #endif
 
         /// Observes `estimatedProgress` (0...1) via KVO and forwards it so the UI
         /// can drive a loading bar. `change.newValue` is a plain `Double`, so the
