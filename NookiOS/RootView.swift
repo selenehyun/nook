@@ -297,6 +297,18 @@ private struct CompactShell: View {
     @State private var homeFilter: SmartSource = .unread
     @State private var feedsPath: [FeedTarget] = []
 
+    /// The Home tab badge: the unread count while the Unread filter is on screen
+    /// (Home selected + Unread filter), a plain dot when unread exist otherwise,
+    /// and nothing when all caught up. `nil` renders no badge.
+    private var homeBadge: Text? {
+        let unread = store.count(for: .unread)
+        guard unread > 0 else { return nil }
+        if selection == .home, homeFilter == .unread {
+            return Text(unread, format: .number)
+        }
+        return Text(verbatim: "●")
+    }
+
     var body: some View {
         TabView(selection: $selection) {
             HomeTab(store: store, filter: $homeFilter, goToSettings: { selection = .settings })
@@ -307,6 +319,9 @@ private struct CompactShell: View {
                         .renderingMode(.template)
                         .accessibilityLabel(Text("Home"))
                 }
+                // Quiet by default: a plain dot when unread exist, expanding to the
+                // actual count only while the Unread filter is what's on screen.
+                .badge(homeBadge)
                 .tag(AppTab.home)
 
             FeedsTab(store: store, path: $feedsPath)
