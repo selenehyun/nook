@@ -4529,24 +4529,24 @@
         }
       }
     },
-    "Tap the document button to open the full web page — with a reader view and translation." : {
+    "Tap the highlighted button to open the full web page — with a reader view and translation." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ドキュメントボタンをタップすると、リーダー表示や翻訳に対応した完全なWebページが開きます。"
+            "value" : "ハイライトされたボタンをタップすると、リーダー表示や翻訳に対応した完全なWebページが開きます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "문서 버튼을 누르면 리더 뷰와 번역을 지원하는 전체 웹 페이지가 열립니다."
+            "value" : "강조된 버튼을 누르면 리더 뷰와 번역을 지원하는 전체 웹 페이지가 열립니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点按文档按钮，打开完整网页——支持阅读视图与翻译。"
+            "value" : "点按高亮的按钮，打开完整网页——支持阅读视图与翻译。"
           }
         }
       }

@@ -54,6 +54,9 @@ struct ReaderDetailView: View {
     /// lives on the parent so it survives the per-article `.id` reset (letting the
     /// pull-to-next step carry over to the next article).
     @State private var coachStep: ReaderCoachStep?
+    /// The reader's document (open-original) button's measured global frame, so the
+    /// "read the original" coach step spotlights the real control precisely.
+    @State private var originalButtonFrame: CGRect = .zero
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
@@ -200,14 +203,20 @@ struct ReaderDetailView: View {
         // The interactive coach marks live here — outside the per-article `.id`
         // subtree in `reader(_:)` — so their step survives an article change (the
         // pull-to-next step advances onto the next article without resetting).
+        .onPreferenceChange(OriginalButtonFrameKey.self) { originalButtonFrame = $0 }
         .overlay {
-            if coachStep != nil, currentArticle != nil {
-                ReaderCoachMarks(
-                    step: $coachStep,
-                    onNext: { advanceCoach(from: $0) },
-                    onSkip: { withAnimation { coachStep = nil } }
-                )
+            GeometryReader { proxy in
+                if coachStep != nil, currentArticle != nil {
+                    ReaderCoachMarks(
+                        step: $coachStep,
+                        size: proxy.size,
+                        originalButtonRect: originalButtonFrame == .zero ? nil : originalButtonFrame,
+                        onNext: { advanceCoach(from: $0) },
+                        onSkip: { withAnimation { coachStep = nil } }
+                    )
+                }
             }
+            .ignoresSafeArea()
         }
         // Advance the walkthrough when the taught action actually happens.
         .onChange(of: currentArticle?.isStarred ?? false) { _, starred in
@@ -433,6 +442,9 @@ struct ReaderDetailView: View {
                         openBrowser(for: article)
                     } label: {
                         Image(systemName: "doc.plaintext")
+                            // Publish the button's real global frame so the coach
+                            // mark spotlights it exactly (not a guessed region).
+                            .reportGlobalFrame(OriginalButtonFrameKey.self)
                     }
                     .help("Open Reader / Original")
                 }

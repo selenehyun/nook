@@ -327,9 +327,19 @@ private enum FeedTarget: Hashable {
 private struct CompactShell: View {
     @Bindable var store: ReaderStore
     @Environment(TourCoordinator.self) private var tour
+    @AppStorage(TourFlags.seenListHintKey) private var seenListHint = false
     @State private var selection: AppTab = .home
     @State private var homeFilter: SmartSource = .unread
     @State private var feedsPath: [FeedTarget] = []
+    /// Tutorial asked for the "tap a story" spotlight but it isn't shown yet
+    /// (waiting to be on Home with articles). Owned here — the shell is always
+    /// mounted, unlike the Home tab child whose lifecycle callbacks aren't
+    /// guaranteed when it becomes the selected tab.
+    @State private var listHintPending = false
+    /// The spotlight is currently showing.
+    @State private var showListHint = false
+    /// The first article row's measured global frame, for an exact spotlight.
+    @State private var firstRowFrame: CGRect = .zero
 
     var body: some View {
         TabView(selection: $selection) {
@@ -374,16 +384,50 @@ private struct CompactShell: View {
         // Shrink the tab bar into a compact pill while scrolling the list, so the
         // content gets the focus; it expands again on scroll-up / at the top.
         .modifier(TabBarMinimizeOnScroll())
+        // The list spotlight is owned and drawn here at the shell — always mounted,
+        // so unlike a TabView child it reliably reacts to the tutorial hand-off and
+        // renders on top. Keep it showing as long as we're on Home (don't tie the
+        // *keep* condition to the article count, which can blip empty on a scope
+        // switch); the *start* condition below checks for articles.
+        .overlay {
+            if showListHint, selection == .home, store.isStorageConfigured {
+                ListTapHint(rowFrame: firstRowFrame == .zero ? nil : firstRowFrame, onDismiss: dismissListHint)
+                    .transition(.opacity)
+            }
+        }
+        .onPreferenceChange(FirstRowFrameKey.self) { firstRowFrame = $0 }
         .onAppear { applySelection(selection) }
-        .onChange(of: selection) { _, tab in applySelection(tab) }
+        .onChange(of: selection) { _, tab in
+            applySelection(tab)
+            tryStartListHint()
+        }
         // Tutorial hand-off: the welcome cover asks to add the starter feed (jump
-        // to Feeds, where Add Feed opens); once added, jump to Home — where Home
-        // itself shows the "tap a story" spotlight when it appears with articles.
+        // to Feeds, where Add Feed opens); once the Add Feed sheet is dismissed the
+        // Feeds tab flips `pendingFirstStoryHint`, and the whole "route to Home →
+        // wait for articles → spotlight the list" sequence is serialized here.
         .onChange(of: tour.wantsAddSampleFeed) { _, want in
             if want { selection = .feeds }
         }
         .onChange(of: tour.pendingFirstStoryHint) { _, pending in
-            if pending { selection = .home }
+            guard pending else { return }
+            tour.pendingFirstStoryHint = false
+            guard !seenListHint else { return }
+            listHintPending = true
+            // Show "All" so the spotlight always has a row to point at — even on a
+            // replay where every article in the starter feed is already read.
+            homeFilter = .all
+            selection = .home
+            // Adding a feed leaves its first article selected; clear it so the next
+            // non-nil selection is the user's own tap on a spotlighted row.
+            store.selectedArticleID = nil
+            tryStartListHint()
+        }
+        // Articles may arrive after the switch (async filtering / network) — retry.
+        .onChange(of: store.visibleArticles.count) { _, _ in tryStartListHint() }
+        // The user tapped a story (a selection appears) — dismiss; the reader and
+        // its coach marks take over.
+        .onChange(of: store.selectedArticleID) { _, id in
+            if id != nil, showListHint { dismissListHint() }
         }
         .onChange(of: homeFilter) { _, _ in
             if selection == .home {
@@ -391,6 +435,24 @@ private struct CompactShell: View {
                 store.selectSmartSource(homeFilter)
             }
         }
+    }
+
+    /// Starts the spotlight once we're actually on Home with something to open.
+    /// Consumes the pending request only when it actually shows, so a momentary
+    /// empty scope can't drop it on the floor.
+    private func tryStartListHint() {
+        guard listHintPending, !seenListHint,
+              selection == .home,
+              store.isStorageConfigured,
+              !store.visibleArticles.isEmpty else { return }
+        listHintPending = false
+        withAnimation { showListHint = true }
+    }
+
+    private func dismissListHint() {
+        seenListHint = true
+        listHintPending = false
+        withAnimation { showListHint = false }
     }
 
     /// Points the shared store at the scope the given tab shows. Also clears the
@@ -456,33 +518,7 @@ private struct HomeTab: View {
     @Binding var filter: SmartSource
     var goToSettings: () -> Void
 
-    @Environment(TourCoordinator.self) private var tour
-    @AppStorage(TourFlags.seenListHintKey) private var seenListHint = false
-    /// The one-shot "tap a story" spotlight, evaluated here — on the visible Home
-    /// tab — so it renders in context and its trigger runs when the tab appears.
-    @State private var showListHint = false
-
     private let filters: [SmartSource] = [.unread, .today, .all]
-
-    /// Shows the list spotlight when the tutorial has requested it and Home is
-    /// actually on screen with something to open. Consuming the request here (not
-    /// in the shell) avoids any off-screen / cross-view onChange race.
-    private func maybeShowListHint() {
-        guard tour.pendingFirstStoryHint,
-              !seenListHint,
-              store.isStorageConfigured,
-              !store.visibleArticles.isEmpty else { return }
-        tour.pendingFirstStoryHint = false
-        // Adding a feed leaves its first article selected; clear it so the next
-        // non-nil selection is the user's own tap on a spotlighted row.
-        store.selectedArticleID = nil
-        withAnimation { showListHint = true }
-    }
-
-    private func dismissListHint() {
-        seenListHint = true
-        withAnimation { showListHint = false }
-    }
 
     /// Width of the tab's content (≈ the nav bar), captured so the principal
     /// segmented control can be given an explicit width — a principal toolbar item
@@ -547,21 +583,6 @@ private struct HomeTab: View {
                     .background(Color("ListBackground").ignoresSafeArea())
                 }
             }
-            .overlay {
-                if showListHint, store.isStorageConfigured, !store.visibleArticles.isEmpty {
-                    ListTapHint(onDismiss: dismissListHint)
-                        .transition(.opacity)
-                }
-            }
-        }
-        // Trigger the spotlight when Home appears (the tab switch that follows the
-        // add), when the request arrives, and when articles first populate.
-        .onAppear { maybeShowListHint() }
-        .onChange(of: tour.pendingFirstStoryHint) { _, _ in maybeShowListHint() }
-        .onChange(of: store.visibleArticles.count) { _, _ in maybeShowListHint() }
-        // The user tapped a story — dismiss; the reader and its coach marks follow.
-        .onChange(of: store.selectedArticleID) { _, id in
-            if id != nil, showListHint { dismissListHint() }
         }
     }
 }
@@ -593,6 +614,9 @@ private struct FeedsTab: View {
     /// True when Add Feed was opened by the tutorial, so it shows a paste hint and
     /// its success advances the tour to the "open a story" step.
     @State private var addFeedIsTutorial = false
+    /// Whether the tutorial's Add Feed actually added a feed (so dismissing hands
+    /// off to the list spotlight; a plain Cancel does not).
+    @State private var addFeedSucceeded = false
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderPendingRename: String?
@@ -681,13 +705,17 @@ private struct FeedsTab: View {
                 isAddingFeed = true
             }
         }
-        .sheet(isPresented: $isAddingFeed, onDismiss: { addFeedIsTutorial = false }) {
+        .sheet(isPresented: $isAddingFeed, onDismiss: {
+            // Signal the hand-off only after the sheet is gone (so the shell doesn't
+            // route Home behind a still-visible sheet), and only if a feed was
+            // actually added (dedupe on replay still counts as success).
+            if addFeedIsTutorial, addFeedSucceeded { tour.pendingFirstStoryHint = true }
+            addFeedIsTutorial = false
+            addFeedSucceeded = false
+        }) {
             AddFeedView(folders: store.feedFolders, tutorialPaste: addFeedIsTutorial) { feedURL, folder in
                 try await store.addFeed(urlString: feedURL, toFolder: folder)
-                // Adding succeeds even when the feed already exists (a replay), so
-                // this reliably hands off to the "open a story" spotlight. Home
-                // consumes this standing request when it appears with articles.
-                if addFeedIsTutorial { tour.pendingFirstStoryHint = true }
+                addFeedSucceeded = true
             }
         }
         .alert("New Folder", isPresented: $isCreatingFolder) {
@@ -1233,6 +1261,15 @@ private struct ArticleList: View {
     var body: some View {
         List(store.visibleArticles, selection: $selection) { article in
             row(article)
+                // Publish the first row's global frame so the tutorial can
+                // spotlight it exactly (harmless where no coach mark reads it).
+                .background {
+                    if article.id == store.visibleArticles.first?.id {
+                        GeometryReader { g in
+                            Color.clear.preference(key: FirstRowFrameKey.self, value: g.frame(in: .global))
+                        }
+                    }
+                }
                 .tag(article.id)
                 .swipeActions(edge: .leading) {
                     Button {
