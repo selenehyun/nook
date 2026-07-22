@@ -17,49 +17,17 @@ public struct ReaderLoadingPlaceholder: View {
     }
 }
 
-/// Shown above the original content when reader-mode extraction fails, so the
-/// user understands they're seeing the feed's original content, not reader mode.
-public struct ReaderFallbackNotice: View {
+/// Shown above the saved copy whenever the reader can't show the original —
+/// whether extraction failed or the page is gone (404/410). One notice for both
+/// so the reader looks the same however it got here: it explains the saved copy
+/// is shown and offers Try Again and Delete.
+public struct ReaderUnavailableNotice: View {
     private let onRetry: () -> Void
-
-    public init(onRetry: @escaping () -> Void) {
-        self.onRetry = onRetry
-    }
-
-    public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Showing original content", bundle: .module)
-                    .font(.subheadline.weight(.semibold))
-                Text("Reader view couldn't be loaded for this article.", bundle: .module)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            Button {
-                onRetry()
-            } label: {
-                Text("Try Again", bundle: .module)
-            }
-            .buttonStyle(.borderless)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
-/// Shown when the article's original page is gone (HTTP 404/410): the source no
-/// longer has it, so offer to delete the lingering local copy (or retry).
-public struct ReaderGoneNotice: View {
     private let onDelete: () -> Void
-    private let onRetry: () -> Void
 
-    public init(onDelete: @escaping () -> Void, onRetry: @escaping () -> Void) {
-        self.onDelete = onDelete
+    public init(onRetry: @escaping () -> Void, onDelete: @escaping () -> Void) {
         self.onRetry = onRetry
+        self.onDelete = onDelete
     }
 
     public var body: some View {
@@ -69,23 +37,23 @@ public struct ReaderGoneNotice: View {
                     .foregroundStyle(.orange)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Original no longer available", bundle: .module)
+                    Text("Can't show the original", bundle: .module)
                         .font(.subheadline.weight(.semibold))
-                    Text("The source returned “not found”, so this article was likely removed. You can delete it from your list.", bundle: .module)
+                    Text("Showing the saved copy. If the article was removed from the source, you can delete it.", bundle: .module)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             HStack(spacing: 10) {
+                Button(action: onRetry) {
+                    Text("Try Again", bundle: .module)
+                }
+                .buttonStyle(.bordered)
                 Button(role: .destructive, action: onDelete) {
                     Label("Delete Article", systemImage: "trash")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                Button(action: onRetry) {
-                    Text("Try Again", bundle: .module)
-                }
-                .buttonStyle(.bordered)
                 Spacer(minLength: 0)
             }
         }

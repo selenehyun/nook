@@ -494,16 +494,11 @@ struct ReaderDetailView: View {
             switch store.readerContentState(for: article) {
             case .ready(let html):
                 HTMLContentView(html: html, baseURL: article.url, selectable: false, translator: nativeTranslator)
-            case .failed:
+            case .failed, .gone:
                 VStack(alignment: .leading, spacing: 14) {
-                    ReaderFallbackNotice { store.retryReaderContent(for: article) }
-                    originalArticleBody(article)
-                }
-            case .gone:
-                VStack(alignment: .leading, spacing: 14) {
-                    ReaderGoneNotice(
-                        onDelete: { deleteAndClose(article) },
-                        onRetry: { store.retryReaderContent(for: article) }
+                    ReaderUnavailableNotice(
+                        onRetry: { store.retryReaderContent(for: article) },
+                        onDelete: { deleteAndClose(article) }
                     )
                     originalArticleBody(article)
                 }
