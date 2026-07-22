@@ -10,6 +10,7 @@
 		22E39C2B3000BD9900C3ECB6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22E39C2A3000BD9900C3ECB6 /* WidgetKit.framework */; };
 		22E39C2D3000BD9900C3ECB6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22E39C2C3000BD9900C3ECB6 /* SwiftUI.framework */; };
 		22E39C3C3000BD9A00C3ECB6 /* NookWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 22E39C283000BD9900C3ECB6 /* NookWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2D1053000000000000000021 /* NookShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2D1053000000000000000004 /* NookShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		22E39C423000BE7500C3ECB6 /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A392D8A4A4700A00001 /* WidgetShared.swift */; };
 		2D0E3A1B2D8A4A4700A00001 /* NookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1A2D8A4A4700A00001 /* NookApp.swift */; };
 		2D0E3A1D2D8A4A4700A00001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0E3A1C2D8A4A4700A00001 /* ContentView.swift */; };
@@ -44,6 +45,13 @@
 			remoteGlobalIDString = 22E39C273000BD9900C3ECB6;
 			remoteInfo = NookWidgetExtension;
 		};
+		2D1053000000000000000023 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2D0E3A0A2D8A4A4700A00001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2D1053000000000000000003;
+			remoteInfo = NookShareExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,6 +62,17 @@
 			dstSubfolderSpec = 13;
 			files = (
 				22E39C3C3000BD9A00C3ECB6 /* NookWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2D1053000000000000000020 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2D1053000000000000000021 /* NookShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -273,10 +292,12 @@
 				2D1050000000000000000006 /* Sources */,
 				2D1050000000000000000007 /* Frameworks */,
 				2D1050000000000000000008 /* Resources */,
+				2D1053000000000000000020 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				2D1053000000000000000022 /* PBXTargetDependency */,
 			);
 			name = NookiOS;
 			packageProductDependencies = (
@@ -448,6 +469,11 @@
 			isa = PBXTargetDependency;
 			target = 22E39C273000BD9900C3ECB6 /* NookWidgetExtension */;
 			targetProxy = 22E39C3A3000BD9A00C3ECB6 /* PBXContainerItemProxy */;
+		};
+		2D1053000000000000000022 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2D1053000000000000000003 /* NookShareExtension */;
+			targetProxy = 2D1053000000000000000023 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
