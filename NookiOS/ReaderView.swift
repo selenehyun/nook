@@ -47,6 +47,10 @@ struct ReaderDetailView: View {
 
     @State private var isShowingInfo = false
     @State private var confirmingDelete = false
+    @AppStorage(TourFlags.seenReaderGestureHintKey) private var seenReaderGestureHint = false
+    /// Drives the one-shot in-context gesture hint shown the first time the reader
+    /// opens (the persisted flag is marked immediately so it's strictly once).
+    @State private var showReaderHint = false
     @State private var imagePresenter = ArticleImagePresenter()
     @State private var haptics = ReaderHaptics()
     @State private var pendingBuildup: Task<Void, Never>?
@@ -323,6 +327,14 @@ struct ReaderDetailView: View {
                 TranslationProgressBanner()
             }
         }
+        // First-reader-open reminder of the hidden gestures. Only while the chrome
+        // is visible, so it never points at a faded-out bottom bar.
+        .overlay(alignment: .bottom) {
+            if showReaderHint, !chromeHidden {
+                ReaderGestureHint(onDismiss: { showReaderHint = false })
+                    .transition(.opacity)
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: translationBusy)
         .toolbar {
             // The button controls carry iOS 26 glass capsules, so remove them (not
@@ -405,6 +417,13 @@ struct ReaderDetailView: View {
             // Start reader-mode extraction first so it isn't delayed behind
             // language detection.
             store.ensureReaderContent(for: article)
+            // First time the reader is ever opened, reinforce the hidden gestures
+            // once. Mark the flag immediately so it's strictly one-shot; the local
+            // state drives the transient overlay (which self-dismisses).
+            if !seenReaderGestureHint {
+                seenReaderGestureHint = true
+                showReaderHint = true
+            }
             // Detect the language off the main actor so the recognizer doesn't
             // run on the transition frame.
             let detected = await Task.detached { Self.detectLanguage(for: article) }.value

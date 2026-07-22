@@ -18,6 +18,8 @@ struct SettingsView: View {
     /// leaving that path unchanged.
     var isTab: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(TourFlags.hasCompletedWelcomeKey) private var hasCompletedWelcome = false
+    @AppStorage(TourFlags.seenReaderGestureHintKey) private var seenReaderGestureHint = false
 
     /// A single file importer backs both the sync-folder picker and OPML import;
     /// stacking two `.fileImporter` modifiers on one view makes only one work.
@@ -61,6 +63,21 @@ struct SettingsView: View {
                     } label: {
                         Label("About", systemImage: "info.circle")
                     }
+                }
+                .warmRows()
+
+                Section {
+                    Button {
+                        // Reset every tour flag so replay and first-run share one
+                        // path, then close (on iPad) so the cover shows over the app.
+                        seenReaderGestureHint = false
+                        hasCompletedWelcome = false
+                        if !isTab { dismiss() }
+                    } label: {
+                        Label("Replay Tutorial", systemImage: "questionmark.circle")
+                    }
+                } header: {
+                    Text("Help")
                 }
                 .warmRows()
 

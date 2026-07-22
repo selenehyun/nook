@@ -4319,6 +4319,424 @@
           }
         }
       }
+    },
+    "Welcome to Nook" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook에 오신 걸 환영해요"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook へようこそ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欢迎使用 Nook"
+          }
+        }
+      }
+    },
+    "Like a bird gathering twigs into a nest, gather the reading you care about into a space that's yours." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새가 가지를 물어다 둥지를 만들듯, 원하는 읽을거리를 나만의 공간에 모아보세요."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鳥が小枝を集めて巣を作るように、読みたいものを自分だけの場所に集めましょう。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就像鸟儿衔来树枝筑巢，把你在意的阅读收进属于你的空间。"
+          }
+        }
+      }
+    },
+    "Add a feed" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "피드 추가"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加订阅源"
+          }
+        }
+      }
+    },
+    "Tap + to add a feed. Paste an RSS link or just a website — Nook finds the feed for you." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ 를 눌러 피드를 추가하세요. RSS 링크나 그냥 웹사이트 주소를 붙여넣으면 Nook이 피드를 찾아줍니다."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ をタップしてフィードを追加。RSS リンクやウェブサイトの URL を貼るだけで、Nook がフィードを見つけます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按 + 添加订阅源。粘贴 RSS 链接或直接粘贴网址，Nook 会为你找到订阅源。"
+          }
+        }
+      }
+    },
+    "Open a story" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 열기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事を開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开文章"
+          }
+        }
+      }
+    },
+    "Tap any story in the list to open it in the clean, native reader." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 아무 글이나 누르면 깔끔한 네이티브 리더로 열립니다."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストの記事をタップすると、すっきりしたネイティブリーダーで開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按列表中的任意文章，即可在简洁的原生阅读器中打开。"
+          }
+        }
+      }
+    },
+    "On to the next" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다음 글로"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の記事へ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续下一篇"
+          }
+        }
+      }
+    },
+    "At the end of a story, keep pulling up past the bottom to jump to the next one." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 끝에서 바닥 아래로 계속 당기면 다음 글로 넘어갑니다."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事の末尾で下方向にさらに引っ張ると、次の記事に移動します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读到文末时，继续向上拉过底部即可跳到下一篇。"
+          }
+        }
+      }
+    },
+    "Star what you love" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "마음에 들면 별표"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "お気に入りにスターを"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收藏你喜欢的"
+          }
+        }
+      }
+    },
+    "Double-tap anywhere on an article to star it — and find it later under Starred." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 아무 곳이나 더블 탭하면 별표가 됩니다. 나중에 별표 탭에서 찾을 수 있어요."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事のどこかをダブルタップするとスターが付き、後で「スター付き」から見つけられます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在文章任意处双击即可收藏，稍后可在“已加星标”中找到。"
+          }
+        }
+      }
+    },
+    "The full page, and back" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 보기, 그리고 되돌아가기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のページと戻る"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看原文，以及返回"
+          }
+        }
+      }
+    },
+    "Want the original? Tap the document button at the bottom. Swipe in from the left edge to return to your list." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문이 궁금하면 하단의 문서 버튼을 누르세요. 왼쪽 가장자리에서 스와이프하면 목록으로 돌아갑니다."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のページを見たいときは下部の書類ボタンをタップ。左端からスワイプするとリストに戻ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想看原文？点按底部的文档按钮。从左边缘向内滑动即可返回列表。"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "건너뛰기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过"
+          }
+        }
+      }
+    },
+    "Get Started" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시작하기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "はじめる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始使用"
+          }
+        }
+      }
+    },
+    "Skip tutorial" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "튜토리얼 건너뛰기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チュートリアルをスキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过教程"
+          }
+        }
+      }
+    },
+    "Double-tap to star · pull up for the next story" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "더블 탭으로 별표 · 위로 당기면 다음 글"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルタップでスター・上に引くと次の記事"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击收藏 · 上拉看下一篇"
+          }
+        }
+      }
+    },
+    "Double-tap to star, pull up for the next story" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "더블 탭으로 별표, 위로 당기면 다음 글"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルタップでスター、上に引くと次の記事"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击收藏，上拉看下一篇"
+          }
+        }
+      }
+    },
+    "Replay Tutorial" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "튜토리얼 다시 보기"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チュートリアルをもう一度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新观看教程"
+          }
+        }
+      }
+    },
+    "Help" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도움말"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ヘルプ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帮助"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

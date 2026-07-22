@@ -18,11 +18,25 @@ struct RootView: View {
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
     @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
+    @AppStorage(TourFlags.hasCompletedWelcomeKey) private var hasCompletedWelcome = false
     @State private var isReady = false
+    @State private var showWelcome = false
 
     var body: some View {
         ZStack {
             shell
+                // First-run tutorial, mounted here so one cover reaches both the
+                // iPhone tab shell and the iPad split view. Swipe-to-dismiss also
+                // completes it (onDismiss), so it won't re-appear next launch.
+                .fullScreenCover(isPresented: $showWelcome, onDismiss: { hasCompletedWelcome = true }) {
+                    WelcomeSheet(onFinish: { showWelcome = false })
+                }
+                // Replaying from Settings flips this back to false; re-present the
+                // tour once the UI is up (the one-shot bootstrap trigger won't fire
+                // again).
+                .onChange(of: hasCompletedWelcome) { _, completed in
+                    if !completed, isReady { showWelcome = true }
+                }
                 .task {
                     // The store computes the unread count; iOS reflects it on the
                     // app icon badge (requires notification authorization).
@@ -50,6 +64,10 @@ struct RootView: View {
                     // appears, then reveal the loaded UI.
                     try? await Task.sleep(for: .milliseconds(1850))
                     withAnimation(.easeOut(duration: 0.35)) { isReady = true }
+                    // First launch: after the splash reveal (so it doesn't fight the
+                    // splash transition), present the welcome tour. The app is fully
+                    // loaded underneath, so skipping drops straight into it.
+                    if !hasCompletedWelcome { showWelcome = true }
                     // Ask for notification permission after the UI is shown (so the
                     // prompt doesn't cover the splash), only for the features in use.
                     await requestNotificationAuthorizationIfNeeded()
