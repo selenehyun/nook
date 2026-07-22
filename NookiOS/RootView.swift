@@ -327,9 +327,13 @@ private enum FeedTarget: Hashable {
 private struct CompactShell: View {
     @Bindable var store: ReaderStore
     @Environment(TourCoordinator.self) private var tour
+    @AppStorage(TourFlags.seenListHintKey) private var seenListHint = false
     @State private var selection: AppTab = .home
     @State private var homeFilter: SmartSource = .unread
     @State private var feedsPath: [FeedTarget] = []
+    /// The one-shot "tap a story" spotlight, shown here (not inside an off-screen
+    /// tab) so it reliably fires right after the tutorial adds the first feed.
+    @State private var showListHint = false
 
     var body: some View {
         TabView(selection: $selection) {
@@ -374,17 +378,36 @@ private struct CompactShell: View {
         // Shrink the tab bar into a compact pill while scrolling the list, so the
         // content gets the focus; it expands again on scroll-up / at the top.
         .modifier(TabBarMinimizeOnScroll())
+        // The "tap a story" spotlight is drawn at the shell level — always active,
+        // unlike an off-screen tab — so it appears the moment the tutorial hands
+        // off to Home. Taps pass through the scrim, so tapping a spotlighted row
+        // opens the reader (which then starts the reader coach marks).
+        .overlay {
+            if showListHint, selection == .home, store.isStorageConfigured {
+                ListTapHint(onDismiss: dismissListHint)
+                    .transition(.opacity)
+            }
+        }
         .onAppear { applySelection(selection) }
         .onChange(of: selection) { _, tab in applySelection(tab) }
-        // Tutorial hand-off: the welcome cover asks to add the starter feed (jump
-        // to Feeds, where Add Feed opens), then to open the first story (jump to
-        // Home, where the list is spotlighted). Each flag is consumed by the tab
-        // that acts on it.
+        // Tutorial hand-off, consumed only here (a single owner) so the transient
+        // signals aren't missed by a racing second observer: the welcome cover
+        // asks to add the starter feed (jump to Feeds, where Add Feed opens), then
+        // to open the first story (jump to Home and spotlight the list).
         .onChange(of: tour.wantsAddSampleFeed) { _, want in
+            // Reset stays in FeedsTab (which also opens Add Feed); here we only
+            // switch tabs, so both observers reliably see the same true edge.
             if want { selection = .feeds }
         }
         .onChange(of: tour.wantsOpenFirstStoryHint) { _, want in
-            if want { selection = .home }
+            guard want else { return }
+            tour.wantsOpenFirstStoryHint = false
+            selection = .home
+            if !seenListHint { withAnimation { showListHint = true } }
+        }
+        // Opening a story satisfies the hint — dismiss it (the reader takes over).
+        .onChange(of: store.selectedArticleID) { _, id in
+            if id != nil, showListHint { dismissListHint() }
         }
         .onChange(of: homeFilter) { _, _ in
             if selection == .home {
@@ -392,6 +415,11 @@ private struct CompactShell: View {
                 store.selectSmartSource(homeFilter)
             }
         }
+    }
+
+    private func dismissListHint() {
+        seenListHint = true
+        withAnimation { showListHint = false }
     }
 
     /// Points the shared store at the scope the given tab shows. Also clears the
@@ -456,11 +484,6 @@ private struct HomeTab: View {
     @Bindable var store: ReaderStore
     @Binding var filter: SmartSource
     var goToSettings: () -> Void
-
-    @Environment(TourCoordinator.self) private var tour
-    @AppStorage(TourFlags.seenListHintKey) private var seenListHint = false
-    /// Drives the one-shot "tap a story" spotlight after the first feed is added.
-    @State private var showListHint = false
 
     private let filters: [SmartSource] = [.unread, .today, .all]
 
@@ -527,29 +550,7 @@ private struct HomeTab: View {
                     .background(Color("ListBackground").ignoresSafeArea())
                 }
             }
-            .overlay {
-                if showListHint, store.isStorageConfigured {
-                    ListTapHint(onDismiss: dismissListHint)
-                        .transition(.opacity)
-                }
-            }
         }
-        // Show the "tap a story" spotlight once, right after the tutorial adds the
-        // first feed and switches here.
-        .onChange(of: tour.wantsOpenFirstStoryHint) { _, want in
-            guard want else { return }
-            tour.wantsOpenFirstStoryHint = false
-            if !seenListHint { withAnimation { showListHint = true } }
-        }
-        // Opening a story satisfies the hint — dismiss it.
-        .onChange(of: store.selectedArticleID) { _, id in
-            if id != nil, showListHint { dismissListHint() }
-        }
-    }
-
-    private func dismissListHint() {
-        seenListHint = true
-        withAnimation { showListHint = false }
     }
 }
 
