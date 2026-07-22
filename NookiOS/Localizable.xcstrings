@@ -1249,7 +1249,9 @@
         }
       }
     },
-    "Filter" : {},
+    "Filter" : {
+
+    },
     "Folder" : {
       "localizations" : {
         "ja" : {
