@@ -27,11 +27,11 @@ final class TourCoordinator {
     /// The welcome cover copied the sample feed and asked to add it: switch to the
     /// Feeds tab and open Add Feed with a paste hint. Consumed (reset) by the shell.
     var wantsAddSampleFeed = false
-    /// Bumped each time the tutorial finishes adding a feed, asking the shell to
-    /// switch to Home and spotlight the list. A monotonic token (not a Bool) so a
-    /// second run in the same session — e.g. Replay Tutorial — always produces a
-    /// fresh value edge for `onChange`, even if the previous one was never reset.
-    var openFirstStoryToken = 0
+    /// The tutorial finished adding a feed: the shell switches to Home, and Home
+    /// spotlights the list once it's on screen with articles. Kept as a standing
+    /// request (not an edge) so it survives the tab switch and is consumed by Home
+    /// itself when it appears — no cross-view onChange race.
+    var pendingFirstStoryHint = false
 }
 
 /// The first-run welcome tour: a paged, swipeable cover that gets a new user set

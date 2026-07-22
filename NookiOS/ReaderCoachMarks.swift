@@ -9,6 +9,9 @@ extension View {
         self.mask {
             Rectangle()
                 .overlay { mask().blendMode(.destinationOut) }
+                // destinationOut must composite within its own layer, or the hole
+                // isn't punched (and the whole scrim can render wrong).
+                .compositingGroup()
         }
     }
 }
