@@ -663,8 +663,8 @@ struct ReaderDetailView: View {
                 HStack(spacing: 2) {
                     ShareLink(item: article.url) {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 18))
-                            .frame(width: 44, height: 40)
+                            .font(.system(size: 20))
+                            .frame(width: 52, height: 48)
                     }
                     Button {
                         let willStar = !article.isStarred
@@ -672,9 +672,9 @@ struct ReaderDetailView: View {
                         haptics.star(on: willStar)
                     } label: {
                         Image(systemName: article.isStarred ? "star.fill" : "star")
-                            .font(.system(size: 18))
+                            .font(.system(size: 20))
                             .contentTransition(.symbolEffect(.replace))
-                            .frame(width: 44, height: 40)
+                            .frame(width: 52, height: 48)
                     }
                 }
                 .glassCapsule()
@@ -685,8 +685,8 @@ struct ReaderDetailView: View {
                     openBrowser(for: article)
                 } label: {
                     Image(systemName: "doc.plaintext")
-                        .font(.system(size: 18))
-                        .frame(width: 44, height: 40)
+                        .font(.system(size: 20))
+                        .frame(width: 52, height: 48)
                 }
                 .glassCapsule()
                 // Publish the real capsule frame so the coach mark spotlights it.
