@@ -107,11 +107,14 @@ struct HTMLContentParserTests {
             Issue.record("Expected a table")
             return
         }
+        let headerRowAllHeaders = table.rows[0].cells.allSatisfy { $0.isHeader }
+        let bodyRowHasHeader = table.rows[1].cells.contains { $0.isHeader }
+        let bodyRowHasAlpha = table.rows[1].cells.map(\.html).contains("Alpha")
         #expect(table.rows.count == 2)
-        #expect(table.rows[0].isHeader)
-        #expect(table.rows[0].cells == ["Name", "Value"])
-        #expect(!table.rows[1].isHeader)
-        #expect(table.rows[1].cells.contains("Alpha"))
+        #expect(headerRowAllHeaders)
+        #expect(table.rows[0].cells.map(\.html) == ["Name", "Value"])
+        #expect(!bodyRowHasHeader)
+        #expect(bodyRowHasAlpha)
 
         guard case .audio(let audio) = blocks[6] else {
             Issue.record("Expected an audio block")
@@ -119,6 +122,35 @@ struct HTMLContentParserTests {
         }
         #expect(audio.url.absoluteString == "https://example.com/clip.mp3")
         #expect(audio.title == "Clip")
+    }
+
+    @Test("Table cells keep colspan/rowspan and per-cell header flags")
+    func parsesTableSpans() {
+        let html = """
+        <table>
+        <tr><th colspan="2">Header</th></tr>
+        <tr><td rowspan="2">Left</td><td>A</td></tr>
+        <tr><td>B</td></tr>
+        </table>
+        """
+        let blocks = HTMLContentParser.parse(html, baseURL: nil)
+        guard case .table(let table) = blocks.first else {
+            Issue.record("Expected a table")
+            return
+        }
+        #expect(table.rows.count == 3)
+        // Header row: one <th> spanning two columns.
+        #expect(table.rows[0].cells.count == 1)
+        #expect(table.rows[0].cells[0].isHeader)
+        #expect(table.rows[0].cells[0].colSpan == 2)
+        // Second row: a rowspan=2 cell followed by a normal cell.
+        #expect(table.rows[1].cells[0].html == "Left")
+        #expect(table.rows[1].cells[0].rowSpan == 2)
+        #expect(table.rows[1].cells[0].colSpan == 1)
+        #expect(!table.rows[1].cells[0].isHeader)
+        // Third row has just the one remaining cell (the rowspan reserves column 0).
+        #expect(table.rows[2].cells.count == 1)
+        #expect(table.rows[2].cells[0].html == "B")
     }
 
     @Test("Lists become native blocks, keeping nested lists and media inside items")

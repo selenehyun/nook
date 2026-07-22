@@ -142,9 +142,20 @@ struct HTMLMedia: Equatable, Sendable {
 }
 
 struct HTMLTable: Equatable, Sendable {
-    struct Row: Equatable, Sendable {
-        let cells: [String]
+    struct Cell: Equatable, Sendable {
+        var html: String
         let isHeader: Bool
+        let colSpan: Int
+        let rowSpan: Int
+        init(html: String, isHeader: Bool, colSpan: Int = 1, rowSpan: Int = 1) {
+            self.html = html
+            self.isHeader = isHeader
+            self.colSpan = max(1, colSpan)
+            self.rowSpan = max(1, rowSpan)
+        }
+    }
+    struct Row: Equatable, Sendable {
+        let cells: [Cell]
     }
     let rows: [Row]
 }
@@ -458,35 +469,41 @@ enum HTMLContentParser {
         for match in rowRegex.matches(in: fragment, range: range) {
             guard match.numberOfRanges > 1, let r = Range(match.range(at: 1), in: fragment) else { continue }
             let rowHTML = String(fragment[r])
-            let (cells, isHeader) = tableCells(from: rowHTML)
+            let cells = tableCells(from: rowHTML)
             if !cells.isEmpty {
-                rows.append(HTMLTable.Row(cells: cells, isHeader: isHeader))
+                rows.append(HTMLTable.Row(cells: cells))
             }
         }
         return HTMLTable(rows: rows)
     }
 
-    private static func tableCells(from rowHTML: String) -> (cells: [String], isHeader: Bool) {
+    private static func tableCells(from rowHTML: String) -> [HTMLTable.Cell] {
+        // Capture the opening tag's attributes (group 2) so colspan/rowspan and the
+        // per-cell th/td distinction are preserved.
         guard let cellRegex = try? NSRegularExpression(
-            pattern: #"<(t[dh])\b[^>]*>(.*?)</\1\s*>"#,
+            pattern: #"<(t[dh])\b([^>]*)>(.*?)</\1\s*>"#,
             options: [.caseInsensitive, .dotMatchesLineSeparators]
         ) else {
-            return ([], false)
+            return []
         }
 
         let range = NSRange(rowHTML.startIndex..<rowHTML.endIndex, in: rowHTML)
-        var cells: [String] = []
-        var headerCount = 0
+        var cells: [HTMLTable.Cell] = []
 
         for match in cellRegex.matches(in: rowHTML, range: range) {
-            guard match.numberOfRanges > 2,
+            guard match.numberOfRanges > 3,
                   let tagRange = Range(match.range(at: 1), in: rowHTML),
-                  let contentRange = Range(match.range(at: 2), in: rowHTML) else { continue }
-            if rowHTML[tagRange].lowercased() == "th" { headerCount += 1 }
-            cells.append(String(rowHTML[contentRange]))
+                  let attrRange = Range(match.range(at: 2), in: rowHTML),
+                  let contentRange = Range(match.range(at: 3), in: rowHTML) else { continue }
+            let attrs = String(rowHTML[attrRange])
+            cells.append(HTMLTable.Cell(
+                html: String(rowHTML[contentRange]),
+                isHeader: rowHTML[tagRange].lowercased() == "th",
+                colSpan: attribute("colspan", in: attrs).flatMap { Int($0) } ?? 1,
+                rowSpan: attribute("rowspan", in: attrs).flatMap { Int($0) } ?? 1
+            ))
         }
-        // A row is a header row when every cell is a <th>.
-        return (cells, !cells.isEmpty && headerCount == cells.count)
+        return cells
     }
 
     // MARK: Text collection
@@ -1462,47 +1479,37 @@ private struct NativeArticleTable: View {
     let table: HTMLTable
     let selectable: Bool
 
-    /// The logical column count: the widest row. Ragged rows are padded to this so
-    /// every row is a full rectangle (stable, aligned columns).
-    private var columnCount: Int { max(1, table.rows.map(\.cells.count).max() ?? 0) }
+    /// Minimum width per column before the whole table scrolls horizontally, so
+    /// many-column tables stay readable instead of squeezing to slivers.
+    private let minColumnWidth: CGFloat = 140
 
     var body: some View {
-        let columns = columnCount
-        // A fixed equal-width column layout: column boundaries are derived from the
-        // available width (÷ column count), never from cell content. So a cell's
-        // text — including when its attributed form resolves asynchronously or a
-        // translation swaps in — can only change its row's height, never the column
-        // widths. That removes the "each cell a different size" instability.
-        FixedColumnTableLayout(columns: columns) {
-            ForEach(cellItems(columns: columns)) { item in
-                cellView(item.html, isHeader: item.isHeader)
+        let grid = TableGrid(table)
+        // A fixed equal-width column layout: column boundaries come only from the
+        // available width (÷ column count), never from cell content — so a cell's
+        // text (including when its attributed form resolves async or a translation
+        // swaps in) can only change its row's height, never the column widths.
+        // Wrapped in a horizontal ScrollView: it fills the viewport when it fits,
+        // and scrolls once columns would drop below the minimum width. Same on iOS
+        // and macOS.
+        ScrollView(.horizontal, showsIndicators: true) {
+            FixedColumnTableLayout(columns: grid.columns, rows: grid.rows) {
+                ForEach(grid.cells) { cell in
+                    cellView(cell.html, isHeader: cell.isHeader)
+                        .layoutValue(key: TableColumnKey.self, value: cell.column)
+                        .layoutValue(key: TableRowKey.self, value: cell.row)
+                        .layoutValue(key: TableColumnSpanKey.self, value: cell.columnSpan)
+                        .layoutValue(key: TableRowSpanKey.self, value: cell.rowSpan)
+                }
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.quaternary, lineWidth: 1)
-        )
-    }
-
-    private struct CellItem: Identifiable {
-        let id: String
-        let html: String
-        let isHeader: Bool
-    }
-
-    /// Row-major cells padded to a full `rows × columns` rectangle, with stable
-    /// per-position ids (so translation swaps content in place, never reshuffles).
-    private func cellItems(columns: Int) -> [CellItem] {
-        table.rows.enumerated().flatMap { row -> [CellItem] in
-            let (r, data) = row
-            return (0..<columns).map { c in
-                CellItem(
-                    id: "\(r)-\(c)",
-                    html: c < data.cells.count ? data.cells[c] : "",
-                    isHeader: data.isHeader
-                )
+            .containerRelativeFrame(.horizontal) { width, _ in
+                max(width, CGFloat(grid.columns) * minColumnWidth)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(.quaternary, lineWidth: 1)
+            )
         }
     }
 
@@ -1516,60 +1523,151 @@ private struct NativeArticleTable: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(isHeader ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(Color.clear))
             // Draw only the trailing + bottom hairline per cell so interior grid
-            // lines are drawn exactly once (no doubled/darkened seams); the outer
-            // rounded border covers the table's edges.
+            // lines are drawn once (no doubled seams); the outer rounded border
+            // covers the table's edges.
             .overlay(alignment: .trailing) { Rectangle().fill(.quaternary).frame(width: 0.5) }
             .overlay(alignment: .bottom) { Rectangle().fill(.quaternary).frame(height: 0.5) }
     }
 }
 
-/// Lays out table cells (row-major, exactly `rows × columns`) in equal-width
-/// columns derived from the proposed width, with each row as tall as its tallest
-/// cell. Column geometry never depends on cell content, so it stays stable as
-/// content resolves or changes.
+/// A resolved table cell placed on the grid (spans applied), plus empty fillers
+/// for any uncovered positions so every grid slot has a bordered box.
+private struct PlacedTableCell: Identifiable {
+    let id: String
+    let row: Int
+    let column: Int
+    let rowSpan: Int
+    let columnSpan: Int
+    let html: String
+    let isHeader: Bool
+}
+
+/// Normalizes an `HTMLTable` into an occupancy grid: assigns every cell a
+/// row/column honoring colspan/rowspan (a rowspan reserves columns in later
+/// rows), computes the total column count, and fills any uncovered slot (from
+/// ragged rows) with an empty cell so the grid is a full rectangle.
+private struct TableGrid {
+    let cells: [PlacedTableCell]
+    let columns: Int
+    let rows: Int
+
+    init(_ table: HTMLTable) {
+        let rowCount = table.rows.count
+        var placed: [PlacedTableCell] = []
+        var occupied = Set<Int>()          // (row,col) reserved by a rowspan above
+        func key(_ r: Int, _ c: Int) -> Int { r &* 100_000 &+ c }
+        var columnCount = 0
+
+        for (r, row) in table.rows.enumerated() {
+            var c = 0
+            for (i, cell) in row.cells.enumerated() {
+                while occupied.contains(key(r, c)) { c += 1 }
+                placed.append(PlacedTableCell(
+                    id: "\(r)-\(i)", row: r, column: c,
+                    rowSpan: cell.rowSpan, columnSpan: cell.colSpan,
+                    html: cell.html, isHeader: cell.isHeader
+                ))
+                if cell.rowSpan > 1 {
+                    for rr in (r + 1)..<(r + cell.rowSpan) {
+                        for cc in c..<(c + cell.colSpan) { occupied.insert(key(rr, cc)) }
+                    }
+                }
+                c += cell.colSpan
+                columnCount = max(columnCount, c)
+            }
+        }
+        columnCount = max(1, columnCount)
+
+        // Mark everything the placed cells (with spans) cover, then fill the gaps.
+        var covered = Array(repeating: Array(repeating: false, count: columnCount), count: max(1, rowCount))
+        for cell in placed {
+            for rr in cell.row..<min(rowCount, cell.row + cell.rowSpan) {
+                for cc in cell.column..<min(columnCount, cell.column + cell.columnSpan) {
+                    covered[rr][cc] = true
+                }
+            }
+        }
+        for r in 0..<rowCount {
+            for c in 0..<columnCount where !covered[r][c] {
+                placed.append(PlacedTableCell(
+                    id: "empty-\(r)-\(c)", row: r, column: c,
+                    rowSpan: 1, columnSpan: 1, html: "", isHeader: false
+                ))
+            }
+        }
+
+        cells = placed
+        columns = columnCount
+        rows = max(1, rowCount)
+    }
+}
+
+private enum TableColumnKey: LayoutValueKey { static let defaultValue = 0 }
+private enum TableRowKey: LayoutValueKey { static let defaultValue = 0 }
+private enum TableColumnSpanKey: LayoutValueKey { static let defaultValue = 1 }
+private enum TableRowSpanKey: LayoutValueKey { static let defaultValue = 1 }
+
+/// Lays table cells into equal-width columns (proposed width ÷ column count),
+/// honoring colspan/rowspan. Each single-row cell sets its row's base height;
+/// row-spanning cells then expand the last row they cover if they need more.
+/// Column geometry never depends on cell content, so it stays stable.
 private struct FixedColumnTableLayout: Layout {
     let columns: Int
+    let rows: Int
 
     struct Cache { var rowHeights: [CGFloat] = [] }
     func makeCache(subviews: Subviews) -> Cache { Cache() }
     func updateCache(_ cache: inout Cache, subviews: Subviews) { cache.rowHeights = [] }
 
-    private func rowCount(_ count: Int) -> Int {
-        columns > 0 ? Int(ceil(Double(count) / Double(columns))) : 0
-    }
-
-    private func measuredRowHeights(width: CGFloat, subviews: Subviews) -> [CGFloat] {
+    private func rowHeights(width: CGFloat, subviews: Subviews) -> [CGFloat] {
         let colWidth = width / CGFloat(max(1, columns))
-        var heights = [CGFloat](repeating: 0, count: rowCount(subviews.count))
-        for (i, sub) in subviews.enumerated() where !heights.isEmpty {
-            let h = sub.sizeThatFits(ProposedViewSize(width: colWidth, height: nil)).height
-            heights[i / columns] = max(heights[i / columns], h)
+        var heights = [CGFloat](repeating: 0, count: rows)
+        // Base pass: non-spanning cells define each row's height.
+        for sub in subviews {
+            let r = sub[TableRowKey.self]
+            guard heights.indices.contains(r) else { continue }
+            let w = colWidth * CGFloat(max(1, sub[TableColumnSpanKey.self]))
+            let h = sub.sizeThatFits(ProposedViewSize(width: w, height: nil)).height
+            if sub[TableRowSpanKey.self] <= 1 { heights[r] = max(heights[r], h) }
+        }
+        // Span pass: a rowspan cell that's taller than its covered rows grows the
+        // last covered row to make up the difference.
+        for sub in subviews where sub[TableRowSpanKey.self] > 1 {
+            let r = sub[TableRowKey.self]
+            let span = sub[TableRowSpanKey.self]
+            guard heights.indices.contains(r) else { continue }
+            let w = colWidth * CGFloat(max(1, sub[TableColumnSpanKey.self]))
+            let h = sub.sizeThatFits(ProposedViewSize(width: w, height: nil)).height
+            let end = min(rows, r + span)
+            let covered = (r..<end).reduce(CGFloat(0)) { $0 + heights[$1] }
+            if h > covered, end - 1 >= 0 { heights[end - 1] += h - covered }
         }
         return heights
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let width = proposal.width ?? 320
-        let heights = measuredRowHeights(width: width, subviews: subviews)
+        let heights = rowHeights(width: width, subviews: subviews)
         cache.rowHeights = heights
         return CGSize(width: width, height: heights.reduce(0, +))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
         let colWidth = bounds.width / CGFloat(max(1, columns))
-        let heights = cache.rowHeights.isEmpty
-            ? measuredRowHeights(width: bounds.width, subviews: subviews)
-            : cache.rowHeights
-        var rowY = [CGFloat](repeating: bounds.minY, count: heights.count)
+        let heights = cache.rowHeights.count == rows ? cache.rowHeights : rowHeights(width: bounds.width, subviews: subviews)
+        var rowY = [CGFloat](repeating: bounds.minY, count: rows)
         var acc = bounds.minY
-        for r in heights.indices { rowY[r] = acc; acc += heights[r] }
-        for (i, sub) in subviews.enumerated() {
-            let r = i / columns, c = i % columns
-            guard r < heights.count else { continue }
+        for r in 0..<rows { rowY[r] = acc; acc += (heights.indices.contains(r) ? heights[r] : 0) }
+        for sub in subviews {
+            let r = sub[TableRowKey.self]
+            let c = sub[TableColumnKey.self]
+            guard heights.indices.contains(r) else { continue }
+            let end = min(rows, r + max(1, sub[TableRowSpanKey.self]))
+            let cellHeight = (r..<end).reduce(CGFloat(0)) { $0 + heights[$1] }
             sub.place(
                 at: CGPoint(x: bounds.minX + CGFloat(c) * colWidth, y: rowY[r]),
                 anchor: .topLeading,
-                proposal: ProposedViewSize(width: colWidth, height: heights[r])
+                proposal: ProposedViewSize(width: colWidth * CGFloat(max(1, sub[TableColumnSpanKey.self])), height: cellHeight)
             )
         }
     }
@@ -1791,7 +1889,7 @@ public struct HTMLContentText: View {
                 for row in table.rows {
                     for cell in row.cells {
                         if Task.isCancelled { return }
-                        warmAttributed(cell, baseSize: platformBodySize, bold: row.isHeader)
+                        warmAttributed(cell.html, baseSize: platformBodySize, bold: cell.isHeader)
                     }
                 }
             default:

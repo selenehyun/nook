@@ -494,7 +494,7 @@ public final class NativeArticleTranslator {
         case .list(_, let items):
             return items.flatMap { $0 }.map(blockPlainText).joined(separator: " ")
         case .table(let table):
-            return table.rows.flatMap(\.cells).map(plainText).joined(separator: " ")
+            return table.rows.flatMap(\.cells).map { plainText($0.html) }.joined(separator: " ")
         default:
             return ""
         }
@@ -590,10 +590,10 @@ public final class NativeArticleTranslator {
                 var cells = row.cells
                 for (cellIndex, cell) in row.cells.enumerated() {
                     guard token == generation else { return context }
-                    guard let (translatedCell, newContext) = await translateFragment(cell, language: language, context: context, token: token) else { continue }
+                    guard let (translatedCell, newContext) = await translateFragment(cell.html, language: language, context: context, token: token) else { continue }
                     context = newContext
-                    cells[cellIndex] = translatedCell
-                    rows[rowIndex] = HTMLTable.Row(cells: cells, isHeader: row.isHeader)
+                    cells[cellIndex].html = translatedCell
+                    rows[rowIndex] = HTMLTable.Row(cells: cells)
                     guard token == generation else { return context }
                     overrides[index] = .table(HTMLTable(rows: rows))
                 }
@@ -877,10 +877,10 @@ public final class NativeArticleTranslator {
                 var cells = row.cells
                 for (cellIndex, cell) in row.cells.enumerated() {
                     guard token == generation else { return (nil, context) }
-                    guard let (translatedCell, newContext) = await translateFragment(cell, language: language, context: context, token: token) else { continue }
+                    guard let (translatedCell, newContext) = await translateFragment(cell.html, language: language, context: context, token: token) else { continue }
                     context = newContext
-                    cells[cellIndex] = translatedCell
-                    rows[rowIndex] = HTMLTable.Row(cells: cells, isHeader: row.isHeader)
+                    cells[cellIndex].html = translatedCell
+                    rows[rowIndex] = HTMLTable.Row(cells: cells)
                     onPartial(.table(HTMLTable(rows: rows)))
                 }
             }
