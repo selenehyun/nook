@@ -175,6 +175,9 @@
         }
       }
     },
+    "Cancel" : {
+
+    },
     "Choose an iCloud Drive folder before adding feeds." : {
       "localizations" : {
         "en" : {
@@ -570,6 +573,9 @@
           }
         }
       }
+    },
+    "OK" : {
+
     },
     "Open Embedded Content" : {
       "localizations" : {

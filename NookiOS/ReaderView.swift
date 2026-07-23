@@ -268,6 +268,20 @@ struct ReaderDetailView: View {
                     haptics.star(on: willStar)
                     triggerStarBurst(on: willStar)
                 }
+                // Single tap toggles the chrome, so it can be controlled without
+                // scrolling. It can only HIDE once the large inline title has
+                // scrolled away (same condition the scroll auto-hide uses) — a tap
+                // while the big title still shows does nothing; showing is always
+                // allowed. Disabled during the coach marks (chrome is frozen then).
+                .onTapGesture {
+                    guard coachStep == nil else { return }
+                    if chromeHidden {
+                        withAnimation(.easeInOut(duration: 0.25)) { chromeHidden = false }
+                    } else if titleHidden {
+                        scrollAccum = 0
+                        withAnimation(.easeInOut(duration: 0.25)) { chromeHidden = true }
+                    }
+                }
                 .modifier(LongPressToOpenBrowser(
                     enabled: longPressOpensBrowser,
                     minimumDuration: hapticStartDelay + ReaderHaptics.buildupDuration,
