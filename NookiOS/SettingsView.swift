@@ -507,12 +507,21 @@ private struct FeedsSettingsScreen: View {
 
 private struct ExperimentalSettingsScreen: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
+    @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
 
     var body: some View {
         List {
             Section("Reader View") {
                 Toggle("Show reader view content by default", isOn: $readerContentByDefault)
                 Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .warmRows()
+
+            Section("Article List") {
+                Toggle("Translate titles in the list", isOn: $translateListTitles)
+                Text("Titles of the stories on screen are translated into your language with Apple Intelligence, shown beneath the original. Only titles that stay in view are translated, and results are cached. Titles already in your language are left as-is.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

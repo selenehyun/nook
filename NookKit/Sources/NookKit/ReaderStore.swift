@@ -1237,6 +1237,10 @@ public final class ReaderStore {
     /// the in-app browser" gesture (iOS). Defaults off.
     public static let longPressOpensBrowserKey = "longPressOpensBrowser"
 
+    /// `UserDefaults` key for the opt-in "translate on-screen article-list titles
+    /// into my language" experiment (iOS). Defaults off.
+    public static let translateListTitlesKey = "translateListTitles"
+
     /// Whether the native reader should show reader-mode-extracted content
     /// instead of the raw feed body by default.
     public var usesReaderContentByDefault: Bool {

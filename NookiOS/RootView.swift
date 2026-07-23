@@ -1418,10 +1418,19 @@ private struct ArticleList: View {
     /// view). When set and the empty Unread list is shown, a button offers it.
     var onShowAllArticles: (() -> Void)? = nil
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
+    @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+    /// Shared, on-device title translator for the opt-in "translate list titles"
+    /// experiment. Reading its `state(for:)` in `row` observes streaming updates.
+    private let titleTranslator = ListTitleTranslator.shared
 
     var body: some View {
         List(store.visibleArticles, selection: $selection) { article in
             row(article)
+                // Drive the dwell-based, off-screen-cancelling title translation
+                // queue (no-op unless the experiment is enabled).
+                .onAppear { titleTranslator.rowAppeared(id: article.id, title: article.title) }
+                .onDisappear { titleTranslator.rowDisappeared(id: article.id) }
                 // Publish the first row's global frame so the tutorial can
                 // spotlight it exactly (harmless where no coach mark reads it).
                 .background {
@@ -1491,6 +1500,40 @@ private struct ArticleList: View {
         .overlay {
             if store.visibleArticles.isEmpty { emptyState }
         }
+        .onAppear { configureTitleTranslator() }
+        .onChange(of: translateListTitles) { _, _ in configureTitleTranslator() }
+        .onChange(of: appLanguage) { _, _ in configureTitleTranslator() }
+    }
+
+    /// Feeds the shared title translator the current on/off flag and target
+    /// language. Turning the flag off or switching languages cancels in-flight
+    /// work inside the translator.
+    private func configureTitleTranslator() {
+        titleTranslator.configure(
+            enabled: translateListTitles,
+            targetLanguageName: titleTargetLanguageName,
+            targetLanguageCode: titleTargetLanguageCode
+        )
+    }
+
+    private var titleTargetLocale: Locale {
+        appLanguage == .system ? Locale.current : appLanguage.locale
+    }
+
+    /// The target language's English name for the model (e.g. "Korean"),
+    /// disambiguating Chinese by script — matches the reader's mapping.
+    private var titleTargetLanguageName: String {
+        let language = titleTargetLocale.language
+        if let script = language.script?.identifier {
+            if script == "Hans" { return "Simplified Chinese" }
+            if script == "Hant" { return "Traditional Chinese" }
+        }
+        let code = language.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+    }
+
+    private var titleTargetLanguageCode: String {
+        titleTargetLocale.language.languageCode?.identifier ?? "en"
     }
 
     /// When the Unread view is empty, offer a shortcut to All Articles; otherwise
@@ -1538,6 +1581,7 @@ private struct ArticleList: View {
                     Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow)
                 }
             }
+            translatedTitle(for: article)
             if !article.summary.isEmpty {
                 Text(article.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -1548,6 +1592,43 @@ private struct ArticleList: View {
             }
             .font(.caption)
             .foregroundStyle(.tertiary)
+        }
+    }
+
+    /// The Apple Intelligence title translation shown beneath the original when
+    /// the experiment is on and the title isn't already in the user's language.
+    /// Accent-tinted with the intelligence glyph so it reads as a distinct,
+    /// machine-produced companion line — never mistaken for the source title.
+    @ViewBuilder
+    private func translatedTitle(for article: Article) -> some View {
+        if let resolved = resolvedTitleTranslation(for: article.id) {
+            let text = resolved.text
+            let streaming = resolved.streaming
+            HStack(alignment: .top, spacing: 5) {
+                Image(systemName: "apple.intelligence")
+                    .font(.caption)
+                    .symbolEffect(.pulse, options: .repeating, isActive: streaming)
+                    .accessibilityLabel("Translated by Apple Intelligence")
+                Text(text)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.top, 1)
+        }
+    }
+
+    /// The current title-translation text plus whether it's still streaming in,
+    /// or nil when there's nothing to show for this row.
+    private func resolvedTitleTranslation(for id: Article.ID) -> (text: String, streaming: Bool)? {
+        switch titleTranslator.state(for: id) {
+        case .translating(let partial): return (partial, true)
+        case .translated(let final): return (final, false)
+        case nil: return nil
         }
     }
 }

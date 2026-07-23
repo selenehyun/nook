@@ -398,6 +398,28 @@
         }
       }
     },
+    "Article List" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事リスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 목록"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文章列表"
+          }
+        }
+      }
+    },
     "At the end of a story, keep pulling up past the bottom to jump to the next one." : {
       "localizations" : {
         "ja" : {
@@ -4758,6 +4780,28 @@
         }
       }
     },
+    "Titles of the stories on screen are translated into your language with Apple Intelligence, shown beneath the original. Only titles that stay in view are translated, and results are cached. Titles already in your language are left as-is." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面に表示されている記事のタイトルを Apple Intelligence でお使いの言語に翻訳し、原文の下に表示します。表示され続けているタイトルのみ翻訳し、結果はキャッシュされます。すでにお使いの言語のタイトルはそのまま表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "화면에 보이는 글의 제목을 Apple Intelligence로 사용자의 언어로 번역해 원문 아래에 표시합니다. 화면에 계속 보이는 제목만 번역하며, 결과는 캐시됩니다. 이미 사용자의 언어인 제목은 그대로 표시됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apple Intelligence 将屏幕上文章的标题翻译成你的语言，显示在原文下方。仅翻译保持在视图中的标题，并缓存结果。已是你所用语言的标题将保持原样。"
+          }
+        }
+      }
+    },
     "Top Level" : {
       "localizations" : {
         "ja" : {
@@ -4798,6 +4842,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "翻译"
+          }
+        }
+      }
+    },
+    "Translate titles in the list" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストのタイトルを翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록의 제목 번역"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译列表中的标题"
           }
         }
       }
