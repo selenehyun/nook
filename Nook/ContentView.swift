@@ -1068,6 +1068,9 @@ private struct SourceRow: View {
 
 private struct ArticleListView: View {
     @Bindable var store: ReaderStore
+    @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
+    @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+    private let titleTranslator = ListTitleTranslator.shared
 
     var body: some View {
         Group {
@@ -1099,6 +1102,8 @@ private struct ArticleListView: View {
                     ForEach(store.visibleArticles) { article in
                         ArticleRow(article: article, feed: store.feed(for: article.feedID))
                             .tag(article.id)
+                            .onAppear { titleTranslator.rowAppeared(id: article.id, title: article.title) }
+                            .onDisappear { titleTranslator.rowDisappeared(id: article.id) }
                             .contextMenu {
                                 Button(article.isRead ? "Mark as Unread" : "Mark as Read") {
                                     store.setRead(articleID: article.id, isRead: !article.isRead)
@@ -1161,12 +1166,44 @@ private struct ArticleListView: View {
         .onChange(of: store.searchText) { _, _ in
             store.debounceSearch()
         }
+        .onAppear { configureTitleTranslator() }
+        .onChange(of: translateListTitles) { _, _ in configureTitleTranslator() }
+        .onChange(of: appLanguage) { _, _ in configureTitleTranslator() }
+    }
+
+    /// Feeds the shared title translator the current on/off flag and target
+    /// language (mirrors the iOS wiring). Off/switch cancels in-flight work.
+    private func configureTitleTranslator() {
+        titleTranslator.configure(
+            enabled: translateListTitles,
+            targetLanguageName: titleTargetLanguageName,
+            targetLanguageCode: titleTargetLanguageCode
+        )
+    }
+
+    private var titleTargetLocale: Locale {
+        appLanguage == .system ? Locale.current : appLanguage.locale
+    }
+
+    private var titleTargetLanguageName: String {
+        let language = titleTargetLocale.language
+        if let script = language.script?.identifier {
+            if script == "Hans" { return "Simplified Chinese" }
+            if script == "Hant" { return "Traditional Chinese" }
+        }
+        let code = language.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en_US").localizedString(forLanguageCode: code) ?? code
+    }
+
+    private var titleTargetLanguageCode: String {
+        titleTargetLocale.language.languageCode?.identifier ?? "en"
     }
 }
 
 private struct ArticleRow: View {
     var article: Article
     var feed: Feed?
+    private let titleTranslator = ListTitleTranslator.shared
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -1191,6 +1228,8 @@ private struct ArticleRow: View {
                     }
                 }
 
+                translatedTitle
+
                 Text(article.summary)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -1209,6 +1248,39 @@ private struct ArticleRow: View {
             }
         }
         .padding(.vertical, 8)
+    }
+
+    /// The Apple Intelligence title translation shown beneath the original when
+    /// the experiment is on and the title isn't already in the user's language.
+    /// Accent-tinted with the intelligence glyph so it reads as a distinct,
+    /// machine-produced companion line — never mistaken for the source title.
+    @ViewBuilder
+    private var translatedTitle: some View {
+        if let resolved = resolvedTitleTranslation {
+            HStack(alignment: .top, spacing: 5) {
+                Image(systemName: "apple.intelligence")
+                    .symbolEffect(.pulse, options: .repeating, isActive: resolved.streaming)
+                    .accessibilityLabel("Translated by Apple Intelligence")
+                Text(resolved.text)
+                    .fontWeight(.medium)
+            }
+            .font(.callout)
+            .foregroundStyle(Color.accentColor)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
+    /// The current title-translation text plus whether it's still streaming in,
+    /// or nil when there's nothing to show for this row.
+    private var resolvedTitleTranslation: (text: String, streaming: Bool)? {
+        switch titleTranslator.state(for: article.id) {
+        case .translating(let partial): return (partial, true)
+        case .translated(let final): return (final, false)
+        case nil: return nil
+        }
     }
 }
 
@@ -2486,12 +2558,20 @@ struct ReaderSettingsView: View {
 
 private struct ExperimentalSettingsTab: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
+    @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
 
     var body: some View {
         Form {
             Section("Reader View") {
                 Toggle("Show reader view content by default", isOn: $readerContentByDefault)
                 Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Article List") {
+                Toggle("Translate titles in the list", isOn: $translateListTitles)
+                Text("Titles of the stories on screen are translated into your language with Apple Intelligence, shown beneath the original. Only titles that stay in view are translated, and results are cached. Titles already in your language are left as-is.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

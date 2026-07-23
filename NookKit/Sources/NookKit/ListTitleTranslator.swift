@@ -44,14 +44,24 @@ public final class ListTitleTranslator {
     /// Per-article visible translation state (absent = show the original only).
     public private(set) var states: [Article.ID: TitleState] = [:]
 
-    // In-memory, device-local caches (never synced). Keyed by target language so a
-    // language switch re-translates rather than showing a stale language.
+    // Device-local caches (never synced), persisted to Application Support so a
+    // relaunch shows previously translated titles instantly and never re-requests.
+    // Keyed by target language so a language switch re-translates rather than
+    // showing a stale language. Insertion order is tracked for LRU-style pruning.
     private var cache: [String: String] = [:]
+    private var cacheOrder: [String] = []
     private var sameLanguage: Set<String> = []
+    private var sameLanguageOrder: [String] = []
+    /// Soft cap per map. Titles are tiny, so this stays well under ~1 MB on disk
+    /// while covering a very large backlog of read history.
+    private let maxCacheEntries = 5000
 
     private var dwellTasks: [Article.ID: Task<Void, Never>] = [:]
     private var activeTasks: [Article.ID: Task<Void, Never>] = [:]
     private var pending: [(id: Article.ID, title: String)] = []
+
+    private var loadedFromDisk = false
+    private var saveTask: Task<Void, Never>?
 
     public init() {}
 
@@ -63,6 +73,7 @@ public final class ListTitleTranslator {
         self.enabled = enabled && NaturalTranslator.isAvailable
         self.targetLanguageName = targetLanguageName
         self.targetLanguageCode = targetLanguageCode
+        if self.enabled { loadCacheIfNeeded() }
         if !self.enabled || languageChanged {
             cancelAll()
         }
@@ -132,7 +143,7 @@ public final class ListTitleTranslator {
             guard let self else { return }
             // Already in the target language → leave the original untouched.
             if let detected, Self.baseCode(detected) == code {
-                self.sameLanguage.insert(key)
+                self.rememberSameLanguage(key)
                 self.states[id] = nil
                 return
             }
@@ -149,7 +160,7 @@ public final class ListTitleTranslator {
                 if final.isEmpty || final == title {
                     self.states[id] = nil
                 } else {
-                    self.cache[key] = final
+                    self.rememberTranslation(key, final)
                     self.states[id] = .translated(final)
                 }
             } catch {
@@ -184,5 +195,88 @@ public final class ListTitleTranslator {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(sample)
         return recognizer.dominantLanguage?.rawValue
+    }
+
+    // MARK: - Persistence
+
+    /// A finished translation: cache it (LRU-capped) and schedule a save so it
+    /// survives relaunch and never re-translates.
+    private func rememberTranslation(_ key: String, _ value: String) {
+        if cache[key] == nil { cacheOrder.append(key) }
+        cache[key] = value
+        while cacheOrder.count > maxCacheEntries {
+            let oldest = cacheOrder.removeFirst()
+            cache[oldest] = nil
+        }
+        scheduleSave()
+    }
+
+    /// A title found to already be in the target language: remember it (LRU-capped)
+    /// so it's never re-detected, and schedule a save.
+    private func rememberSameLanguage(_ key: String) {
+        guard sameLanguage.insert(key).inserted else { return }
+        sameLanguageOrder.append(key)
+        while sameLanguageOrder.count > maxCacheEntries {
+            let oldest = sameLanguageOrder.removeFirst()
+            sameLanguage.remove(oldest)
+        }
+        scheduleSave()
+    }
+
+    /// On-disk shape of the cache. Order arrays preserve LRU across launches.
+    private struct Persisted: Codable {
+        var cache: [String: String]
+        var cacheOrder: [String]
+        var sameLanguage: [String]
+    }
+
+    /// Application Support/Nook/ListTitleTranslations.json — device-local, outside
+    /// the sync folder, so it is never shared between devices.
+    private nonisolated static func cacheURL() -> URL? {
+        guard let base = try? FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        ) else { return nil }
+        let dir = base.appendingPathComponent("Nook", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("ListTitleTranslations.json")
+    }
+
+    /// Loads the persisted caches once, merging under any entries already learned
+    /// this session (which are newer). Cheap: a small JSON read at first enable.
+    private func loadCacheIfNeeded() {
+        guard !loadedFromDisk else { return }
+        loadedFromDisk = true
+        guard let url = Self.cacheURL(),
+              let data = try? Data(contentsOf: url),
+              let stored = try? JSONDecoder().decode(Persisted.self, from: data) else { return }
+        for key in stored.cacheOrder where cache[key] == nil {
+            if let value = stored.cache[key] {
+                cache[key] = value
+                cacheOrder.append(key)
+            }
+        }
+        for key in stored.sameLanguage where sameLanguage.insert(key).inserted {
+            sameLanguageOrder.append(key)
+        }
+    }
+
+    /// Debounced, off-main write. Coalesces the bursts of completions that happen
+    /// while scrolling into a single disk write ~1s later.
+    private func scheduleSave() {
+        saveTask?.cancel()
+        let snapshot = Persisted(cache: cache, cacheOrder: cacheOrder, sameLanguage: sameLanguageOrder)
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            await Self.write(snapshot)
+            _ = self
+        }
+    }
+
+    private nonisolated static func write(_ snapshot: Persisted) async {
+        await Task.detached(priority: .utility) {
+            guard let url = cacheURL(), let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }.value
     }
 }
