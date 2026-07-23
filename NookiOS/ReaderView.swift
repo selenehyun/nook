@@ -435,21 +435,8 @@ struct ReaderDetailView: View {
                 // actions; the frequent ones live in the bottom toolbar below.
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        if canTranslate {
-                            Button {
-                                toggleTranslation(article)
-                            } label: {
-                                if translationBusy {
-                                    Label("Translating…", systemImage: "character.bubble")
-                                } else {
-                                    Label(
-                                        translationActive(article) ? "Show Original" : "Translate",
-                                        systemImage: translationActive(article) ? "character.bubble.fill" : "character.bubble"
-                                    )
-                                }
-                            }
-                            .disabled(translationBusy)
-                        }
+                        // Translation lives on the bottom bar (right side) for quick
+                        // access; the menu keeps the occasional actions.
                         Button {
                             isShowingInfo = true
                         } label: {
@@ -724,17 +711,41 @@ struct ReaderDetailView: View {
 
                 Spacer(minLength: 0)
 
-                Button {
-                    openBrowser(for: article)
-                } label: {
-                    Image(systemName: "doc.plaintext")
-                        .font(.system(size: 20))
-                        .frame(width: 52, height: 48)
+                HStack(spacing: 2) {
+                    // Translate is offered only when the article's language differs
+                    // from the reader's — surfaced here for one-tap access.
+                    if canTranslate {
+                        Button {
+                            toggleTranslation(article)
+                        } label: {
+                            Group {
+                                if translationBusy {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: translationActive(article) ? "character.bubble.fill" : "character.bubble")
+                                        .font(.system(size: 20))
+                                        .contentTransition(.symbolEffect(.replace))
+                                }
+                            }
+                            .frame(width: 52, height: 48)
+                        }
+                        .disabled(translationBusy)
+                        .help(translationActive(article) ? "Show Original" : "Translate")
+                    }
+
+                    Button {
+                        openBrowser(for: article)
+                    } label: {
+                        Image(systemName: "doc.plaintext")
+                            .font(.system(size: 20))
+                            .frame(width: 52, height: 48)
+                    }
+                    // Publish the real capsule frame so the coach mark spotlights it.
+                    .reportGlobalFrame(OriginalButtonFrameKey.self)
+                    .help("Open Reader / Original")
                 }
                 .glassCapsule()
-                // Publish the real capsule frame so the coach mark spotlights it.
-                .reportGlobalFrame(OriginalButtonFrameKey.self)
-                .help("Open Reader / Original")
+                .animation(.easeInOut(duration: 0.2), value: canTranslate)
             }
             .tint(Color("AccentColor"))
             .foregroundStyle(Color.accentColor)
