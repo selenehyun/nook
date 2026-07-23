@@ -170,6 +170,44 @@ struct MaterializeTests {
         #expect(reference.contains("feeds=f1"))
     }
 
+    // MARK: Canonical dedup (fixes cross-device "Unknown Feed" + duplicates)
+
+    @Test("Trailing-slash feed aliases collapse; split copies merge by seed; a matching orphan is absorbed; a unique orphan is kept")
+    func canonicalFeedAndArticleDedup() {
+        func feed(_ url: String) -> Feed {
+            Feed(id: url, title: url, siteDescription: "", category: "Feeds",
+                 systemImage: "dot", feedURL: URL(string: url)!, siteURL: URL(string: url)!, healthScore: 1)
+        }
+        // Article ids follow the real "\(feedID)#\(seed)" convention.
+        func art(feedID: String, seed: String, url: String, isRead: Bool = false) -> Article {
+            Article(id: "\(feedID)#\(seed)", feedID: feedID, title: seed, summary: "", bodyParagraphs: [],
+                    publishedAt: Date(timeIntervalSince1970: 1_700_000_000), url: URL(string: url)!,
+                    estimatedReadMinutes: 1, isRead: isRead, isStarred: false)
+        }
+        let base = Fixture.library(
+            feeds: [feed("https://x.com/feed"), feed("https://x.com/feed/")],   // same subscription, two urls
+            articles: [
+                art(feedID: "https://x.com/feed", seed: "p1", url: "https://x.com/p1", isRead: true),
+                art(feedID: "https://x.com/feed/", seed: "p1", url: "https://x.com/p1"),        // same item under the alias
+                art(feedID: "https://x.com/feed", seed: "p2", url: "https://x.com/p2"),
+                art(feedID: "https://x.com/feed/feed", seed: "p2", url: "https://x.com/p2"),    // orphan, url-dup of p2
+                art(feedID: "https://x.com/ghost", seed: "p3", url: "https://x.com/p3"),        // orphan, unique -> kept
+            ]
+        )
+        let merged = DeviceStateDocument.materialize(base: base, shards: [])
+
+        let canonicalID = "https://x.com/feed"
+        let urls = Set(merged.articles.map { $0.url.absoluteString })
+        let p1Read = merged.articles.first { $0.url.absoluteString == "https://x.com/p1" }?.isRead
+        let p2FeedID = merged.articles.first { $0.url.absoluteString == "https://x.com/p2" }?.feedID
+
+        #expect(merged.feeds.count == 1)                              // trailing-slash aliases collapse
+        #expect(merged.feeds.first?.id == canonicalID)               // deterministic canonical (min id)
+        #expect(urls == ["https://x.com/p1", "https://x.com/p2", "https://x.com/p3"])
+        #expect(p1Read == true)                                      // read carried on the merged item
+        #expect(p2FeedID == canonicalID)                             // orphan absorbed under the canonical feed
+    }
+
     private func permutations<T>(_ items: [T]) -> [[T]] {
         guard items.count > 1 else { return [items] }
         var result: [[T]] = []

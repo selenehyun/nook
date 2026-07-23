@@ -304,41 +304,144 @@ extension DeviceStateDocument {
     ) -> ReaderLibrary {
         let merged = mergedState(from: shards)
 
-        // Feeds: the membership is the union of the baseline's feeds and any a
-        // shard seeded (added on a device but perhaps not yet in this baseline),
-        // minus the tombstoned ones — so a feed can't be lost to a baseline-file
-        // overwrite, and a re-add (newer seed/untombstone) beats an old delete.
-        // Baseline order is preserved; seed-only feeds append deterministically.
+        // Feed membership: baseline ∪ shard-seeded, minus tombstoned. Resolve each
+        // candidate id to a Feed with its state applied.
         let baseByID = Dictionary(base.feeds.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var orderedIDs = base.feeds.map(\.id)
         orderedIDs.append(contentsOf: merged.feeds.keys.filter { baseByID[$0] == nil }.sorted())
 
+        var resolved: [Feed.ID: Feed] = [:]
         var deletedFeedIDs: Set<Feed.ID> = []
-        var feeds: [Feed] = []
-        feeds.reserveCapacity(orderedIDs.count)
         for id in orderedIDs {
             let state = merged.feeds[id]
-            if state?.tombstone?.value == true {
-                deletedFeedIDs.insert(id)
-                continue
-            }
-            guard var feed = baseByID[id] ?? state?.seed?.value.makeFeed() else { continue }
-            if let category = state?.category?.value { feed.category = category }
-            if let viewMode = state?.preferredViewMode { feed.preferredViewMode = viewMode.value }
-            if let customTitle = state?.customTitle { feed.customTitle = customTitle.value }
-            feeds.append(feed)
+            if state?.tombstone?.value == true { deletedFeedIDs.insert(id); continue }
+            guard let feed = baseByID[id] ?? state?.seed?.value.makeFeed() else { continue }
+            resolved[id] = feed
         }
 
-        // Articles: drop those orphaned by a deleted feed or tombstoned directly,
-        // apply read/starred.
+        // Collapse feeds that are the same subscription under trivially-different
+        // URLs (trailing slash, casing, a discovery artifact) into one canonical
+        // feed. feed.id has historically been the raw feed URL, so a feed fetched
+        // or added slightly differently across devices/versions split into separate
+        // ids — duplicating its articles and orphaning some under a feed id with no
+        // entity ("Unknown Feed"). The canonical id is the lexicographically
+        // smallest alias id (deterministic across devices, not dependent on
+        // dictionary/order), and the feed's user state (category / title / view
+        // mode / tombstone) is merged field-wise across the whole alias group by
+        // HLC. This heals every device on load and converges, without rewriting
+        // the stored (grow-only) shards.
+        var aliasesByKey: [String: [Feed.ID]] = [:]
+        for id in orderedIDs where resolved[id] != nil {
+            aliasesByKey[resolved[id]!.feedURL.feedIdentityKey, default: []].append(id)
+        }
+        var canonicalFeedID: [Feed.ID: Feed.ID] = [:]
+        var feeds: [Feed] = []
+        var emittedKeys = Set<String>()
+        for id in orderedIDs {
+            guard let feed = resolved[id] else { continue }
+            let key = feed.feedURL.feedIdentityKey
+            guard emittedKeys.insert(key).inserted else { continue }
+            let aliases = aliasesByKey[key]!.sorted()
+            let canonical = aliases.first!
+            for alias in aliases { canonicalFeedID[alias] = canonical }
+
+            var groupState: FeedState?
+            for alias in aliases {
+                if let s = merged.feeds[alias] { groupState = groupState.map { $0.merged(with: s) } ?? s }
+            }
+            if groupState?.tombstone?.value == true {
+                for alias in aliases { deletedFeedIDs.insert(alias) }
+                continue
+            }
+            var canonFeed = resolved[canonical] ?? feed
+            canonFeed.id = canonical
+            if let category = groupState?.category?.value { canonFeed.category = category }
+            if let viewMode = groupState?.preferredViewMode { canonFeed.preferredViewMode = viewMode.value }
+            if let customTitle = groupState?.customTitle { canonFeed.customTitle = customTitle.value }
+            feeds.append(canonFeed)
+        }
+        let liveFeedIDs = Set(feeds.map(\.id))
+
+        // Articles. The split copies of one article (same subscription fetched
+        // under alias feed urls) are grouped by the canonical feed + the item seed
+        // (the guid/link — the article id minus its own "feedID#" prefix), NOT by
+        // URL, so genuinely different items that share a URL (syndication, or feeds
+        // whose items fall back to the site URL) are never merged. The
+        // representative is the min-id copy (deterministic); user state is merged
+        // field-wise across the copies by HLC (so an explicit newer "unread" wins).
+        func seed(of article: Article) -> String {
+            let prefix = article.feedID + "#"
+            return article.id.hasPrefix(prefix) ? String(article.id.dropFirst(prefix.count)) : article.id
+        }
+        var repByCanon: [String: Article] = [:]
+        var stateByCanon: [String: ArticleState] = [:]
+        var canonOrder: [String] = []
+        var orphans: [Article] = []
+        for article in base.articles {
+            if deletedFeedIDs.contains(article.feedID) { continue }
+            guard let canonicalFeed = canonicalFeedID[article.feedID], liveFeedIDs.contains(canonicalFeed) else {
+                orphans.append(article)
+                continue
+            }
+            let canonID = canonicalFeed + "#" + seed(of: article)
+            if let s = merged.articles[article.id] {
+                stateByCanon[canonID] = stateByCanon[canonID].map { $0.merged(with: s) } ?? s
+            }
+            if let existing = repByCanon[canonID] {
+                if article.id < existing.id {
+                    var rep = article; rep.feedID = canonicalFeed
+                    repByCanon[canonID] = rep
+                }
+            } else {
+                var rep = article; rep.feedID = canonicalFeed
+                repByCanon[canonID] = rep
+                canonOrder.append(canonID)
+            }
+        }
+
         var articles: [Article] = []
-        articles.reserveCapacity(base.articles.count)
-        for var article in base.articles where !deletedFeedIDs.contains(article.feedID) {
-            let state = merged.articles[article.id]
+        articles.reserveCapacity(canonOrder.count)
+        var liveIndexByURL: [String: [Int]] = [:]
+        var canonIDByIndex: [Int: String] = [:]
+        for canonID in canonOrder {
+            guard var article = repByCanon[canonID] else { continue }
+            let state = stateByCanon[canonID]
             if state?.tombstone?.value == true { continue }
             if let isRead = state?.isRead?.value { article.isRead = isRead }
             if let isStarred = state?.isStarred?.value { article.isStarred = isStarred }
+            let idx = articles.count
             articles.append(article)
+            liveIndexByURL[article.url.feedIdentityKey, default: []].append(idx)
+            canonIDByIndex[idx] = canonID
+        }
+
+        // Orphans: an article whose feed entity isn't present (e.g. a ".../feed/feed"
+        // discovery artifact). Absorb it into a live article ONLY when its URL
+        // matches exactly one — a confirmed duplicate — merging its state (HLC LWW)
+        // so no read/starred is lost. A unique or ambiguous orphan is kept as-is
+        // rather than dropped, so genuinely-unique content is never hidden.
+        var removedIndices = Set<Int>()
+        for article in orphans.sorted(by: { $0.id < $1.id }) {
+            let state = merged.articles[article.id]
+            let matches = (liveIndexByURL[article.url.feedIdentityKey] ?? []).filter { !removedIndices.contains($0) }
+            if matches.count == 1, let s = state {
+                let idx = matches[0]
+                let canonID = canonIDByIndex[idx]!
+                let mergedState = stateByCanon[canonID].map { $0.merged(with: s) } ?? s
+                stateByCanon[canonID] = mergedState
+                if mergedState.tombstone?.value == true { removedIndices.insert(idx); continue }
+                if let isRead = mergedState.isRead?.value { articles[idx].isRead = isRead }
+                if let isStarred = mergedState.isStarred?.value { articles[idx].isStarred = isStarred }
+            } else if matches.isEmpty {
+                if state?.tombstone?.value == true { continue }
+                var kept = article
+                if let isRead = state?.isRead?.value { kept.isRead = isRead }
+                if let isStarred = state?.isStarred?.value { kept.isStarred = isStarred }
+                articles.append(kept)
+            }
+        }
+        if !removedIndices.isEmpty {
+            articles = articles.enumerated().filter { !removedIndices.contains($0.offset) }.map(\.element)
         }
 
         // Folders: baseline explicit folders adjusted by add/remove registers.

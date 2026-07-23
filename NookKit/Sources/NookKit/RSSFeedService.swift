@@ -232,13 +232,20 @@ private enum FeedLinkDiscovery {
                 appendVariant(path: normalizedBase + ".atom")
             }
 
-            appendVariant(path: joined(normalizedBase, "feed"))
-            appendVariant(path: joined(normalizedBase, "rss"))
-            appendVariant(path: joined(normalizedBase, "atom"))
-            appendVariant(path: joined(normalizedBase, "feed.xml"))
-            appendVariant(path: joined(normalizedBase, "rss.xml"))
-            appendVariant(path: joined(normalizedBase, "atom.xml"))
-            appendVariant(path: joined(normalizedBase, "index.xml"))
+            // Don't append a feed-ish tail to a base whose last component is
+            // already feed-ish (e.g. ".../feed" -> ".../feed/feed"), which would
+            // mint a second, near-duplicate feed identity. The root/parent bases
+            // still generate the canonical ".../feed".
+            let baseLast = (basePath as NSString).lastPathComponent.lowercased()
+            if !feedishNames.contains(baseLast) {
+                appendVariant(path: joined(normalizedBase, "feed"))
+                appendVariant(path: joined(normalizedBase, "rss"))
+                appendVariant(path: joined(normalizedBase, "atom"))
+                appendVariant(path: joined(normalizedBase, "feed.xml"))
+                appendVariant(path: joined(normalizedBase, "rss.xml"))
+                appendVariant(path: joined(normalizedBase, "atom.xml"))
+                appendVariant(path: joined(normalizedBase, "index.xml"))
+            }
         }
 
         return variants

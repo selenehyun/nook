@@ -1049,7 +1049,13 @@ public final class ReaderStore {
         allFeedsRefreshTask?.cancel()
 
         let url = try feedService.normalizedFeedURL(from: urlString)
-        let parsedFeed = try await fetch(url: url, existingFeedID: nil)
+        // Reuse an existing feed's id when this URL normalizes to one we already
+        // have (trailing slash / casing), so re-adding it doesn't split into a
+        // duplicate feed identity. (OPML import already dedupes this way.)
+        let existingFeedID = feeds.first {
+            $0.feedURL.feedIdentityKey == url.feedIdentityKey || $0.siteURL.feedIdentityKey == url.feedIdentityKey
+        }?.id
+        let parsedFeed = try await fetch(url: url, existingFeedID: existingFeedID)
         if !folder.isEmpty {
             moveFeed(parsedFeed.feed.id, toFolder: folder)
         }
@@ -1818,8 +1824,21 @@ public final class ReaderStore {
         }
 
         var parsedFeed = try await feedService.fetch(url: url)
-        if let existingFeedID {
+        if let existingFeedID, existingFeedID != parsedFeed.feed.id {
+            // Re-key onto the existing feed's id atomically: the article ids are
+            // built as "\(feed.id)#\(seed)", so re-keying only the feed would leave
+            // every article pointing at the old (now absent) feed id — an orphan
+            // ("Unknown Feed"). Re-key the feed AND every article's feedID/id.
+            let oldID = parsedFeed.feed.id
+            let oldPrefix = oldID + "#"
             parsedFeed.feed.id = existingFeedID
+            parsedFeed.articles = parsedFeed.articles.map { article in
+                var article = article
+                let seed = article.id.hasPrefix(oldPrefix) ? String(article.id.dropFirst(oldPrefix.count)) : article.id
+                article.feedID = existingFeedID
+                article.id = "\(existingFeedID)#\(seed)"
+                return article
+            }
         }
 
         merge(parsedFeed)

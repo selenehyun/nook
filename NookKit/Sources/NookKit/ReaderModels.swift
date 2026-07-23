@@ -141,12 +141,27 @@ public struct Feed: Identifiable, Codable, Hashable, Sendable {
 }
 
 extension URL {
-    /// A normalized key for comparing feed/site URLs so trivial differences
-    /// (trailing slash, casing) don't split one feed into duplicates.
+    /// A normalized key for comparing feed/site URLs so trivial differences don't
+    /// split one feed into duplicates. Only scheme and host are case-folded (they
+    /// are case-insensitive); the path and query keep their case (they can be
+    /// case-sensitive on the server). Default ports, the fragment, and a trailing
+    /// slash on the path are dropped.
     public var feedIdentityKey: String {
-        var value = absoluteString.lowercased()
-        while value.hasSuffix("/") { value.removeLast() }
-        return value
+        guard var comps = URLComponents(url: self, resolvingAgainstBaseURL: false), comps.scheme != nil else {
+            var value = absoluteString
+            while value.hasSuffix("/") { value.removeLast() }
+            return value.lowercased()
+        }
+        comps.scheme = comps.scheme?.lowercased()
+        comps.host = comps.host?.lowercased()
+        comps.fragment = nil
+        if (comps.scheme == "http" && comps.port == 80) || (comps.scheme == "https" && comps.port == 443) {
+            comps.port = nil
+        }
+        var path = comps.percentEncodedPath
+        while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
+        comps.percentEncodedPath = path
+        return comps.string ?? absoluteString
     }
 }
 

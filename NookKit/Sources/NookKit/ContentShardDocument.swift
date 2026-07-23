@@ -112,9 +112,12 @@ public struct ContentShardDocument: Codable, Sendable, Equatable {
     }
 
     public func materialize(bodies: [Article.ID: ArticleBody] = [:]) -> ReaderLibrary {
+        // Sort by id so the materialized order is deterministic across devices
+        // (Dictionary iteration order is not a stable contract), which downstream
+        // canonical-alias selection relies on.
         ReaderLibrary(
-            feeds: feeds.values.map { $0.value.makeFeed() },
-            articles: articles.values.map { $0.value.makeArticle(body: bodies[$0.value.id]) },
+            feeds: feeds.keys.sorted().map { feeds[$0]!.value.makeFeed() },
+            articles: articles.keys.sorted().map { articles[$0]!.value.makeArticle(body: bodies[$0]) },
             lastRefreshedAt: nil,
             folders: []
         )
