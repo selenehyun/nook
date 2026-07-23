@@ -209,9 +209,13 @@ public final class ListTitleTranslator {
             // row reveals a single time; the translation then fills it in.
             self.states[id] = .translating("")
 
+            // Proper nouns / brands / acronyms (LG, SIMD, OpenAI, GPT-4, …) to keep
+            // verbatim rather than translate or transliterate, in both passes.
+            let keepTerms = NaturalTranslator.heuristicKeepTokens(title)
+
             // 1) Guided, streaming translation (retries once internally).
             do {
-                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name) { [weak self] partial in
+                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms) { [weak self] partial in
                     guard let self, !Task.isCancelled else { return }
                     let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
@@ -240,7 +244,6 @@ public final class ListTitleTranslator {
             //    the same recovery the reader uses.
             if Task.isCancelled { return }
             self.states[id] = .translating("")
-            let keepTerms = NaturalTranslator.heuristicKeepTokens(title)
             if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms) {
                 if Task.isCancelled { return }
                 let final = plain.trimmingCharacters(in: .whitespacesAndNewlines)
