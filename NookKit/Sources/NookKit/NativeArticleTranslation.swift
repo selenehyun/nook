@@ -711,13 +711,16 @@ public final class NativeArticleTranslator {
         // the per-segment streaming below (small on-device window). translateFragment
         // -Streaming does not chunk for Gemini, so this is one network round-trip.
         if provider == .gemini {
+            // Batch the whole block into one request, but keep the dimmed-original +
+            // typing-overlay UX: render the block as a single streaming region
+            // (its plain original dimmed underneath, the translation typing over it).
+            let originalPlain = plainText(html)
             var settledHTML = html
             let streamed = await translateFragmentStreaming(
                 html, language: language, context: context, token: token
             ) { partial in
                 guard token == self.generation else { return }
-                let block: HTMLContentBlock = headingLevel.map { .heading(level: $0, html: partial) } ?? .text(partial)
-                emit(block)
+                emit(.mixedText(parts: [.streaming(original: originalPlain, text: partial)], headingLevel: headingLevel))
             }
             if let streamed { settledHTML = streamed.0 }
             let settled: HTMLContentBlock = headingLevel.map { .heading(level: $0, html: settledHTML) } ?? .text(settledHTML)
