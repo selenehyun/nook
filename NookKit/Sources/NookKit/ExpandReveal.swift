@@ -16,8 +16,13 @@ private struct IntrinsicRevealLayout: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         guard let subview = subviews.first else { return .zero }
-        let natural = subview.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
         let clamped = min(max(progress, 0), 1)
+        // Collapsed (the common case for every non-translating row while scrolling):
+        // height is zero regardless of content, so skip the expensive text
+        // measurement entirely. This is what stops a streamed update from making
+        // every visible row re-measure.
+        guard clamped > 0 else { return CGSize(width: proposal.width ?? 0, height: 0) }
+        let natural = subview.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
         return CGSize(width: proposal.width ?? natural.width, height: natural.height * clamped)
     }
 

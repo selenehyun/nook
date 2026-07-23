@@ -18,8 +18,11 @@ import Observation
 ///
 /// `@MainActor` so observable state updates (streaming) and SwiftUI reads stay on
 /// the main actor. A single shared instance keeps the cache across list rebuilds.
+/// The coordinator is deliberately NOT `@Observable`: a single observable state
+/// dictionary made every row re-render (and re-measure) on any one title's update,
+/// stuttering the list during scroll. Instead, per-article state lives in a small
+/// observable `StateBox`, so only the one row translating re-renders.
 @MainActor
-@Observable
 public final class ListTitleTranslator {
     public static let shared = ListTitleTranslator()
 
@@ -29,6 +32,15 @@ public final class ListTitleTranslator {
         case translating(String)
         /// Final translated title.
         case translated(String)
+    }
+
+    /// Per-article observable state. A row observes only its own box, so a
+    /// translation update re-renders that one row rather than the whole list.
+    @MainActor
+    @Observable
+    public final class StateBox {
+        public fileprivate(set) var state: TitleState?
+        fileprivate init(state: TitleState? = nil) { self.state = state }
     }
 
     /// How long a row must stay on screen before its title is translated.
@@ -45,8 +57,26 @@ public final class ListTitleTranslator {
     /// Translation backend for list titles, from the title provider setting.
     private var provider: TranslationProvider = .appleIntelligence
 
-    /// Per-article visible translation state (absent = show the original only).
-    public private(set) var states: [Article.ID: TitleState] = [:]
+    /// Per-article state boxes (stable references, interned by id). Not observed
+    /// at the dictionary level — only each box's `state` is.
+    private var boxes: [Article.ID: StateBox] = [:]
+
+    /// The stable observable box for a row. Rows read this once and observe only
+    /// its `state`. Interning a new box mutates a non-observed dictionary, so it's
+    /// safe to call from a view body (no "publishing during view update").
+    public func box(for id: Article.ID) -> StateBox {
+        if let existing = boxes[id] { return existing }
+        let created = StateBox()
+        boxes[id] = created
+        return created
+    }
+
+    private func liveState(for id: Article.ID) -> TitleState? { boxes[id]?.state }
+
+    private func setState(_ newState: TitleState?, for id: Article.ID) {
+        let box = box(for: id)
+        if box.state != newState { box.state = newState }
+    }
 
     // Device-local caches (never synced), persisted to Application Support so a
     // relaunch shows previously translated titles instantly and never re-requests.
@@ -105,15 +135,14 @@ public final class ListTitleTranslator {
         }
     }
 
-    public func state(for id: Article.ID) -> TitleState? { states[id] }
-
-    /// Like `state(for:)` but also resolves a translation that's only in the
-    /// (already-loaded) cache synchronously, so a row whose translation was cached
-    /// on a previous launch is full-height on its very first layout — before its
-    /// `onAppear` writes it into `states`. Without this, such a row lays out short
-    /// then grows a pass later, which makes the macOS List judder on scroll-up.
-    public func state(for id: Article.ID, title: String) -> TitleState? {
-        if let live = states[id] { return live }
+    /// The row's visible state. Reads the box's live state (observed), falling back
+    /// to an already-loaded cache hit synchronously — so a row whose translation
+    /// was cached on a previous launch is full-height on its very first layout,
+    /// before `onAppear` writes it into the box (this keeps the macOS List from
+    /// juddering on scroll-up). Reading the cache here does NOT create an
+    /// observation dependency, because the coordinator isn't `@Observable`.
+    public func state(for box: StateBox, title: String) -> TitleState? {
+        if let live = box.state { return live }
         guard enabled, !title.isEmpty else { return nil }
         if let cached = cache[cacheKey(for: title)] { return .translated(cached) }
         return nil
@@ -136,14 +165,13 @@ public final class ListTitleTranslator {
     /// visible dwell (normal scroll-in); pass false to begin immediately (the row
     /// is already being looked at, e.g. the feature was just turned on).
     private func scheduleTranslation(id: Article.ID, title: String, afterDwell: Bool) {
-        // If this row already has a state, don't touch `states` — re-assigning the
-        // same value would invalidate every row observing the dict and churn layout
-        // on an ordinary scroll-in.
-        if states[id] != nil { return }
+        // If this row already has a state, don't re-set it (a no-op set is skipped
+        // by setState anyway, but this also avoids the cache work).
+        if liveState(for: id) != nil { return }
         let key = cacheKey(for: title)
         if sameLanguage.contains(key) || abandoned.contains(key) { return }
         if let cached = cache[key] {
-            states[id] = .translated(cached)
+            setState(.translated(cached), for: id)
             return
         }
         if dwellTasks[id] != nil || activeTasks[id] != nil { return }
@@ -170,13 +198,13 @@ public final class ListTitleTranslator {
         pending.removeAll { $0.id == id }
         if let entry = activeTasks[id] {
             entry.task.cancel()
-            if case .translating = states[id] { states[id] = nil }
+            if case .translating = liveState(for: id) { setState(nil, for: id) }
         }
     }
 
     private func enqueue(id: Article.ID, title: String) {
         let key = cacheKey(for: title)
-        if let cached = cache[key] { states[id] = .translated(cached); return }
+        if let cached = cache[key] { setState(.translated(cached), for: id); return }
         if sameLanguage.contains(key) || abandoned.contains(key) { return }
         guard activeTasks[id] == nil, !pending.contains(where: { $0.id == id }) else { return }
         pending.append((id, title))
@@ -210,13 +238,13 @@ public final class ListTitleTranslator {
             // in) → leave the original untouched, no block.
             if alreadyTarget {
                 self.rememberSameLanguage(key)
-                self.states[id] = nil
+                self.setState(nil, for: id)
                 return
             }
 
             // Show the block once, up front, as a "translating" placeholder so the
             // row reveals a single time; the translation then fills it in.
-            self.states[id] = .translating("")
+            self.setState(.translating(""), for: id)
 
             // Proper nouns / brands / acronyms (LG, SIMD, OpenAI, GPT-4, …) to keep
             // verbatim rather than translate or transliterate, in both passes.
@@ -227,13 +255,13 @@ public final class ListTitleTranslator {
                 let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms, provider: provider) { [weak self] partial in
                     guard let self, !Task.isCancelled else { return }
                     let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
+                    if !trimmed.isEmpty { self.setState(.translating(trimmed), for: id) }
                 }
                 if Task.isCancelled { return }
                 let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !final.isEmpty, !Self.isEcho(final, of: title) {
                     self.rememberTranslation(key, final)
-                    self.states[id] = .translated(final)
+                    self.setState(.translated(final), for: id)
                     return
                 }
             } catch is CancellationError {
@@ -252,13 +280,13 @@ public final class ListTitleTranslator {
             //    that keeps the proper nouns verbatim recovers a real translation —
             //    the same recovery the reader uses.
             if Task.isCancelled { return }
-            self.states[id] = .translating("")
+            self.setState(.translating(""), for: id)
             if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms, provider: provider) {
                 if Task.isCancelled { return }
                 let final = plain.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !final.isEmpty, !Self.isEcho(final, of: title) {
                     self.rememberTranslation(key, final)
-                    self.states[id] = .translated(final)
+                    self.setState(.translated(final), for: id)
                     return
                 }
             }
@@ -267,7 +295,7 @@ public final class ListTitleTranslator {
             //    this title again until relaunch.
             if Task.isCancelled { return }
             self.abandoned.insert(key)
-            self.states[id] = nil
+            self.setState(nil, for: id)
         }
         activeTasks[id] = (token, task)
     }
@@ -279,7 +307,7 @@ public final class ListTitleTranslator {
         guard activeTasks[id]?.token == token else { return }
         activeTasks[id] = nil
         // A finished task must never leave the row stuck mid-stream.
-        if case .translating = states[id] { states[id] = nil }
+        if case .translating = liveState(for: id) { setState(nil, for: id) }
         fillSlots()
         // Reschedule ONLY when this task was genuinely cancelled (a transient
         // disappear) yet the row is on screen again — i.e. a real reappear gap.
@@ -299,7 +327,9 @@ public final class ListTitleTranslator {
         for entry in activeTasks.values { entry.task.cancel() }
         dwellTasks.removeAll()
         pending.removeAll()
-        states.removeAll()
+        // Reset each box's state in place (keep the map) so rows holding a box
+        // reference update immediately and a re-enable reuses the same box.
+        for box in boxes.values where box.state != nil { box.state = nil }
     }
 
     /// Deletes every saved title translation — the in-memory caches, the

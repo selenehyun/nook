@@ -1608,14 +1608,6 @@ private struct ArticleList: View {
         }
     }
 
-    private func resolvedTitleTranslation(for article: Article) -> (text: String, streaming: Bool)? {
-        switch titleTranslator.state(for: article.id, title: article.title) {
-        case .translating(let partial): return (partial, true)
-        case .translated(let final): return (final, false)
-        case nil: return nil
-        }
-    }
-
     private func row(_ article: Article) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             // Title + its translation share a zero-spacing group so the collapsed
@@ -1633,7 +1625,13 @@ private struct ArticleList: View {
                         Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow)
                     }
                 }
-                translatedTitle(for: article)
+                // Own child view so it observes ONLY its own state box — a title
+                // translation update re-renders this one line, not the whole list.
+                ArticleListTranslatedTitle(
+                    title: article.title,
+                    box: titleTranslator.box(for: article.id),
+                    usesGemini: titleProvider == TranslationProvider.gemini.rawValue
+                )
             }
             if !article.summary.isEmpty {
                 Text(article.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
@@ -1647,19 +1645,28 @@ private struct ArticleList: View {
             .foregroundStyle(.tertiary)
         }
     }
+}
 
-    /// The Apple Intelligence title translation shown beneath the original when
-    /// the experiment is on and the title isn't already in the user's language.
-    /// Accent-tinted with the intelligence glyph so it reads as a distinct,
-    /// machine-produced companion line — never mistaken for the source title.
-    ///
-    /// Always mounted; `expandReveal` grows it from zero height so the row pushes
-    /// the following content down smoothly rather than the block popping in.
-    private func translatedTitle(for article: Article) -> some View {
-        let resolved = resolvedTitleTranslation(for: article)
+/// The title-translation line beneath a list row's title. A standalone view so it
+/// observes only its own `StateBox` — the streaming translation update re-renders
+/// just this line, not every row (which stuttered the list during scroll). Always
+/// mounted; `expandReveal` grows it from zero height so the row pushes content
+/// down smoothly rather than popping in.
+private struct ArticleListTranslatedTitle: View {
+    let title: String
+    let box: ListTitleTranslator.StateBox
+    let usesGemini: Bool
+    private let translator = ListTitleTranslator.shared
+
+    var body: some View {
+        let resolved: (text: String, streaming: Bool)?
+        switch translator.state(for: box, title: title) {
+        case .translating(let partial): resolved = (partial, true)
+        case .translated(let final): resolved = (final, false)
+        case nil: resolved = nil
+        }
         let text = resolved?.text ?? ""
         let streaming = resolved?.streaming ?? false
-        let usesGemini = titleProvider == TranslationProvider.gemini.rawValue
         return HStack(alignment: .top, spacing: 5) {
             Image(systemName: usesGemini ? "sparkles" : "apple.intelligence")
                 .font(.caption)

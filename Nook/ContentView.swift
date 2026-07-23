@@ -1128,7 +1128,7 @@ private struct ArticleListView: View {
             } else {
                 List(selection: $store.selectedArticleID) {
                     ForEach(store.visibleArticles) { article in
-                        ArticleRow(article: article, feed: store.feed(for: article.feedID))
+                        ArticleRow(article: article, feed: store.feed(for: article.feedID), translationBox: titleTranslator.box(for: article.id))
                             .tag(article.id)
                             .onAppear { titleTranslator.rowAppeared(id: article.id, title: article.title) }
                             .onDisappear { titleTranslator.rowDisappeared(id: article.id) }
@@ -1233,6 +1233,7 @@ private struct ArticleListView: View {
 private struct ArticleRow: View {
     var article: Article
     var feed: Feed?
+    let translationBox: ListTitleTranslator.StateBox
     private let titleTranslator = ListTitleTranslator.shared
     @AppStorage(TranslationSettings.titleProviderKey) private var titleProvider = TranslationProvider.appleIntelligence.rawValue
 
@@ -1326,7 +1327,7 @@ private struct ArticleRow: View {
     /// The current title-translation text plus whether it's still streaming in,
     /// or nil when there's nothing to show for this row.
     private var resolvedTitleTranslation: (text: String, streaming: Bool)? {
-        switch titleTranslator.state(for: article.id, title: article.title) {
+        switch titleTranslator.state(for: translationBox, title: article.title) {
         case .translating(let partial): return (partial, true)
         case .translated(let final): return (final, false)
         case nil: return nil
