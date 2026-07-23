@@ -138,11 +138,14 @@ public final class ListTitleTranslator {
         let code = targetLanguageCode
         activeTasks[id] = Task { [weak self] in
             defer { self?.finish(id: id) }
-            let detected = await Task.detached { ListTitleTranslator.detectLanguage(title) }.value
+            let alreadyTarget = await Task.detached {
+                ListTitleTranslator.isAlreadyInTargetLanguage(title, targetCode: code)
+            }.value
             if Task.isCancelled { return }
             guard let self else { return }
-            // Already in the target language → leave the original untouched.
-            if let detected, Self.baseCode(detected) == code {
+            // Already readable in the user's language (dominant, or visibly mixed
+            // in) → leave the original untouched.
+            if alreadyTarget {
                 self.rememberSameLanguage(key)
                 self.states[id] = nil
                 return
@@ -185,16 +188,91 @@ public final class ListTitleTranslator {
 
     private func cacheKey(for title: String) -> String { "\(targetLanguageCode)|\(title)" }
 
-    private static func baseCode(_ code: String) -> String {
+    private nonisolated static func baseCode(_ code: String) -> String {
         Locale.Language(identifier: code).languageCode?.identifier ?? code
     }
 
-    nonisolated private static func detectLanguage(_ title: String) -> String? {
+    /// Whether `title` already reads as the user's language, so translating it
+    /// would be noise. True when it's dominantly that language, OR it visibly
+    /// contains that language's script (mixed titles like Korean + English) — the
+    /// dominant-only check wrongly flagged such titles as foreign because a few
+    /// English tokens can out-vote the Korean ones on a short string.
+    nonisolated private static func isAlreadyInTargetLanguage(_ title: String, targetCode: String) -> Bool {
         let sample = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !sample.isEmpty else { return nil }
+        guard !sample.isEmpty else { return true }
+
+        // Script heuristic (reliable for non-Latin targets): if the user's writing
+        // system already makes up a meaningful share of the letters, they can read
+        // it — so a mixed-language title should not be translated.
+        if let ratio = targetScriptRatio(sample, targetCode: targetCode), ratio >= 0.15 {
+            return true
+        }
+
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(sample)
-        return recognizer.dominantLanguage?.rawValue
+        if let dominant = recognizer.dominantLanguage?.rawValue, baseCode(dominant) == targetCode {
+            return true
+        }
+        // Secondary signal for Latin-script targets (where the script heuristic
+        // can't discriminate): a meaningful probability mass on the target.
+        let hypotheses = recognizer.languageHypotheses(withMaximum: 5)
+        let targetProbability = hypotheses
+            .filter { baseCode($0.key.rawValue) == targetCode }
+            .reduce(0.0) { $0 + $1.value }
+        return targetProbability >= 0.20
+    }
+
+    /// The fraction of letters in `text` that belong to the target language's
+    /// characteristic (non-Latin) script, or nil when the target uses the Latin
+    /// script (where this heuristic can't discriminate).
+    nonisolated private static func targetScriptRatio(_ text: String, targetCode: String) -> Double? {
+        guard let inTargetScript = scriptMembership(for: targetCode) else { return nil }
+        var total = 0
+        var matching = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            total += 1
+            if inTargetScript(scalar) { matching += 1 }
+        }
+        guard total > 0 else { return nil }
+        return Double(matching) / Double(total)
+    }
+
+    /// A membership test for the target language's characteristic script, or nil
+    /// for Latin-script languages. Japanese keys on kana (kanji alone is ambiguous
+    /// with Chinese); Chinese on Han; Korean on Hangul.
+    nonisolated private static func scriptMembership(for targetCode: String) -> ((Unicode.Scalar) -> Bool)? {
+        switch targetCode {
+        case "ko":
+            return { s in
+                (0xAC00...0xD7A3).contains(s.value)      // Hangul syllables
+                    || (0x1100...0x11FF).contains(s.value) // Hangul Jamo
+                    || (0x3130...0x318F).contains(s.value) // compatibility Jamo
+            }
+        case "ja":
+            return { s in
+                (0x3040...0x309F).contains(s.value)        // Hiragana
+                    || (0x30A0...0x30FF).contains(s.value) // Katakana
+            }
+        case "zh":
+            return { s in
+                (0x4E00...0x9FFF).contains(s.value)        // CJK Unified Ideographs
+                    || (0x3400...0x4DBF).contains(s.value) // Extension A
+            }
+        case "ru", "uk", "bg", "sr", "be", "mk":
+            return { s in (0x0400...0x04FF).contains(s.value) } // Cyrillic
+        case "ar", "fa", "ur":
+            return { s in (0x0600...0x06FF).contains(s.value) } // Arabic
+        case "hi", "mr", "ne":
+            return { s in (0x0900...0x097F).contains(s.value) } // Devanagari
+        case "th":
+            return { s in (0x0E00...0x0E7F).contains(s.value) } // Thai
+        case "he", "yi":
+            return { s in (0x0590...0x05FF).contains(s.value) } // Hebrew
+        case "el":
+            return { s in (0x0370...0x03FF).contains(s.value) } // Greek
+        default:
+            return nil // Latin-script languages: rely on the recognizer instead.
+        }
     }
 
     // MARK: - Persistence
