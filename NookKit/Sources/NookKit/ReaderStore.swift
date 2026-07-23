@@ -1246,6 +1246,12 @@ public final class ReaderStore {
     /// each platform shows it independently. Defaults false.
     public static let translateTitlesPromoSeenKey = "translateTitlesPromoSeen"
 
+    /// `UserDefaults` key for the experimental "coherent long-article translation"
+    /// mode: the native reader keeps one prior translated paragraph as rolling
+    /// context so blocks read together. Falls back to per-block translation on any
+    /// trouble. Defaults off.
+    public static let coherentArticleTranslationKey = "coherentArticleTranslation"
+
     /// Whether the native reader should show reader-mode-extracted content
     /// instead of the raw feed body by default.
     public var usesReaderContentByDefault: Bool {

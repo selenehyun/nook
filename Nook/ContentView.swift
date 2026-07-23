@@ -2603,6 +2603,7 @@ struct ReaderSettingsView: View {
 private struct ExperimentalSettingsTab: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
     @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
+    @AppStorage(ReaderStore.coherentArticleTranslationKey) private var coherentArticleTranslation = false
     @State private var confirmingClearTranslationCache = false
 
     var body: some View {
@@ -2610,6 +2611,11 @@ private struct ExperimentalSettingsTab: View {
             Section("Reader View") {
                 Toggle("Show reader view content by default", isOn: $readerContentByDefault)
                 Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Coherent long-article translation", isOn: $coherentArticleTranslation)
+                Text("When translating a full article, keeps the previous paragraph in context so the translation reads more consistently across a long piece. Experimental — it falls back to the standard paragraph-by-paragraph translation whenever needed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

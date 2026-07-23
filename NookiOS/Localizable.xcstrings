@@ -856,9 +856,6 @@
       }
     },
     "Clear Translation Cache" : {
-
-    },
-    "Clear Translation Cache" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -876,6 +873,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除翻译缓存"
+          }
+        }
+      }
+    },
+    "Coherent long-article translation" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長い記事を一貫して翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "긴 글 번역 일관성 유지"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长文章连贯翻译"
           }
         }
       }
@@ -5311,6 +5330,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启后，长按文章正文即可打开应用内浏览器。工具栏按钮始终可打开。"
+          }
+        }
+      }
+    },
+    "When translating a full article, keeps the previous paragraph in context so the translation reads more consistently across a long piece. Experimental — it falls back to the standard paragraph-by-paragraph translation whenever needed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事全体を翻訳するとき、直前の段落を文脈として保持し、長い記事全体でより一貫した訳になるようにします。実験的機能で、必要に応じて通常の段落ごとの翻訳に自動で切り替わります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 전체를 번역할 때 직전 문단을 문맥으로 유지해, 긴 글 전반에서 번역이 더 일관되게 읽히도록 합니다. 실험 기능이며, 필요할 때는 기본 문단별 번역으로 자동 전환됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译整篇文章时，会保留上一段作为上下文，让长文章的译文更连贯。此为实验功能，必要时会自动回退到常规的逐段翻译。"
           }
         }
       }

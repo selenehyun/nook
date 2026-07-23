@@ -388,6 +388,13 @@ public final class NativeArticleTranslator {
     /// rendering), built once up front so every block translates the same term the
     /// same way — a lightweight translation memory for long-article consistency.
     private var glossary: [String: String] = [:]
+    /// Optional per-article persistent session (experimental "coherent" mode),
+    /// used as the primary attempt so consecutive blocks read together. Nil when
+    /// the mode is off or unavailable; any failure falls back to the per-block path.
+    private var articleSession: NaturalTranslator.ArticleSession?
+    /// Whether the experimental coherent mode is on for this run (captured at
+    /// `start` so a mid-run toggle can't mix strategies).
+    private var useCoherentMode = false
 
     public init() {}
 
@@ -409,6 +416,8 @@ public final class NativeArticleTranslator {
         // Warm the on-device model ahead of the block-by-block burst so the first
         // block doesn't pay the cold-start latency.
         NaturalTranslator.prewarm()
+        // Capture the experimental "coherent" flag once for this run.
+        useCoherentMode = UserDefaults.standard.bool(forKey: ReaderStore.coherentArticleTranslationKey)
         let blocks = HTMLContentParser.parse(html, baseURL: baseURL)
         task = Task { [weak self] in
             await self?.run(title: title, blocks: blocks, language: languageName, token: token)
@@ -419,6 +428,11 @@ public final class NativeArticleTranslator {
     public func stop() {
         task?.cancel()
         task = nil
+        // Invalidate any in-flight work immediately: a cancelled block that returns
+        // still checks `token == generation`, so bump it here (not only in `start`)
+        // so stopping/switching an article can't let a stale task keep running or
+        // rewrite overrides.
+        generation += 1
         isActive = false
         isTranslating = false
         overrides = [:]
@@ -427,6 +441,8 @@ public final class NativeArticleTranslator {
         keepTerms = []
         keepTermsSeen = []
         glossary = [:]
+        articleSession = nil
+        useCoherentMode = false
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
@@ -450,6 +466,15 @@ public final class NativeArticleTranslator {
             into: language, domain: conceptDomain, keepTerms: keepTerms
         )
         guard token == generation else { return }
+
+        // Experimental coherent mode: one per-article session that carries the last
+        // translated paragraph as rolling context. Built here (after domain/terms/
+        // glossary) so its instructions match the per-block sessions. nil = off.
+        if useCoherentMode {
+            articleSession = NaturalTranslator.ArticleSession.make(
+                into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary
+            )
+        }
 
         // Title: a plain, bounded translation. Using the simple translator (not
         // the block/marker one) keeps a short title from ever ballooning into a
@@ -791,6 +816,20 @@ public final class NativeArticleTranslator {
         _ template: String, language: String, token: Int,
         onPartial: @escaping (String) -> Void
     ) async -> String {
+        // 0) Experimental coherent mode: the per-article session (rolling K=1
+        // context) is the primary attempt. nil result → fall through to the normal
+        // per-block path, which also self-heals the session for the next block.
+        if let articleSession {
+            if let coherent = await articleSession.translate(
+                template, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary,
+                onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
+            ) {
+                return coherent
+            }
+            // nil → escalate to the per-block path, unless we've been cancelled or
+            // superseded (article switched / translation turned off).
+            guard token == generation, !Task.isCancelled else { return template }
+        }
         // 1) Guided streaming — markers preserved, streams token by token.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
             template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary,

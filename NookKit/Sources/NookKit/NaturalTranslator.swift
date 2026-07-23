@@ -586,4 +586,202 @@ public enum NaturalTranslator {
         return response.content
     }
     #endif
+
+    // MARK: - Per-article persistent session (experimental)
+
+    /// An opaque handle to a per-article translation session that keeps a *single*
+    /// prior translated paragraph as rolling context (K=1), so consecutive blocks
+    /// read coherently (pronouns, connectives, tone) without the article-long
+    /// context that made the small model drift/repeat. Encapsulates all
+    /// Foundation Models use so callers need no availability plumbing. `make`
+    /// returns nil when Apple Intelligence is unavailable, and `translate` returns
+    /// nil whenever the persistent attempt is unusable — the caller then falls back
+    /// to its normal per-block path, and this session self-heals for the next call.
+    public final class ArticleSession {
+        private let box: AnyObject?
+        private init(box: AnyObject?) { self.box = box }
+
+        @MainActor
+        public static func make(into language: String, domain: String, keepTerms: [String], glossary: [String: String]) -> ArticleSession? {
+            #if canImport(FoundationModels)
+            if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+                return ArticleSession(box: ArticleSessionImpl(language: language, domain: domain, keepTerms: keepTerms, glossary: glossary))
+            }
+            #endif
+            return nil
+        }
+
+        /// Translates one marked template on the persistent session, streaming raw
+        /// (marker-bearing) partials via `onPartial`. Returns the marker-bearing
+        /// translation, or nil if the caller should escalate to its per-block path.
+        /// The latest `domain`/`keepTerms`/`glossary` are passed every call so the
+        /// session's instructions stay current as the article's glossary grows.
+        @MainActor
+        public func translate(
+            _ template: String, domain: String, keepTerms: [String], glossary: [String: String],
+            onPartial: @escaping (String) -> Void
+        ) async -> String? {
+            #if canImport(FoundationModels)
+            if #available(iOS 26, macOS 26, *), let impl = box as? ArticleSessionImpl {
+                return await impl.translate(template, domain: domain, keepTerms: keepTerms, glossary: glossary, onPartial: onPartial)
+            }
+            #endif
+            return nil
+        }
+    }
+
+    #if canImport(FoundationModels)
+    /// The real implementation, isolated so all Foundation Models types stay behind
+    /// the availability gate.
+    @available(iOS 26, macOS 26, *)
+    @MainActor
+    final class ArticleSessionImpl {
+        private let language: String
+        private var instructionEntries: [Transcript.Entry]
+        private var session: LanguageModelSession
+        // The instruction inputs the current session was built from, so we only
+        // rebuild instructions when they actually change (e.g. the glossary grows).
+        private var domain: String
+        private var keepTerms: [String]
+        private var glossary: [String: String]
+        /// The last accepted prompt→response pair, kept as the sole rolling context.
+        private var lastPair: [Transcript.Entry] = []
+        /// The last accepted output/source (normalized), to catch a near-verbatim
+        /// repeat of the previous translation while allowing a genuinely repeated
+        /// source paragraph (e.g. "Advertisement") to translate the same way.
+        private var lastOutput = ""
+        private var lastSourceNormalized = ""
+        private var consecutiveFailures = 0
+        private var resetCount = 0
+        /// Circuit breaker: once tripped, the article finishes on the per-block path.
+        private var disabled = false
+
+        init(language: String, domain: String, keepTerms: [String], glossary: [String: String]) {
+            self.language = language
+            self.domain = domain
+            self.keepTerms = keepTerms
+            self.glossary = glossary
+            let base = LanguageModelSession(instructions: NaturalTranslator.blockInstructions(language, domain: domain, keepTerms: keepTerms, glossary: glossary))
+            self.instructionEntries = base.transcript.filter { if case .instructions = $0 { return true }; return false }
+            self.session = base
+        }
+
+        func translate(_ template: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: @escaping (String) -> Void) async -> String? {
+            guard !disabled else { return nil }
+            if Task.isCancelled { return nil }
+            // Keep instructions current: a later block may have added keep-verbatim
+            // terms, and a stale session would translate them instead of preserving
+            // them. Rebuild instructions (keeping the rolling pair) when they change.
+            refreshInstructions(domain: domain, keepTerms: keepTerms, glossary: glossary)
+            let prompt = "Translate this paragraph into \(language). Output only the translation, once:\n\n\(template)"
+
+            // Budget safety net (only where token counting exists, iOS/macOS 26.4+).
+            // History is bounded to one pair, so this rarely trips; when a single
+            // paragraph is still too big for the window, give up the persistent
+            // attempt (the per-block path chunks it further). Below 26.4 we rely on
+            // the K=1 cap plus the streaming runaway/length guard and the
+            // exceededContextWindowSize catch instead.
+            if #available(iOS 26.4, macOS 26.4, *) {
+                let model = SystemLanguageModel.default
+                let soft = Int(Double(model.contextSize) * 0.70)
+                let promptEstimate = prompt.count / 3
+                if let history = try? await model.tokenCount(for: Array(session.transcript)),
+                   history + promptEstimate > soft {
+                    rebuild(preserving: [])
+                    if let history2 = try? await model.tokenCount(for: Array(session.transcript)),
+                       history2 + promptEstimate > soft {
+                        return failAndReset()
+                    }
+                }
+            }
+
+            let beforeCount = session.transcript.count
+            do {
+                let stream = session.streamResponse(
+                    to: prompt,
+                    generating: NaturalTranslator.BlockTranslation.self,
+                    includeSchemaInPrompt: false,
+                    options: NaturalTranslator.translationOptions
+                )
+                var finalText = ""
+                let maxLength = max(400, template.count * 4)
+                for try await partial in stream {
+                    guard let translation = partial.content.translation else { continue }
+                    finalText = translation
+                    if NaturalTranslator.looksRunaway(translation) || translation.count > maxLength {
+                        return failAndReset()
+                    }
+                    onPartial(translation)
+                }
+                onPartial(finalText)
+                if Task.isCancelled { return nil }
+                let out = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let sourceNormalized = NaturalTranslator.normalizeForComparison(template)
+                let sourceRepeated = !lastSourceNormalized.isEmpty && sourceNormalized == lastSourceNormalized
+                guard !out.isEmpty,
+                      NaturalTranslator.isAcceptable(source: template, output: out, languageName: language),
+                      sourceRepeated || !isNearDuplicateOfLast(out) else {
+                    return failAndReset()
+                }
+                // Accept: keep only this pair as rolling context (K=1).
+                let appended = Array(session.transcript.dropFirst(beforeCount))
+                guard let last = appended.last, case .response = last else { return failAndReset() }
+                lastPair = appended
+                lastOutput = out
+                lastSourceNormalized = sourceNormalized
+                rebuild(preserving: lastPair)
+                consecutiveFailures = 0
+                return out
+            } catch is CancellationError {
+                return nil   // article switched/stopped — not a translation failure
+            } catch {
+                if Task.isCancelled { return nil }
+                return failAndReset()
+            }
+        }
+
+        /// Rebuilds the session as instructions + the given (0 or 1) rolling pair.
+        private func rebuild(preserving pair: [Transcript.Entry]) {
+            session = LanguageModelSession(transcript: Transcript(entries: instructionEntries + pair))
+        }
+
+        /// Rebuilds the instructions (keeping the rolling pair) when the domain,
+        /// keep-verbatim terms, or glossary have changed since the last block.
+        private func refreshInstructions(domain: String, keepTerms: [String], glossary: [String: String]) {
+            guard domain != self.domain || keepTerms != self.keepTerms || glossary != self.glossary else { return }
+            self.domain = domain
+            self.keepTerms = keepTerms
+            self.glossary = glossary
+            let base = LanguageModelSession(instructions: NaturalTranslator.blockInstructions(language, domain: domain, keepTerms: keepTerms, glossary: glossary))
+            instructionEntries = base.transcript.filter { if case .instructions = $0 { return true }; return false }
+            rebuild(preserving: lastPair)
+        }
+
+        /// Discards the (possibly poisoned) session, resets to instructions only,
+        /// and trips the circuit breaker after repeated trouble.
+        private func failAndReset() -> String? {
+            rebuild(preserving: [])
+            lastPair = []
+            lastOutput = ""
+            consecutiveFailures += 1
+            resetCount += 1
+            if consecutiveFailures >= 2 || resetCount >= 3 { disabled = true }
+            return nil
+        }
+
+        /// Whether `out` is a near-verbatim repeat of the previous translation (the
+        /// model regurgitating the rolling context instead of translating the new
+        /// paragraph). Word-overlap (Jaccard) so a punctuation-only tweak still
+        /// counts; skipped for short strings, which repeat legitimately.
+        private func isNearDuplicateOfLast(_ out: String) -> Bool {
+            guard !lastOutput.isEmpty else { return false }
+            let a = Set(NaturalTranslator.normalizeForComparison(out).split(separator: " "))
+            let b = Set(NaturalTranslator.normalizeForComparison(lastOutput).split(separator: " "))
+            guard a.count >= 6, b.count >= 6 else { return false }
+            let intersection = a.intersection(b).count
+            let union = a.union(b).count
+            return union > 0 && Double(intersection) / Double(union) >= 0.9
+        }
+    }
+    #endif
 }
