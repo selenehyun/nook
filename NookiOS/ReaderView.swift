@@ -199,6 +199,10 @@ struct ReaderDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color("ListBackground").ignoresSafeArea())
+        // Keep the left-edge swipe-to-go-back working even while the reader hides
+        // its back button (immersive reading). Hiding the back button otherwise
+        // makes the system disable the interactive pop gesture.
+        .background(InteractivePopGestureEnabler())
         .articleImageOverlay(imagePresenter)
         // The interactive coach marks live here — outside the per-article `.id`
         // subtree in `reader(_:)` — so their step survives an article change (the
@@ -794,6 +798,54 @@ struct ReaderDetailView: View {
         }
     }
 
+}
+
+/// Restores the navigation stack's left-edge swipe-to-go-back while a pushed
+/// screen hides its back button. SwiftUI (via UIKit) disables the
+/// `interactivePopGestureRecognizer` when there's no visible back button, so the
+/// reader's immersive mode — which hides the button — would otherwise lose the
+/// edge swipe. This installs a permissive gesture delegate that allows the pop
+/// whenever the stack has something to pop back to, and restores the original
+/// delegate when it goes away.
+private struct InteractivePopGestureEnabler: UIViewControllerRepresentable {
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let controller = UIViewController()
+        controller.view.backgroundColor = .clear
+        controller.view.isUserInteractionEnabled = false
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UIViewController, context: Context) {
+        // Defer so the view is in the hierarchy and `navigationController` resolves.
+        DispatchQueue.main.async {
+            guard let gesture = controller.navigationController?.interactivePopGestureRecognizer else { return }
+            context.coordinator.navigationController = controller.navigationController
+            if context.coordinator.originalDelegate == nil, gesture.delegate !== context.coordinator {
+                context.coordinator.originalDelegate = gesture.delegate
+            }
+            gesture.delegate = context.coordinator
+            gesture.isEnabled = true
+        }
+    }
+
+    static func dismantleUIViewController(_ controller: UIViewController, coordinator: Coordinator) {
+        if let gesture = coordinator.navigationController?.interactivePopGestureRecognizer,
+           gesture.delegate === coordinator {
+            gesture.delegate = coordinator.originalDelegate
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        weak var navigationController: UINavigationController?
+        weak var originalDelegate: UIGestureRecognizerDelegate?
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            // Only pop when there's a screen to go back to (never at the root).
+            (navigationController?.viewControllers.count ?? 0) > 1
+        }
+    }
 }
 
 /// Article metadata, mirroring the macOS inspector: status, published date,
