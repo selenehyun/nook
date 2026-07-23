@@ -97,9 +97,11 @@ private struct ReaderSwipeNavigation: ViewModifier {
             // disarm the moment it returns to rest. Timed off the pull itself, so it
             // covers both platforms (each drives `pull`).
             .onChange(of: pull) { _, newValue in
-                // Tell the host when the affordance is actually on screen, so it
-                // can hide chrome that would otherwise overlap the indicator.
-                let visiblyEngaged = newValue.top > Self.engageThreshold || newValue.bottom > Self.engageThreshold
+                // Tell the host when the BOTTOM (next-article) affordance is on
+                // screen, so it can hide chrome that would overlap the indicator.
+                // Only the bottom edge: hiding the top bar during a top (previous)
+                // pull shifts the nav-bar layout and makes the pull judder.
+                let visiblyEngaged = newValue.bottom > Self.engageThreshold
                 if visiblyEngaged != pullEngaged {
                     pullEngaged = visiblyEngaged
                     onPullEngagedChange(visiblyEngaged)
