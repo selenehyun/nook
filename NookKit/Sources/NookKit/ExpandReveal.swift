@@ -26,7 +26,6 @@ private struct ExpandRevealModifier: ViewModifier {
     let animation: Animation
 
     @State private var contentHeight: CGFloat = 0
-    @State private var didMeasure = false
     /// Height phase: is the row grown to make room?
     @State private var expanded = false
     /// Content phase: is the content faded in?
@@ -52,16 +51,14 @@ private struct ExpandRevealModifier: ViewModifier {
             .clipped()
             .onPreferenceChange(ExpandRevealHeightKey.self) { newValue in
                 guard abs(newValue - contentHeight) > 0.5 else { return }
-                if didMeasure, expanded {
-                    // A later change while shown (e.g. streaming grows 1→2 lines).
-                    withAnimation(animation) { contentHeight = newValue }
-                } else {
-                    // First measurement, or while collapsed: set instantly.
-                    didMeasure = true
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) { contentHeight = newValue }
-                }
+                // Always set the height instantly. The reveal itself is animated via
+                // `expanded` (phase 1); animating height here too would replay an
+                // animation on every streamed token and again when the final text
+                // lands — the exact "it re-animates after finishing" jank. Content
+                // that grows mid-stream just tracks size under the shown block.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { contentHeight = newValue }
             }
             .onAppear {
                 // Match the current visibility immediately (no animation), so a row
