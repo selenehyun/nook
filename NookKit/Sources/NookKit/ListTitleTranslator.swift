@@ -83,12 +83,22 @@ public final class ListTitleTranslator {
     /// but keeps the caches.
     public func configure(enabled: Bool, targetLanguageName: String, targetLanguageCode: String) {
         let languageChanged = targetLanguageCode != self.targetLanguageCode
+        let wasEnabled = self.enabled
         self.enabled = enabled && NaturalTranslator.isAvailable
         self.targetLanguageName = targetLanguageName
         self.targetLanguageCode = targetLanguageCode
         if self.enabled { loadCacheIfNeeded() }
         if !self.enabled || languageChanged {
             cancelAll()
+        }
+        // Just turned on (or switched language while on): translate the rows that
+        // are already on screen right now — without waiting for a dwell — so the
+        // list the user is looking at starts translating immediately instead of
+        // only after they scroll (their onAppear already fired).
+        if self.enabled, !wasEnabled || languageChanged {
+            for (id, title) in visibleTitles {
+                scheduleTranslation(id: id, title: title, afterDwell: false)
+            }
         }
     }
 
@@ -110,8 +120,19 @@ public final class ListTitleTranslator {
     /// its title — unless it's already cached, already the target language, or in
     /// progress.
     public func rowAppeared(id: Article.ID, title: String) {
-        guard enabled, !title.isEmpty else { return }
+        guard !title.isEmpty else { return }
+        // Track visibility even while disabled, so enabling the feature can find
+        // the rows already on screen and translate them at once.
         visibleTitles[id] = title
+        guard enabled else { return }
+        scheduleTranslation(id: id, title: title, afterDwell: true)
+    }
+
+    /// Starts translating a visible row's title, unless it's already cached, the
+    /// target language, abandoned, or in progress. `afterDwell` gates on the
+    /// visible dwell (normal scroll-in); pass false to begin immediately (the row
+    /// is already being looked at, e.g. the feature was just turned on).
+    private func scheduleTranslation(id: Article.ID, title: String, afterDwell: Bool) {
         // If this row already has a state, don't touch `states` — re-assigning the
         // same value would invalidate every row observing the dict and churn layout
         // on an ordinary scroll-in.
@@ -123,6 +144,10 @@ public final class ListTitleTranslator {
             return
         }
         if dwellTasks[id] != nil || activeTasks[id] != nil { return }
+        guard afterDwell else {
+            enqueue(id: id, title: title)
+            return
+        }
         dwellTasks[id] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(self?.dwell ?? 1.5))
             guard !Task.isCancelled, let self else { return }
