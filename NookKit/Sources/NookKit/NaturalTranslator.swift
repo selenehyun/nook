@@ -115,7 +115,19 @@ public enum NaturalTranslator {
     ) async throws -> BlockResult {
         let system = blockInstructions(languageName, domain: domain, keepTerms: keepTerms, glossary: glossary)
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
-        let raw = try await GeminiTranslator.stream(system: system, prompt: prompt, onPartial: onPartial)
+        // The stream's producer (network + parsing) runs off the main actor; this
+        // loop only applies the UI update, throttled by growth so we don't re-render
+        // per token (which is what stuttered the list while scrolling).
+        var raw = ""
+        var lastEmitted = 0
+        for try await partial in GeminiTranslator.stream(system: system, prompt: prompt) {
+            raw = partial
+            if partial.count - lastEmitted >= 12 {
+                lastEmitted = partial.count
+                onPartial(partial)
+            }
+        }
+        onPartial(raw)
         let final = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !final.isEmpty, isAcceptable(source: text, output: final, languageName: languageName) else {
             throw TranslationRejected()

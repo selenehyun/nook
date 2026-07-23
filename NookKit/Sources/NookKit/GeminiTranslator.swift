@@ -32,34 +32,43 @@ public enum GeminiTranslator {
 
     public static var isConfigured: Bool { GeminiCredential.hasKey }
 
-    /// Streams a translation. `onPartial` receives the cumulative text so callers
-    /// replace (not append), matching the on-device streaming contract. Returns
-    /// the final text. `@MainActor` so it can call a main-actor UI closure in order
-    /// (the SSE loop only awaits — it never blocks the main thread).
-    @MainActor
-    public static func stream(system: String, prompt: String, onPartial: @escaping (String) -> Void) async throws -> String {
-        let bytes = try await openStream(path: "\(model):streamGenerateContent?alt=sse", system: system, prompt: prompt)
-        var full = ""
-        var finishReason: String?
-        var blockReason: String?
-        for try await line in bytes.lines {
-            try Task.checkCancellation()
-            guard line.hasPrefix("data:") else { continue }
-            let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
-            guard !payload.isEmpty, payload != "[DONE]", let data = payload.data(using: .utf8) else { continue }
-            let chunk = parse(data)
-            if let reason = chunk.blockReason { blockReason = reason }
-            if let reason = chunk.finishReason { finishReason = reason }
-            if let delta = chunk.text, !delta.isEmpty {
-                full += delta
-                onPartial(full)
+    /// Streams a translation as cumulative snapshots (each element is the full text
+    /// so far, so consumers replace rather than append). NOT `@MainActor`: the
+    /// network receive, JSON parsing, and Keychain read all run off the main thread
+    /// in a detached producer, so consuming it on the main actor only costs the
+    /// quick per-snapshot UI update — the previous @MainActor version did all that
+    /// parsing on main and stuttered scrolling. A blocked or non-STOP (truncated)
+    /// response finishes the stream with a thrown error so the caller falls back.
+    public static func stream(system: String, prompt: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task.detached {
+                do {
+                    let bytes = try await openStream(path: "\(model):streamGenerateContent?alt=sse", system: system, prompt: prompt)
+                    var full = ""
+                    var finishReason: String?
+                    var blockReason: String?
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        guard line.hasPrefix("data:") else { continue }
+                        let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
+                        guard !payload.isEmpty, payload != "[DONE]", let data = payload.data(using: .utf8) else { continue }
+                        let chunk = parse(data)
+                        if let reason = chunk.blockReason { blockReason = reason }
+                        if let reason = chunk.finishReason { finishReason = reason }
+                        if let delta = chunk.text, !delta.isEmpty {
+                            full += delta
+                            continuation.yield(full)
+                        }
+                    }
+                    if let blockReason { throw Failure(message: "blocked: \(blockReason)") }
+                    guard finishReason == "STOP" else { throw Failure(message: "incomplete: \(finishReason ?? "no finishReason")") }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
             }
+            continuation.onTermination = { _ in task.cancel() }
         }
-        // Reject a blocked, truncated, or abnormally-ended response so the caller
-        // falls back instead of showing a partial translation as if complete.
-        if let blockReason { throw Failure(message: "blocked: \(blockReason)") }
-        guard finishReason == "STOP" else { throw Failure(message: "incomplete: \(finishReason ?? "no finishReason")") }
-        return full
     }
 
     /// One-shot (non-streaming) generation — for the short helper calls (language
