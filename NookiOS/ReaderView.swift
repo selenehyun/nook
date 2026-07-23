@@ -650,9 +650,15 @@ struct ReaderDetailView: View {
             .foregroundStyle(.secondary)
 
             if translationActive(article) {
-                Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if TranslationSettings.readerProvider() == .gemini {
+                        Label("Translated by Gemini", systemImage: "sparkles")
+                    } else {
+                        Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
     }

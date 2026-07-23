@@ -5807,6 +5807,28 @@
         }
       }
     },
+    "Translated by Gemini" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini による翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini로 번역됨"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 Gemini 翻译"
+          }
+        }
+      }
+    },
     "Translating…" : {
       "localizations" : {
         "ja" : {

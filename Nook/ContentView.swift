@@ -1234,6 +1234,7 @@ private struct ArticleRow: View {
     var article: Article
     var feed: Feed?
     private let titleTranslator = ListTitleTranslator.shared
+    @AppStorage(TranslationSettings.titleProviderKey) private var titleProvider = TranslationProvider.appleIntelligence.rawValue
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -1295,10 +1296,11 @@ private struct ArticleRow: View {
         let resolved = resolvedTitleTranslation
         let text = resolved?.text ?? ""
         let streaming = resolved?.streaming ?? false
+        let usesGemini = titleProvider == TranslationProvider.gemini.rawValue
         return HStack(alignment: .top, spacing: 5) {
-            Image(systemName: "apple.intelligence")
+            Image(systemName: usesGemini ? "sparkles" : "apple.intelligence")
                 .symbolEffect(.pulse, options: .repeating, isActive: streaming)
-                .accessibilityLabel("Translated by Apple Intelligence")
+                .accessibilityLabel(usesGemini ? "Translated by Gemini" : "Translated by Apple Intelligence")
             if text.isEmpty {
                 Text("Translating…")
                     .foregroundStyle(.secondary)
@@ -2148,9 +2150,15 @@ private struct ReaderDetailView: View {
             .help("Open in Reader — ⌘-click to open in browser")
 
             if translationActive(article) {
-                Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if TranslationSettings.readerProvider() == .gemini {
+                        Label("Translated by Gemini", systemImage: "sparkles")
+                    } else {
+                        Label("Translated by Apple Intelligence", systemImage: "apple.intelligence")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             if shouldShowSummary(article) {

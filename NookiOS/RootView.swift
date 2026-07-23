@@ -1659,11 +1659,12 @@ private struct ArticleList: View {
         let resolved = resolvedTitleTranslation(for: article)
         let text = resolved?.text ?? ""
         let streaming = resolved?.streaming ?? false
+        let usesGemini = titleProvider == TranslationProvider.gemini.rawValue
         return HStack(alignment: .top, spacing: 5) {
-            Image(systemName: "apple.intelligence")
+            Image(systemName: usesGemini ? "sparkles" : "apple.intelligence")
                 .font(.caption)
                 .symbolEffect(.pulse, options: .repeating, isActive: streaming)
-                .accessibilityLabel("Translated by Apple Intelligence")
+                .accessibilityLabel(usesGemini ? "Translated by Gemini" : "Translated by Apple Intelligence")
             if text.isEmpty {
                 Text("Translating…")
                     .font(.subheadline)
