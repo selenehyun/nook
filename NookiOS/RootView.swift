@@ -1569,19 +1569,23 @@ private struct ArticleList: View {
 
     private func row(_ article: Article) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                if !article.isRead {
-                    Circle().fill(Color.accentColor).frame(width: 7, height: 7)
+            // Title + its translation share a zero-spacing group so the collapsed
+            // (height-zero) translation block leaves no gap above the summary.
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 6) {
+                    if !article.isRead {
+                        Circle().fill(Color.accentColor).frame(width: 7, height: 7)
+                    }
+                    Text(article.title)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .foregroundStyle(article.isRead ? .secondary : .primary)
+                    if article.isStarred {
+                        Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow)
+                    }
                 }
-                Text(article.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .foregroundStyle(article.isRead ? .secondary : .primary)
-                if article.isStarred {
-                    Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow)
-                }
+                translatedTitle(for: article)
             }
-            translatedTitle(for: article)
             if !article.summary.isEmpty {
                 Text(article.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -1599,27 +1603,38 @@ private struct ArticleList: View {
     /// the experiment is on and the title isn't already in the user's language.
     /// Accent-tinted with the intelligence glyph so it reads as a distinct,
     /// machine-produced companion line — never mistaken for the source title.
-    @ViewBuilder
+    ///
+    /// Always mounted; `expandReveal` grows it from zero height so the row pushes
+    /// the following content down smoothly rather than the block popping in.
     private func translatedTitle(for article: Article) -> some View {
-        if let resolved = resolvedTitleTranslation(for: article.id) {
-            let text = resolved.text
-            let streaming = resolved.streaming
-            HStack(alignment: .top, spacing: 5) {
-                Image(systemName: "apple.intelligence")
-                    .font(.caption)
-                    .symbolEffect(.pulse, options: .repeating, isActive: streaming)
-                    .accessibilityLabel("Translated by Apple Intelligence")
+        let resolved = resolvedTitleTranslation(for: article.id)
+        let text = resolved?.text ?? ""
+        let streaming = resolved?.streaming ?? false
+        return HStack(alignment: .top, spacing: 5) {
+            Image(systemName: "apple.intelligence")
+                .font(.caption)
+                .symbolEffect(.pulse, options: .repeating, isActive: streaming)
+                .accessibilityLabel("Translated by Apple Intelligence")
+            if text.isEmpty {
+                Text("Translating…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            } else {
                 Text(text)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(2)
             }
-            .foregroundStyle(Color.accentColor)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.top, 1)
         }
+        .foregroundStyle(Color.accentColor)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.top, 4)
+        // Animate the reveal only for a live (streaming) translation; a cache hit
+        // scrolling into view appears instantly.
+        .expandReveal(isVisible: resolved != nil, animateAppearance: streaming)
     }
 
     /// The current title-translation text plus whether it's still streaming in,

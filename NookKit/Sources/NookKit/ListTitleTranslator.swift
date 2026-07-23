@@ -36,6 +36,9 @@ public final class ListTitleTranslator {
     /// How many titles translate at once (Apple Intelligence is serialized enough
     /// that a small cap keeps it responsive).
     private let maxConcurrent = 2
+    /// Extra attempts after the first when a translation errors or comes back
+    /// degenerate, before giving up and showing the original.
+    private let maxRetries = 2
 
     private var enabled = false
     private var targetLanguageName = ""
@@ -52,13 +55,23 @@ public final class ListTitleTranslator {
     private var cacheOrder: [String] = []
     private var sameLanguage: Set<String> = []
     private var sameLanguageOrder: [String] = []
+    /// Titles whose translation exhausted `maxRetries` this launch. Kept in memory
+    /// only (not persisted): a relaunch gives them a fresh chance, since failures
+    /// are usually transient (model warming up, momentary unavailability).
+    private var abandoned: Set<String> = []
     /// Soft cap per map. Titles are tiny, so this stays well under ~1 MB on disk
     /// while covering a very large backlog of read history.
     private let maxCacheEntries = 5000
 
     private var dwellTasks: [Article.ID: Task<Void, Never>] = [:]
-    private var activeTasks: [Article.ID: Task<Void, Never>] = [:]
+    /// In-flight translations, each tagged with a generation token so a late
+    /// `finish` from a cancelled task can't clobber a newer task for the same row.
+    private var activeTasks: [Article.ID: (token: Int, task: Task<Void, Never>)] = [:]
+    private var taskGeneration = 0
     private var pending: [(id: Article.ID, title: String)] = []
+    /// Rows currently on screen, with their latest title. Lets `finish` reschedule
+    /// a row that disappeared and reappeared while its cancelled task wound down.
+    private var visibleTitles: [Article.ID: String] = [:]
 
     private var loadedFromDisk = false
     private var saveTask: Task<Void, Never>?
@@ -86,8 +99,9 @@ public final class ListTitleTranslator {
     /// progress.
     public func rowAppeared(id: Article.ID, title: String) {
         guard enabled, !title.isEmpty else { return }
+        visibleTitles[id] = title
         let key = cacheKey(for: title)
-        if sameLanguage.contains(key) { return }
+        if sameLanguage.contains(key) || abandoned.contains(key) { return }
         if let cached = cache[key] {
             states[id] = .translated(cached)
             return
@@ -103,23 +117,23 @@ public final class ListTitleTranslator {
 
     /// A row scrolled off screen: drop it from the dwell/translate queue. A
     /// finished (cached) translation is kept; an in-flight one is cancelled and
-    /// its partial discarded, so it re-tries cleanly if seen again.
+    /// its partial discarded. The slot is freed by the task's own `finish` (not
+    /// here), so the concurrency count stays correct even as it winds down.
     public func rowDisappeared(id: Article.ID) {
+        visibleTitles[id] = nil
         dwellTasks[id]?.cancel()
         dwellTasks[id] = nil
         pending.removeAll { $0.id == id }
-        if let task = activeTasks[id] {
-            task.cancel()
-            activeTasks[id] = nil
+        if let entry = activeTasks[id] {
+            entry.task.cancel()
             if case .translating = states[id] { states[id] = nil }
-            fillSlots()
         }
     }
 
     private func enqueue(id: Article.ID, title: String) {
         let key = cacheKey(for: title)
         if let cached = cache[key] { states[id] = .translated(cached); return }
-        if sameLanguage.contains(key) { return }
+        if sameLanguage.contains(key) || abandoned.contains(key) { return }
         guard activeTasks[id] == nil, !pending.contains(where: { $0.id == id }) else { return }
         pending.append((id, title))
         fillSlots()
@@ -136,52 +150,96 @@ public final class ListTitleTranslator {
         let key = cacheKey(for: title)
         let name = targetLanguageName
         let code = targetLanguageCode
-        activeTasks[id] = Task { [weak self] in
-            defer { self?.finish(id: id) }
+        taskGeneration += 1
+        let token = taskGeneration
+        let task = Task { [weak self] in
+            defer { self?.finish(id: id, token: token, wasCancelled: Task.isCancelled) }
             let alreadyTarget = await Task.detached {
                 ListTitleTranslator.isAlreadyInTargetLanguage(title, targetCode: code)
             }.value
             if Task.isCancelled { return }
             guard let self else { return }
             // Already readable in the user's language (dominant, or visibly mixed
-            // in) → leave the original untouched.
+            // in) → leave the original untouched, no block.
             if alreadyTarget {
                 self.rememberSameLanguage(key)
                 self.states[id] = nil
                 return
             }
-            do {
-                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name) { [weak self] partial in
-                    guard let self, !Task.isCancelled else { return }
-                    let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
-                }
+
+            // Show the block once, up front, as a "translating" placeholder so the
+            // row expands a single time; tokens then fill it in (the block reserves
+            // two lines, so streaming never shifts the layout again).
+            self.states[id] = .translating("")
+
+            for attempt in 0...self.maxRetries {
                 if Task.isCancelled { return }
-                let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-                // Guard against a degenerate result (empty, or an echo of the
-                // source): show the original rather than a bad translation.
-                if final.isEmpty || final == title {
-                    self.states[id] = nil
-                } else {
-                    self.rememberTranslation(key, final)
-                    self.states[id] = .translated(final)
+                do {
+                    let result = try await NaturalTranslator.streamTranslateBlock(title, into: name) { [weak self] partial in
+                        guard let self, !Task.isCancelled else { return }
+                        let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
+                    }
+                    if Task.isCancelled { return }
+                    let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // A degenerate result (empty, or an echo of the source) counts
+                    // as a failed attempt so a retry can produce a real one.
+                    if !final.isEmpty, !Self.isEcho(final, of: title) {
+                        self.rememberTranslation(key, final)
+                        self.states[id] = .translated(final)
+                        return
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    if Task.isCancelled { return }
+                    // A real translation error: fall through to retry / give up.
                 }
-            } catch {
-                self.states[id] = nil
+
+                if attempt < self.maxRetries {
+                    // Reset the partial (so a shorter retry can't look like it's
+                    // rewinding) but keep the block up; back off before retrying.
+                    self.states[id] = .translating("")
+                    do { try await Task.sleep(for: .seconds(0.6 * Double(attempt + 1))) }
+                    catch { return } // cancelled during backoff — not a failure
+                }
             }
+
+            // Exhausted every attempt: collapse the block, show the original, and
+            // don't retry this title again until relaunch.
+            if Task.isCancelled { return }
+            self.abandoned.insert(key)
+            self.states[id] = nil
         }
+        activeTasks[id] = (token, task)
     }
 
-    private func finish(id: Article.ID) {
+    private func finish(id: Article.ID, token: Int, wasCancelled: Bool) {
+        // Ignore a late finish from a task that was already superseded for this row
+        // (disappear → reappear started a newer one): it must not free the slot or
+        // erase the newer task.
+        guard activeTasks[id]?.token == token else { return }
         activeTasks[id] = nil
+        // A finished task must never leave the row stuck mid-stream.
+        if case .translating = states[id] { states[id] = nil }
         fillSlots()
+        // Reschedule ONLY when this task was genuinely cancelled (a transient
+        // disappear) yet the row is on screen again — i.e. a real reappear gap.
+        // Gating on `wasCancelled` avoids an infinite dwell→start→finish loop if the
+        // translation API were to keep throwing without the task being cancelled.
+        if wasCancelled, let title = visibleTitles[id] {
+            rowAppeared(id: id, title: title)
+        }
     }
 
     private func cancelAll() {
         for task in dwellTasks.values { task.cancel() }
-        for task in activeTasks.values { task.cancel() }
+        // Cancel but DON'T drop the active entries here: a cancelled task may not
+        // have stopped yet, and clearing the slot early would let a re-enable start
+        // extra tasks past `maxConcurrent`. Each task's token-guarded `finish` frees
+        // its own slot when it actually ends.
+        for entry in activeTasks.values { entry.task.cancel() }
         dwellTasks.removeAll()
-        activeTasks.removeAll()
         pending.removeAll()
         states.removeAll()
     }
@@ -190,6 +248,18 @@ public final class ListTitleTranslator {
 
     private nonisolated static func baseCode(_ code: String) -> String {
         Locale.Language(identifier: code).languageCode?.identifier ?? code
+    }
+
+    /// Whether `output` is really just the source echoed back untranslated,
+    /// comparing after trimming, Unicode canonicalization, and case folding so a
+    /// cosmetic difference doesn't hide an untranslated result.
+    private nonisolated static func isEcho(_ output: String, of source: String) -> Bool {
+        func normalize(_ text: String) -> String {
+            text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .precomposedStringWithCanonicalMapping
+                .lowercased()
+        }
+        return normalize(output) == normalize(source)
     }
 
     /// Whether `title` already reads as the user's language, so translating it

@@ -1215,20 +1215,24 @@ private struct ArticleRow: View {
                 }
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(article.title)
-                        .fontWeight(article.isRead ? .regular : .semibold)
-                        .lineLimit(2)
+                // Title + its translation share a zero-spacing group so the
+                // collapsed (height-zero) block leaves no gap above the summary.
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(article.title)
+                            .fontWeight(article.isRead ? .regular : .semibold)
+                            .lineLimit(2)
 
-                    if article.isStarred {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                            .foregroundStyle(.yellow)
-                            .accessibilityLabel("Starred")
+                        if article.isStarred {
+                            Image(systemName: "star.fill")
+                                .font(.caption)
+                                .foregroundStyle(.yellow)
+                                .accessibilityLabel("Starred")
+                        }
                     }
-                }
 
-                translatedTitle
+                    translatedTitle
+                }
 
                 Text(article.summary)
                     .font(.callout)
@@ -1254,23 +1258,37 @@ private struct ArticleRow: View {
     /// the experiment is on and the title isn't already in the user's language.
     /// Accent-tinted with the intelligence glyph so it reads as a distinct,
     /// machine-produced companion line — never mistaken for the source title.
-    @ViewBuilder
+    ///
+    /// Always mounted; `expandReveal` grows it from zero height so the row pushes
+    /// the following content down smoothly rather than the block popping in.
     private var translatedTitle: some View {
-        if let resolved = resolvedTitleTranslation {
-            HStack(alignment: .top, spacing: 5) {
-                Image(systemName: "apple.intelligence")
-                    .symbolEffect(.pulse, options: .repeating, isActive: resolved.streaming)
-                    .accessibilityLabel("Translated by Apple Intelligence")
-                Text(resolved.text)
+        let resolved = resolvedTitleTranslation
+        let text = resolved?.text ?? ""
+        let streaming = resolved?.streaming ?? false
+        return HStack(alignment: .top, spacing: 5) {
+            Image(systemName: "apple.intelligence")
+                .symbolEffect(.pulse, options: .repeating, isActive: streaming)
+                .accessibilityLabel("Translated by Apple Intelligence")
+            if text.isEmpty {
+                Text("Translating…")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            } else {
+                Text(text)
                     .fontWeight(.medium)
+                    .lineLimit(2)
             }
-            .font(.callout)
-            .foregroundStyle(Color.accentColor)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+        .font(.callout)
+        .foregroundStyle(Color.accentColor)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.top, 4)
+        // Animate the reveal only for a live (streaming) translation; a cache hit
+        // scrolling into view appears instantly.
+        .expandReveal(isVisible: resolved != nil, animateAppearance: streaming)
     }
 
     /// The current title-translation text plus whether it's still streaming in,
