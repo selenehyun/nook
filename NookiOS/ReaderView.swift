@@ -1132,14 +1132,17 @@ private struct LongPressToOpenBrowser: ViewModifier {
     }
 }
 
-/// A small "translating" banner shown while Apple Intelligence works, so a slow
+/// A small "translating" banner shown while the model works, so a slow
 /// translation reads as in-progress rather than stuck.
 struct TranslationProgressBanner: View {
     var body: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text("Translating with Apple Intelligence…")
-                .font(.subheadline)
+            if TranslationSettings.readerProvider() == .gemini {
+                Text("Translating with Gemini…").font(.subheadline)
+            } else {
+                Text("Translating with Apple Intelligence…").font(.subheadline)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

@@ -4996,6 +4996,28 @@
         }
       }
     },
+    "Translating with Gemini…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini で翻訳中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini로 번역 중…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在用 Gemini 翻译…"
+          }
+        }
+      }
+    },
     "Translating…" : {
       "localizations" : {
         "en" : {
