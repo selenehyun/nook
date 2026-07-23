@@ -19,8 +19,11 @@ struct RootView: View {
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
     @AppStorage(BackgroundRefresh.enabledKey) private var newArticleNotifications = false
     @AppStorage(TourFlags.hasCompletedWelcomeKey) private var hasCompletedWelcome = false
+    @AppStorage(ReaderStore.translateTitlesPromoSeenKey) private var hasSeenTranslatePromo = false
+    @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
     @State private var isReady = false
     @State private var showWelcome = false
+    @State private var showTranslatePromo = false
     /// Drives the tutorial's hand-off from the welcome cover into the live app
     /// (add the sample feed, then hint the list). In-memory, shared via environment.
     @State private var tour = TourCoordinator()
@@ -33,6 +36,19 @@ struct RootView: View {
                 // completes it (onDismiss), so it won't re-appear next launch.
                 .fullScreenCover(isPresented: $showWelcome, onDismiss: { hasCompletedWelcome = true }) {
                     WelcomeSheet(store: store, onFinish: { showWelcome = false })
+                }
+                // One-time promo introducing list-title translation, shown only
+                // once the tutorial is behind the user (see `.task` below).
+                .sheet(isPresented: $showTranslatePromo) {
+                    TranslateTitlesPromoView(
+                        onEnable: {
+                            translateListTitles = true
+                            showTranslatePromo = false
+                        },
+                        onNotNow: { showTranslatePromo = false }
+                    )
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
                 }
                 // Replaying from Settings flips this back to false; re-present the
                 // tour once the UI is up (the one-shot bootstrap trigger won't fire
@@ -70,7 +86,14 @@ struct RootView: View {
                     // First launch: after the splash reveal (so it doesn't fight the
                     // splash transition), present the welcome tour. The app is fully
                     // loaded underneath, so skipping drops straight into it.
-                    if !hasCompletedWelcome { showWelcome = true }
+                    if !hasCompletedWelcome {
+                        // New user: run the tutorial now; the translate promo waits
+                        // until a later launch (once the tutorial is fully behind
+                        // them) so it never interrupts onboarding.
+                        showWelcome = true
+                    } else {
+                        maybePresentTranslateTitlesPromo()
+                    }
                     // Ask for notification permission after the UI is shown (so the
                     // prompt doesn't cover the splash), only for the features in use.
                     await requestNotificationAuthorizationIfNeeded()
@@ -157,6 +180,20 @@ struct RootView: View {
         .tint(Color("AccentColor"))
         // Share the tutorial coordinator with both shells and the welcome cover.
         .environment(tour)
+    }
+
+    /// Presents the one-time list-title-translation promo — but only for a user
+    /// who is already past the tutorial (this launch), so it never interrupts
+    /// onboarding. New users therefore see it on a later launch, once the whole
+    /// tutorial is behind them. Shown at most once (marked seen immediately), and
+    /// only when Apple Intelligence is available and the feature isn't already on.
+    private func maybePresentTranslateTitlesPromo() {
+        guard hasCompletedWelcome,
+              !hasSeenTranslatePromo,
+              !translateListTitles,
+              NaturalTranslator.isAvailable else { return }
+        hasSeenTranslatePromo = true
+        showTranslatePromo = true
     }
 
     @ViewBuilder

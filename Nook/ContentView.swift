@@ -22,6 +22,9 @@ struct ContentView: View {
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
+    @AppStorage(ReaderStore.translateTitlesPromoSeenKey) private var hasSeenTranslatePromo = false
+    @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
+    @State private var showTranslatePromo = false
 
     // In-app browser (window-wide bottom sheet).
     @State private var browserDragOffset: CGFloat = 0
@@ -52,6 +55,17 @@ struct ContentView: View {
         // Restore the last sidebar state before the first render to avoid a flash.
         let wasVisible = UserDefaults.standard.object(forKey: ContentView.sidebarVisibleKey) as? Bool ?? true
         _columnVisibility = State(initialValue: wasVisible ? .all : .doubleColumn)
+    }
+
+    /// Presents the one-time list-title-translation promo, at most once ever
+    /// (marked seen immediately) and only when Apple Intelligence is available and
+    /// the feature isn't already on.
+    private func maybePresentTranslateTitlesPromo() {
+        guard !hasSeenTranslatePromo,
+              !translateListTitles,
+              NaturalTranslator.isAvailable else { return }
+        hasSeenTranslatePromo = true
+        showTranslatePromo = true
     }
 
     var body: some View {
@@ -139,6 +153,17 @@ struct ContentView: View {
                 try await store.addFeed(urlString: feedURL, toFolder: folder)
             }
         }
+        // One-time promo introducing list-title translation (shown once per app).
+        .sheet(isPresented: $showTranslatePromo) {
+            TranslateTitlesPromoView(
+                onEnable: {
+                    translateListTitles = true
+                    showTranslatePromo = false
+                },
+                onNotNow: { showTranslatePromo = false }
+            )
+            .frame(width: 420)
+        }
         .fileImporter(
             isPresented: $isImportingOPML,
             allowedContentTypes: [.opml, .xml],
@@ -186,6 +211,7 @@ struct ContentView: View {
             WebViewWarmer.warmUp()
             // Sync on launch so the reader opens on fresh articles.
             if autoRefreshEnabled { store.refreshOnActivation(honorThrottle: false) }
+            maybePresentTranslateTitlesPromo()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             // Pull another device's changes (read/star/feeds) from the sync

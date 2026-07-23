@@ -574,6 +574,50 @@
         }
       }
     },
+    "Nook can translate the article titles on screen into your language with Apple Intelligence, shown beneath the original. It's on-device and only translates titles you actually look at." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook は画面に表示されている記事のタイトルを Apple Intelligence でお使いの言語に翻訳し、原文の下に表示します。すべてオンデバイスで処理され、実際に見たタイトルだけを翻訳します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook은 화면에 보이는 글 제목을 Apple Intelligence로 사용자의 언어로 번역해 원문 아래에 표시합니다. 모두 기기에서 처리되며, 실제로 본 제목만 번역합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nook 可使用 Apple Intelligence 将屏幕上的文章标题翻译成你的语言，显示在原文下方。全部在设备上处理，且仅翻译你实际查看的标题。"
+          }
+        }
+      }
+    },
+    "Not Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "後で"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나중에"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以后再说"
+          }
+        }
+      }
+    },
     "OK" : {
 
     },
@@ -1117,6 +1161,28 @@
         }
       }
     },
+    "Translate Titles Automatically" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイトルを自動翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제목 자동 번역"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动翻译标题"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "ja" : {
@@ -1135,6 +1201,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重试"
+          }
+        }
+      }
+    },
+    "Turn On" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにする"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "켜기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启"
           }
         }
       }
@@ -1219,6 +1307,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未读"
+          }
+        }
+      }
+    },
+    "You can change this anytime in Settings › Experimental." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この設定は「設定」›「実験室」でいつでも変更できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 설정은 설정 › 실험실에서 언제든지 변경할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你可以随时在“设置”›“实验室”中更改此设置。"
           }
         }
       }

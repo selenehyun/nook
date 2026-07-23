@@ -1241,6 +1241,11 @@ public final class ReaderStore {
     /// into my language" experiment (iOS). Defaults off.
     public static let translateListTitlesKey = "translateListTitles"
 
+    /// `UserDefaults` key recording that the one-time "turn on title translation"
+    /// promo has been shown, so it never appears again. Per-app (not synced), so
+    /// each platform shows it independently. Defaults false.
+    public static let translateTitlesPromoSeenKey = "translateTitlesPromoSeen"
+
     /// Whether the native reader should show reader-mode-extracted content
     /// instead of the raw feed body by default.
     public var usesReaderContentByDefault: Bool {
