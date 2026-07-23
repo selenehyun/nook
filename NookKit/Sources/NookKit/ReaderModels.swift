@@ -82,6 +82,10 @@ public struct ArticleFilter: Codable, Sendable, Equatable, Identifiable {
     public var matchTarget: MatchTarget
     public var enabled: Bool
     public var caseSensitive: Bool
+    /// Display order across the (unordered) per-item CRDT map. Sorted by
+    /// `(order, id)` so the list stays stable and converges across devices even
+    /// though each filter syncs independently.
+    public var order: Int
 
     public init(
         id: String = UUID().uuidString,
@@ -89,7 +93,8 @@ public struct ArticleFilter: Codable, Sendable, Equatable, Identifiable {
         pattern: String = "",
         matchTarget: MatchTarget = .titleAndSummary,
         enabled: Bool = true,
-        caseSensitive: Bool = false
+        caseSensitive: Bool = false,
+        order: Int = 0
     ) {
         self.id = id
         self.kind = kind
@@ -97,6 +102,7 @@ public struct ArticleFilter: Codable, Sendable, Equatable, Identifiable {
         self.matchTarget = matchTarget
         self.enabled = enabled
         self.caseSensitive = caseSensitive
+        self.order = order
     }
 
     /// The article text this filter tests against, per its match target.

@@ -104,6 +104,21 @@ public final class ReaderStore {
     /// as unread); surfaced only under the `.filtered` source. Recomputed whenever
     /// `articles` or `filters` change.
     private var filteredArticleIDs: Set<Article.ID> = []
+    /// One entry per active filter, with its regex compiled once. Rebuilt only
+    /// when `filters` change (not per article mutation), so a refresh that streams
+    /// articles in doesn't recompile regexes on every merge.
+    private var activeCompiledFilters: [CompiledFilter] = []
+    /// Per-article content hash from its last classification under the current
+    /// engine. Lets `recomputeFilteredIDs` skip re-testing an article whose title/
+    /// summary hasn't changed — so a multi-feed refresh only runs the (possibly
+    /// expensive, regex) match on genuinely new/changed articles. Cleared whenever
+    /// the filter engine is rebuilt.
+    private var filterClassifyCache: [Article.ID: Int] = [:]
+
+    private struct CompiledFilter {
+        let filter: ArticleFilter
+        let regex: NSRegularExpression?
+    }
 
     // Favicon fetching is deduplicated by host and rate-limited so a large
     // library doesn't spawn a storm of concurrent requests on launch.
@@ -982,36 +997,67 @@ public final class ReaderStore {
         starredCount = starred
     }
 
-    /// Rebuilds `filteredArticleIDs` from the enabled filters. An empty pattern or
-    /// an invalid regex is inert (matches nothing). Cheap: filters are few, and
-    /// each article is tested only against its filters' chosen text field.
-    private func recomputeFilteredIDs() {
-        let active = filters.filter { $0.enabled && !$0.pattern.isEmpty }
-        guard !active.isEmpty else {
-            if !filteredArticleIDs.isEmpty { filteredArticleIDs = [] }
-            return
-        }
-        // Compile each regex once (nil = invalid → inert).
-        let compiled: [(filter: ArticleFilter, regex: NSRegularExpression?)] = active.map { filter in
-            switch filter.kind {
-            case .plainText:
-                return (filter, nil)
-            case .regex:
-                let options: NSRegularExpression.Options = filter.caseSensitive ? [] : [.caseInsensitive]
-                return (filter, try? NSRegularExpression(pattern: filter.pattern, options: options))
-            }
-        }
-        var ids = Set<Article.ID>()
-        for article in articles {
-            for entry in compiled {
-                let text = entry.filter.candidateText(title: article.title, summary: article.summary)
-                if Self.filterMatches(entry.filter, regex: entry.regex, in: text) {
-                    ids.insert(article.id)
-                    break
+    /// Recompiles the active filters (enabled, non-empty pattern) into
+    /// `activeCompiledFilters`, compiling each regex once. Called only when the
+    /// filter set changes — NOT on every article mutation — so a refresh doesn't
+    /// recompile. Clears the classify cache, since a changed engine invalidates
+    /// every prior verdict.
+    private func rebuildFilterEngine() {
+        activeCompiledFilters = filters
+            .filter { $0.enabled && !$0.pattern.isEmpty }
+            .map { filter in
+                switch filter.kind {
+                case .plainText:
+                    return CompiledFilter(filter: filter, regex: nil)
+                case .regex:
+                    let options: NSRegularExpression.Options = filter.caseSensitive ? [] : [.caseInsensitive]
+                    return CompiledFilter(filter: filter, regex: try? NSRegularExpression(pattern: filter.pattern, options: options))
                 }
             }
+        filterClassifyCache.removeAll(keepingCapacity: true)
+    }
+
+    /// Rebuilds `filteredArticleIDs` using the precompiled engine. Incremental: an
+    /// article whose title/summary is unchanged since its last classification
+    /// (same engine) reuses its prior verdict instead of re-running the match, so
+    /// a multi-feed refresh only tests genuinely new/changed articles.
+    private func recomputeFilteredIDs() {
+        guard !activeCompiledFilters.isEmpty else {
+            if !filteredArticleIDs.isEmpty { filteredArticleIDs = [] }
+            if !filterClassifyCache.isEmpty { filterClassifyCache.removeAll(keepingCapacity: true) }
+            return
+        }
+        var ids = Set<Article.ID>()
+        ids.reserveCapacity(filteredArticleIDs.count)
+        var cache = Dictionary<Article.ID, Int>(minimumCapacity: articles.count)
+        for article in articles {
+            let hash = Self.filterContentHash(article)
+            let isFiltered: Bool
+            if filterClassifyCache[article.id] == hash {
+                isFiltered = filteredArticleIDs.contains(article.id)
+            } else {
+                isFiltered = activeCompiledFilters.contains { compiled in
+                    Self.filterMatches(
+                        compiled.filter,
+                        regex: compiled.regex,
+                        in: compiled.filter.candidateText(title: article.title, summary: article.summary)
+                    )
+                }
+            }
+            if isFiltered { ids.insert(article.id) }
+            cache[article.id] = hash
         }
         filteredArticleIDs = ids
+        filterClassifyCache = cache
+    }
+
+    /// A cheap content fingerprint of the fields filters match against, to detect
+    /// whether an article needs re-testing. In-memory only (process-seeded hash).
+    nonisolated private static func filterContentHash(_ article: Article) -> Int {
+        var hasher = Hasher()
+        hasher.combine(article.title)
+        hasher.combine(article.summary)
+        return hasher.finalize()
     }
 
     /// Whether one filter matches the given text. Plain-text is a (case-optional)
@@ -1031,6 +1077,7 @@ public final class ReaderStore {
 
     /// Re-classify after a filter change, then refresh counts, badge, and list.
     private func applyFilterChange() {
+        rebuildFilterEngine()
         recomputeFilteredIDs()
         // Removing/disabling/clearing the last active filter hides the "Filtered"
         // sidebar entry, so a user sitting on that source would be stranded on a
@@ -1046,16 +1093,19 @@ public final class ReaderStore {
 
     // MARK: - Article filters (public API)
 
-    /// Appends a new filter, then persists/syncs it and re-classifies articles.
+    /// Appends a new filter (after the current last), then persists/syncs it and
+    /// re-classifies articles.
     @discardableResult
     public func addFilter(
         kind: ArticleFilter.Kind = .plainText,
         pattern: String = "",
         matchTarget: ArticleFilter.MatchTarget = .titleAndSummary
     ) -> ArticleFilter {
-        let filter = ArticleFilter(kind: kind, pattern: pattern, matchTarget: matchTarget)
+        let order = (filters.map(\.order).max() ?? -1) + 1
+        let filter = ArticleFilter(kind: kind, pattern: pattern, matchTarget: matchTarget, order: order)
         filters.append(filter)
-        recordFilters()
+        recordFilter(filter)
+        scheduleShardSave()
         applyFilterChange()
         return filter
     }
@@ -1065,23 +1115,31 @@ public final class ReaderStore {
         guard let index = filters.firstIndex(where: { $0.id == filter.id }) else { return }
         guard filters[index] != filter else { return }
         filters[index] = filter
-        recordFilters()
+        recordFilter(filter)
+        scheduleShardSave()
         applyFilterChange()
     }
 
-    /// Removes a filter; its articles reappear in the normal lists.
+    /// Removes a filter; its articles reappear in the normal lists. Records a
+    /// tombstone so the deletion syncs (and doesn't resurrect from a peer's copy).
     public func removeFilter(id: ArticleFilter.ID) {
         guard filters.contains(where: { $0.id == id }) else { return }
         filters.removeAll { $0.id == id }
-        recordFilters()
+        recordFilterRemoval(id)
+        scheduleShardSave()
         applyFilterChange()
     }
 
     /// Reorders filters (UI convenience). Order doesn't affect matching, so this
-    /// only persists — no re-classification needed.
+    /// re-stamps each moved filter's `order` and persists — no re-classification.
     public func moveFilters(fromOffsets: IndexSet, toOffset: Int) {
         filters.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        recordFilters()
+        for index in filters.indices where filters[index].order != index {
+            filters[index].order = index
+            recordFilter(filters[index])
+        }
+        scheduleShardSave()
+        scheduleArticleFilter()
     }
 
     /// Installed by the platform app to reflect the unread badge (macOS Dock,
@@ -2252,10 +2310,12 @@ public final class ReaderStore {
         }
 
         feeds = repairedFeeds
-        // Set filters BEFORE articles: assigning `articles` triggers its didSet,
-        // which re-classifies filtered ids against `filters` — so the merged
-        // filters must already be in place (a peer's filter edit reclassifies).
+        // Set filters (and rebuild the compiled engine) BEFORE articles: assigning
+        // `articles` triggers its didSet, which re-classifies filtered ids using
+        // the engine — so the merged filters must already be compiled in place (a
+        // peer's filter edit reclassifies).
         filters = library.filters
+        rebuildFilterEngine()
         articles = library.articles
         lastRefreshedAt = library.lastRefreshedAt
         // Merge explicit folders with any folders implied by feed categories.
@@ -2493,11 +2553,16 @@ public final class ReaderStore {
         ownShard.setFolderPresent(name, present, hlc: nextHLC())
     }
 
-    /// Stamps the whole filter list into this device's shard and schedules a
-    /// save, so the change syncs to peers (last-writer-wins over the list).
-    private func recordFilters() {
-        ownShard.setFilters(filters, hlc: nextHLC())
-        scheduleShardSave()
+    /// Stamps one filter into this device's shard (per-item, so a concurrent edit
+    /// to a different filter on another device is not clobbered). The caller
+    /// schedules the save.
+    private func recordFilter(_ filter: ArticleFilter) {
+        ownShard.setFilter(filter.id, filter, hlc: nextHLC())
+    }
+
+    /// Records a filter deletion as a tombstone so it syncs and converges.
+    private func recordFilterRemoval(_ id: ArticleFilter.ID) {
+        ownShard.setFilterTombstone(id, true, hlc: nextHLC())
     }
 
     /// Schedules a coalesced background write of this device's shard. Runs off

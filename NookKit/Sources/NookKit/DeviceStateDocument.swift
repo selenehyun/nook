@@ -94,6 +94,28 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         }
     }
 
+    /// Per-filter user state, keyed by filter id. Each filter syncs on its own —
+    /// mirroring `FeedState` — so two devices adding or editing *different*
+    /// filters concurrently both survive (a whole-list register would keep only
+    /// the later writer's list). `value` carries the filter's content (including
+    /// its display `order`); `tombstone` records a deletion so it propagates.
+    public struct FilterState: Codable, Sendable, Equatable {
+        public var value: LWWRegister<ArticleFilter>?
+        public var tombstone: LWWRegister<Bool>?
+
+        public init(value: LWWRegister<ArticleFilter>? = nil, tombstone: LWWRegister<Bool>? = nil) {
+            self.value = value
+            self.tombstone = tombstone
+        }
+
+        func merged(with other: FilterState) -> FilterState {
+            FilterState(
+                value: mergeRegisters(value, other.value),
+                tombstone: mergeRegisters(tombstone, other.tombstone)
+            )
+        }
+    }
+
     public static let currentSchema = 1
 
     public var schema: Int
@@ -110,12 +132,11 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     public var feedState: [Feed.ID: FeedState]
     /// Folder existence as an add/remove LWW: `true` = created, `false` = removed.
     public var folders: [String: LWWRegister<Bool>]
-    /// User article filters as ONE last-writer-wins register over the whole
-    /// ordered list. Whole-list LWW (rather than per-filter) keeps the user's
-    /// ordering stable and fits config that is edited rarely and usually on a
-    /// single device; a concurrent edit on another device converges to the later
-    /// write. Optional so older shards (which never wrote it) decode cleanly.
-    public var filters: LWWRegister<[ArticleFilter]>?
+    /// User article filters, keyed by filter id — each syncs independently (see
+    /// `FilterState`). Named `filterStates` (not the old `filters`) so shards
+    /// written by the earlier whole-list version decode cleanly: their stale
+    /// `filters` key is simply ignored, and no real filter data predates this.
+    public var filterStates: [String: FilterState]
 
     public init(
         deviceID: String,
@@ -124,7 +145,7 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         articleState: [Article.ID: ArticleState] = [:],
         feedState: [Feed.ID: FeedState] = [:],
         folders: [String: LWWRegister<Bool>] = [:],
-        filters: LWWRegister<[ArticleFilter]>? = nil
+        filterStates: [String: FilterState] = [:]
     ) {
         self.schema = Self.currentSchema
         self.deviceID = deviceID
@@ -134,11 +155,11 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         self.articleState = articleState
         self.feedState = feedState
         self.folders = folders
-        self.filters = filters
+        self.filterStates = filterStates
     }
 
     enum CodingKeys: String, CodingKey {
-        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders, filters
+        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders, filterStates
     }
 
     public init(from decoder: Decoder) throws {
@@ -151,7 +172,7 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         articleState = try container.decodeIfPresent([Article.ID: ArticleState].self, forKey: .articleState) ?? [:]
         feedState = try container.decodeIfPresent([Feed.ID: FeedState].self, forKey: .feedState) ?? [:]
         folders = try container.decodeIfPresent([String: LWWRegister<Bool>].self, forKey: .folders) ?? [:]
-        filters = try container.decodeIfPresent(LWWRegister<[ArticleFilter]>.self, forKey: .filters)
+        filterStates = try container.decodeIfPresent([String: FilterState].self, forKey: .filterStates) ?? [:]
     }
 }
 
@@ -253,8 +274,16 @@ extension DeviceStateDocument {
         folders[name] = LWWRegister(value: present, hlc: hlc)
     }
 
-    public mutating func setFilters(_ value: [ArticleFilter], hlc: HLC) {
-        filters = LWWRegister(value: value, hlc: hlc)
+    public mutating func setFilter(_ id: String, _ value: ArticleFilter, hlc: HLC) {
+        var state = filterStates[id] ?? FilterState()
+        state.value = LWWRegister(value: value, hlc: hlc)
+        filterStates[id] = state
+    }
+
+    public mutating func setFilterTombstone(_ id: String, _ deleted: Bool, hlc: HLC) {
+        var state = filterStates[id] ?? FilterState()
+        state.tombstone = LWWRegister(value: deleted, hlc: hlc)
+        filterStates[id] = state
     }
 
     /// The greatest clock anywhere in this shard, so a device loading peers'
@@ -275,7 +304,10 @@ extension DeviceStateDocument {
             fold(state.seed?.hlc)
         }
         for register in folders.values { fold(register.hlc) }
-        fold(filters?.hlc)
+        for state in filterStates.values {
+            fold(state.value?.hlc)
+            fold(state.tombstone?.hlc)
+        }
         return result
     }
 }
@@ -287,11 +319,11 @@ extension DeviceStateDocument {
     /// by highest HLC. Pure and order-independent.
     static func mergedState(
         from shards: [DeviceStateDocument]
-    ) -> (articles: [Article.ID: ArticleState], feeds: [Feed.ID: FeedState], folders: [String: LWWRegister<Bool>], filters: LWWRegister<[ArticleFilter]>?) {
+    ) -> (articles: [Article.ID: ArticleState], feeds: [Feed.ID: FeedState], folders: [String: LWWRegister<Bool>], filters: [String: FilterState]) {
         var articles: [Article.ID: ArticleState] = [:]
         var feeds: [Feed.ID: FeedState] = [:]
         var folders: [String: LWWRegister<Bool>] = [:]
-        var filters: LWWRegister<[ArticleFilter]>?
+        var filters: [String: FilterState] = [:]
         for shard in shards {
             for (id, state) in shard.articleState {
                 articles[id] = articles[id].map { $0.merged(with: state) } ?? state
@@ -302,7 +334,9 @@ extension DeviceStateDocument {
             for (name, register) in shard.folders {
                 folders[name] = mergeRegisters(folders[name], register)
             }
-            filters = mergeRegisters(filters, shard.filters)
+            for (id, state) in shard.filterStates {
+                filters[id] = filters[id].map { $0.merged(with: state) } ?? state
+            }
         }
         return (articles, feeds, folders, filters)
     }
@@ -466,12 +500,22 @@ extension DeviceStateDocument {
             if register.value { folders.insert(name) } else { folders.remove(name) }
         }
 
+        // Filters: emit every non-tombstoned filter, sorted by (order, id) so the
+        // list is stable and converges across devices despite the per-item map
+        // being unordered.
+        let filters = merged.filters
+            .compactMap { _, state -> ArticleFilter? in
+                guard state.tombstone?.value != true else { return nil }
+                return state.value?.value
+            }
+            .sorted { ($0.order, $0.id) < ($1.order, $1.id) }
+
         return ReaderLibrary(
             feeds: feeds,
             articles: articles,
             lastRefreshedAt: base.lastRefreshedAt,
             folders: Array(folders),
-            filters: merged.filters?.value ?? []
+            filters: filters
         )
     }
 }
