@@ -7,9 +7,10 @@ import Foundation
 public enum GeminiTranslator {
     public struct Failure: Error { public let message: String }
 
-    /// The `-latest` alias tracks the newest GA Flash model automatically, so the
-    /// app follows Google's current latest Flash without a code change.
-    public static let model = "gemini-flash-latest"
+    /// The `-latest` alias tracks the newest GA Flash-Lite model automatically, so
+    /// the app follows Google's current latest Flash-Lite without a code change.
+    /// Lite is the faster, cheaper tier — a good fit for short translation calls.
+    public static let model = "gemini-flash-lite-latest"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
 
     /// How to keep "thinking" (which adds seconds of first-token latency and is not
