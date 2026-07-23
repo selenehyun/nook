@@ -63,7 +63,7 @@ struct ContentView: View {
     private func maybePresentTranslateTitlesPromo() {
         guard !hasSeenTranslatePromo,
               !translateListTitles,
-              NaturalTranslator.isAvailable else { return }
+              NaturalTranslator.isAvailable(for: TranslationSettings.titleProvider()) else { return }
         hasSeenTranslatePromo = true
         showTranslatePromo = true
     }
@@ -1096,6 +1096,8 @@ private struct ArticleListView: View {
     @Bindable var store: ReaderStore
     @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+    @AppStorage(TranslationSettings.titleProviderKey) private var titleProvider = TranslationProvider.appleIntelligence.rawValue
+    @AppStorage(TranslationSettings.geminiKeyConfiguredKey) private var geminiKeyConfigured = false
     private let titleTranslator = ListTitleTranslator.shared
 
     var body: some View {
@@ -1195,6 +1197,8 @@ private struct ArticleListView: View {
         .onAppear { configureTitleTranslator() }
         .onChange(of: translateListTitles) { _, _ in configureTitleTranslator() }
         .onChange(of: appLanguage) { _, _ in configureTitleTranslator() }
+        .onChange(of: titleProvider) { _, _ in configureTitleTranslator() }
+        .onChange(of: geminiKeyConfigured) { _, _ in configureTitleTranslator() }
     }
 
     /// Feeds the shared title translator the current on/off flag and target
@@ -1627,7 +1631,7 @@ private struct InAppBrowserPanel: View {
     /// Web-view translation uses Apple Intelligence in place; offer it only when
     /// that's available and the article's language differs from the app's.
     private var canTranslate: Bool {
-        guard NaturalTranslator.isAvailable,
+        guard NaturalTranslator.isAvailable(for: TranslationSettings.readerProvider()),
               let detected = ReaderDetailView.detectLanguage(for: article),
               let target = targetLanguage.languageCode?.identifier else { return false }
         // Compare base languages: the detector returns script-qualified codes
@@ -1848,7 +1852,7 @@ private struct ReaderDetailView: View {
         if let html = renderedReaderHTML(for: article) {
             if nativeTranslator.isActive {
                 nativeTranslator.stop()
-            } else if NaturalTranslator.isAvailable {
+            } else if NaturalTranslator.isAvailable(for: TranslationSettings.readerProvider()) {
                 nativeTranslator.start(html: html, baseURL: article.url, title: article.title, into: targetLanguageName)
             } else {
                 isShowingTranslation = true
@@ -1864,7 +1868,7 @@ private struct ReaderDetailView: View {
             isTranslated = true
             return
         }
-        guard NaturalTranslator.isAvailable else {
+        guard NaturalTranslator.isAvailable(for: TranslationSettings.readerProvider()) else {
             isShowingTranslation = true
             return
         }
@@ -2608,6 +2612,10 @@ private struct ExperimentalSettingsTab: View {
 
     var body: some View {
         Form {
+            Section("Translation Engine") {
+                TranslationEngineSettingsContent()
+            }
+
             Section("Reader View") {
                 Toggle("Show reader view content by default", isOn: $readerContentByDefault)
                 Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")

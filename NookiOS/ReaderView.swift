@@ -799,7 +799,7 @@ struct ReaderDetailView: View {
         if let html = renderedReaderHTML(for: article) {
             if nativeTranslator.isActive {
                 nativeTranslator.stop()
-            } else if NaturalTranslator.isAvailable {
+            } else if NaturalTranslator.isAvailable(for: TranslationSettings.readerProvider()) {
                 nativeTranslator.start(
                     html: html, baseURL: article.url, title: article.title, into: targetLanguageName
                 )
@@ -818,7 +818,7 @@ struct ReaderDetailView: View {
             isTranslated = true
             return
         }
-        guard NaturalTranslator.isAvailable else {
+        guard NaturalTranslator.isAvailable(for: TranslationSettings.readerProvider()) else {
             isShowingTranslation = true
             return
         }
@@ -971,7 +971,7 @@ struct InAppBrowserSheet: View {
     /// Web-view translation uses Apple Intelligence; offer it only when that's
     /// available and the article's language differs from the app's.
     private var canTranslate: Bool {
-        guard NaturalTranslator.isAvailable,
+        guard NaturalTranslator.isAvailable(for: TranslationSettings.readerProvider()),
               let detected = ReaderDetailView.detectLanguage(for: article),
               let target = targetLanguage.languageCode?.identifier else { return false }
         let detectedBase = Locale.Language(identifier: detected).languageCode?.identifier ?? detected

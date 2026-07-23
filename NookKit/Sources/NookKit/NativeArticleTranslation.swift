@@ -395,6 +395,9 @@ public final class NativeArticleTranslator {
     /// Whether the experimental coherent mode is on for this run (captured at
     /// `start` so a mid-run toggle can't mix strategies).
     private var useCoherentMode = false
+    /// The translation backend for this run (Apple Intelligence or Gemini),
+    /// captured at `start` from the reader's provider setting.
+    private var provider: TranslationProvider = .appleIntelligence
 
     public init() {}
 
@@ -415,8 +418,9 @@ public final class NativeArticleTranslator {
         let token = generation
         // Warm the on-device model ahead of the block-by-block burst so the first
         // block doesn't pay the cold-start latency.
-        NaturalTranslator.prewarm()
-        // Capture the experimental "coherent" flag once for this run.
+        // Capture the provider + experimental "coherent" flag once for this run.
+        provider = TranslationSettings.readerProvider()
+        NaturalTranslator.prewarm(provider: provider)
         useCoherentMode = UserDefaults.standard.bool(forKey: ReaderStore.coherentArticleTranslationKey)
         let blocks = HTMLContentParser.parse(html, baseURL: baseURL)
         task = Task { [weak self] in
@@ -450,12 +454,12 @@ public final class NativeArticleTranslator {
 
         // Detect the article's subject up front so each block is translated with
         // field-appropriate terminology (best-effort; empty if unavailable).
-        conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks, limit: 1200)) ?? ""
+        conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks, limit: 1200), provider: provider) ?? ""
         guard token == generation else { return }
 
         // Seed the keep-verbatim glossary from the title; it then grows per block
         // below, before each block is translated.
-        mergeKeepTerms(await NaturalTranslator.detectKeepTerms(from: title))
+        mergeKeepTerms(await NaturalTranslator.detectKeepTerms(from: title, provider: provider))
         guard token == generation else { return }
 
         // Build the bilingual glossary once, from a sample of the whole article, so
@@ -463,16 +467,17 @@ public final class NativeArticleTranslator {
         // keep-verbatim terms. Best-effort: empty on failure changes nothing.
         glossary = await NaturalTranslator.detectGlossary(
             from: conceptSample(title: title, blocks: blocks, limit: 2000),
-            into: language, domain: conceptDomain, keepTerms: keepTerms
+            into: language, domain: conceptDomain, keepTerms: keepTerms, provider: provider
         )
         guard token == generation else { return }
 
         // Experimental coherent mode: one per-article session that carries the last
         // translated paragraph as rolling context. Built here (after domain/terms/
-        // glossary) so its instructions match the per-block sessions. nil = off.
+        // glossary) so its instructions match the per-block sessions. nil = off
+        // (or when the provider is Gemini, which needs no persistent session).
         if useCoherentMode {
             articleSession = NaturalTranslator.ArticleSession.make(
-                into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary
+                into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider
             )
         }
 
@@ -480,7 +485,7 @@ public final class NativeArticleTranslator {
         // the block/marker one) keeps a short title from ever ballooning into a
         // paragraph, and a length guard drops any runaway result.
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedTitle.isEmpty, let translated = try? await NaturalTranslator.translate(trimmedTitle, into: language) {
+        if !trimmedTitle.isEmpty, let translated = try? await NaturalTranslator.translate(trimmedTitle, into: language, provider: provider) {
             guard token == generation else { return }
             let cleaned = translated.trimmingCharacters(in: .whitespacesAndNewlines)
             if !cleaned.isEmpty, cleaned.count <= max(120, trimmedTitle.count * 4) {
@@ -506,7 +511,7 @@ public final class NativeArticleTranslator {
     private func accumulateKeepTerms(from block: HTMLContentBlock, token: Int) async {
         let text = blockPlainText(block).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let terms = await NaturalTranslator.detectKeepTerms(from: text)
+        let terms = await NaturalTranslator.detectKeepTerms(from: text, provider: provider)
         guard token == generation else { return }
         mergeKeepTerms(terms)
     }
@@ -832,7 +837,7 @@ public final class NativeArticleTranslator {
         }
         // 1) Guided streaming — markers preserved, streams token by token.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary,
+            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
             return result.translation
@@ -842,7 +847,7 @@ public final class NativeArticleTranslator {
         // loop or echo the first attempt hit, and streams so it types in and can
         // be aborted early if it too runs away.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary,
+            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
             return result.translation
@@ -851,7 +856,7 @@ public final class NativeArticleTranslator {
         // 3) Plain, non-guided translation — recovers from the echo failure mode
         // guided decoding falls into, at the cost of this chunk's inline markup.
         if let plain = await NaturalTranslator.translatePlainFallback(
-            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary
+            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider
         ) {
             await paceEmit(plain, onPartial: onPartial, token: token)
             return plain

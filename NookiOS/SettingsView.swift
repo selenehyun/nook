@@ -513,6 +513,11 @@ private struct ExperimentalSettingsScreen: View {
 
     var body: some View {
         List {
+            Section("Translation Engine") {
+                TranslationEngineSettingsContent()
+            }
+            .warmRows()
+
             Section("Reader View") {
                 Toggle("Show reader view content by default", isOn: $readerContentByDefault)
                 Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")

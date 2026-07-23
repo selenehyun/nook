@@ -5077,6 +5077,28 @@
         }
       }
     },
+    "Translation Engine" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳エンジン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역 엔진"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译引擎"
+          }
+        }
+      }
+    },
     "Typography" : {
       "localizations" : {
         "en" : {

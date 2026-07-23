@@ -40,6 +40,8 @@ public final class ListTitleTranslator {
     private var enabled = false
     private var targetLanguageName = ""
     private var targetLanguageCode = ""
+    /// Translation backend for list titles, from the title provider setting.
+    private var provider: TranslationProvider = .appleIntelligence
 
     /// Per-article visible translation state (absent = show the original only).
     public private(set) var states: [Article.ID: TitleState] = [:]
@@ -81,7 +83,8 @@ public final class ListTitleTranslator {
     public func configure(enabled: Bool, targetLanguageName: String, targetLanguageCode: String) {
         let languageChanged = targetLanguageCode != self.targetLanguageCode
         let wasEnabled = self.enabled
-        self.enabled = enabled && NaturalTranslator.isAvailable
+        self.provider = TranslationSettings.titleProvider()
+        self.enabled = enabled && NaturalTranslator.isAvailable(for: provider)
         self.targetLanguageName = targetLanguageName
         self.targetLanguageCode = targetLanguageCode
         if self.enabled { loadCacheIfNeeded() }
@@ -215,7 +218,7 @@ public final class ListTitleTranslator {
 
             // 1) Guided, streaming translation (retries once internally).
             do {
-                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms) { [weak self] partial in
+                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms, provider: provider) { [weak self] partial in
                     guard let self, !Task.isCancelled else { return }
                     let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
@@ -244,7 +247,7 @@ public final class ListTitleTranslator {
             //    the same recovery the reader uses.
             if Task.isCancelled { return }
             self.states[id] = .translating("")
-            if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms) {
+            if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms, provider: provider) {
                 if Task.isCancelled { return }
                 let final = plain.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !final.isEmpty, !Self.isEcho(final, of: title) {

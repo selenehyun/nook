@@ -175,9 +175,7 @@
         }
       }
     },
-    "Cancel" : {
-
-    },
+    "Cancel" : {},
     "Choose an iCloud Drive folder before adding feeds." : {
       "localizations" : {
         "en" : {
@@ -381,9 +379,7 @@
         }
       }
     },
-    "Done" : {
-
-    },
+    "Done" : {},
     "Feed" : {
       "localizations" : {
         "en" : {
@@ -618,9 +614,7 @@
         }
       }
     },
-    "OK" : {
-
-    },
+    "OK" : {},
     "Open Embedded Content" : {
       "localizations" : {
         "en" : {
@@ -1373,6 +1367,182 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已到开头"
+          }
+        }
+      }
+    },
+    "Full-article reader" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事全文リーダー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 기사 리더"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全文阅读器"
+          }
+        }
+      }
+    },
+    "Article list titles" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事リストのタイトル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록 제목"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文章列表标题"
+          }
+        }
+      }
+    },
+    "Gemini API key" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini API キー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini API 키"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini API 密钥"
+          }
+        }
+      }
+    },
+    "Save Key" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーを保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 저장"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存密钥"
+          }
+        }
+      }
+    },
+    "Clear Key" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーを消去"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 삭제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除密钥"
+          }
+        }
+      }
+    },
+    "A Gemini API key is saved on this device." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この端末に Gemini API キーが保存されています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 기기에 Gemini API 키가 저장되어 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备上已保存 Gemini API 密钥。"
+          }
+        }
+      }
+    },
+    "No Gemini API key saved yet." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存された Gemini API キーはまだありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 저장된 Gemini API 키가 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未保存 Gemini API 密钥。"
+          }
+        }
+      }
+    },
+    "Your key is stored only on this device and is never synced. When Gemini is selected, article text is sent to Google to translate it." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーはこの端末にのみ保存され、同期されません。Gemini を選択すると、翻訳のために記事のテキストが Google に送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키는 이 기기에만 저장되며 동기화되지 않습니다. Gemini를 선택하면 번역을 위해 기사 텍스트가 Google로 전송됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥仅存储在此设备上，绝不同步。选择 Gemini 时，文章文本会发送给 Google 进行翻译。"
           }
         }
       }

@@ -191,7 +191,7 @@ struct RootView: View {
         guard hasCompletedWelcome,
               !hasSeenTranslatePromo,
               !translateListTitles,
-              NaturalTranslator.isAvailable else { return }
+              NaturalTranslator.isAvailable(for: TranslationSettings.titleProvider()) else { return }
         hasSeenTranslatePromo = true
         showTranslatePromo = true
     }
@@ -1457,6 +1457,8 @@ private struct ArticleList: View {
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
+    @AppStorage(TranslationSettings.titleProviderKey) private var titleProvider = TranslationProvider.appleIntelligence.rawValue
+    @AppStorage(TranslationSettings.geminiKeyConfiguredKey) private var geminiKeyConfigured = false
     /// Shared, on-device title translator for the opt-in "translate list titles"
     /// experiment. Reading its `state(for:)` in `row` observes streaming updates.
     private let titleTranslator = ListTitleTranslator.shared
@@ -1540,6 +1542,8 @@ private struct ArticleList: View {
         .onAppear { configureTitleTranslator() }
         .onChange(of: translateListTitles) { _, _ in configureTitleTranslator() }
         .onChange(of: appLanguage) { _, _ in configureTitleTranslator() }
+        .onChange(of: titleProvider) { _, _ in configureTitleTranslator() }
+        .onChange(of: geminiKeyConfigured) { _, _ in configureTitleTranslator() }
     }
 
     /// Feeds the shared title translator the current on/off flag and target
