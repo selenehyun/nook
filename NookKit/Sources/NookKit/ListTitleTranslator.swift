@@ -242,21 +242,25 @@ public final class ListTitleTranslator {
                 return
             }
 
-            // Show the block once, up front, as a "translating" placeholder so the
-            // row reveals a single time; the translation then fills it in.
-            self.setState(.translating(""), for: id)
+            // A list title is NOT revealed mid-flight: we deliberately skip the
+            // intermediate `.translating` states and reveal only the final result,
+            // in one step. Streaming a title into a `List` row changed the row's
+            // height on every token, and each height change re-lays-out the whole
+            // visible list (NSTableView re-anchors all rows), which is what
+            // stuttered scrolling. Revealing once means a single layout pass, and
+            // it lands after the dwell + inference (usually once scrolling settled).
+            // The reader keeps its token-by-token streaming; only list titles pop
+            // in whole, matching how a cache hit already appears.
 
             // Proper nouns / brands / acronyms (LG, SIMD, OpenAI, GPT-4, …) to keep
             // verbatim rather than translate or transliterate, in both passes.
             let keepTerms = NaturalTranslator.heuristicKeepTokens(title)
 
-            // 1) Guided, streaming translation (retries once internally).
+            // 1) Guided translation (retries once internally). We still use the
+            //    streaming API for its guardrails/quality but discard partials so
+            //    the row never re-lays-out per token.
             do {
-                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms, provider: provider) { [weak self] partial in
-                    guard let self, !Task.isCancelled else { return }
-                    let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { self.setState(.translating(trimmed), for: id) }
-                }
+                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms, provider: provider) { _ in }
                 if Task.isCancelled { return }
                 let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !final.isEmpty, !Self.isEcho(final, of: title) {
@@ -280,7 +284,6 @@ public final class ListTitleTranslator {
             //    that keeps the proper nouns verbatim recovers a real translation —
             //    the same recovery the reader uses.
             if Task.isCancelled { return }
-            self.setState(.translating(""), for: id)
             if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms, provider: provider) {
                 if Task.isCancelled { return }
                 let final = plain.trimmingCharacters(in: .whitespacesAndNewlines)
