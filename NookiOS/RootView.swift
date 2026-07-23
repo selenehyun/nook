@@ -1567,6 +1567,14 @@ private struct ArticleList: View {
         }
     }
 
+    private func resolvedTitleTranslation(for article: Article) -> (text: String, streaming: Bool)? {
+        switch titleTranslator.state(for: article.id, title: article.title) {
+        case .translating(let partial): return (partial, true)
+        case .translated(let final): return (final, false)
+        case nil: return nil
+        }
+    }
+
     private func row(_ article: Article) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             // Title + its translation share a zero-spacing group so the collapsed
@@ -1607,7 +1615,7 @@ private struct ArticleList: View {
     /// Always mounted; `expandReveal` grows it from zero height so the row pushes
     /// the following content down smoothly rather than the block popping in.
     private func translatedTitle(for article: Article) -> some View {
-        let resolved = resolvedTitleTranslation(for: article.id)
+        let resolved = resolvedTitleTranslation(for: article)
         let text = resolved?.text ?? ""
         let streaming = resolved?.streaming ?? false
         return HStack(alignment: .top, spacing: 5) {
@@ -1635,15 +1643,5 @@ private struct ArticleList: View {
         // Animate the reveal only for a live (streaming) translation; a cache hit
         // scrolling into view appears instantly.
         .expandReveal(isVisible: resolved != nil, animateAppearance: streaming)
-    }
-
-    /// The current title-translation text plus whether it's still streaming in,
-    /// or nil when there's nothing to show for this row.
-    private func resolvedTitleTranslation(for id: Article.ID) -> (text: String, streaming: Bool)? {
-        switch titleTranslator.state(for: id) {
-        case .translating(let partial): return (partial, true)
-        case .translated(let final): return (final, false)
-        case nil: return nil
-        }
     }
 }

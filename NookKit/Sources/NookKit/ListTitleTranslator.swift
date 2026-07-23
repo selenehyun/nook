@@ -94,19 +94,35 @@ public final class ListTitleTranslator {
 
     public func state(for id: Article.ID) -> TitleState? { states[id] }
 
+    /// Like `state(for:)` but also resolves a translation that's only in the
+    /// (already-loaded) cache synchronously, so a row whose translation was cached
+    /// on a previous launch is full-height on its very first layout — before its
+    /// `onAppear` writes it into `states`. Without this, such a row lays out short
+    /// then grows a pass later, which makes the macOS List judder on scroll-up.
+    public func state(for id: Article.ID, title: String) -> TitleState? {
+        if let live = states[id] { return live }
+        guard enabled, !title.isEmpty else { return nil }
+        if let cached = cache[cacheKey(for: title)] { return .translated(cached) }
+        return nil
+    }
+
     /// A row scrolled into view. After the dwell (if still requested), translate
     /// its title — unless it's already cached, already the target language, or in
     /// progress.
     public func rowAppeared(id: Article.ID, title: String) {
         guard enabled, !title.isEmpty else { return }
         visibleTitles[id] = title
+        // If this row already has a state, don't touch `states` — re-assigning the
+        // same value would invalidate every row observing the dict and churn layout
+        // on an ordinary scroll-in.
+        if states[id] != nil { return }
         let key = cacheKey(for: title)
         if sameLanguage.contains(key) || abandoned.contains(key) { return }
         if let cached = cache[key] {
             states[id] = .translated(cached)
             return
         }
-        if states[id] != nil || dwellTasks[id] != nil || activeTasks[id] != nil { return }
+        if dwellTasks[id] != nil || activeTasks[id] != nil { return }
         dwellTasks[id] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(self?.dwell ?? 1.5))
             guard !Task.isCancelled, let self else { return }
@@ -168,8 +184,8 @@ public final class ListTitleTranslator {
             }
 
             // Show the block once, up front, as a "translating" placeholder so the
-            // row expands a single time; tokens then fill it in (the block reserves
-            // two lines, so streaming never shifts the layout again).
+            // row reveals a single time; tokens then fill it in (the block fits its
+            // content, growing at most from one line to two while it streams).
             self.states[id] = .translating("")
 
             for attempt in 0...self.maxRetries {

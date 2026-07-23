@@ -1294,7 +1294,7 @@ private struct ArticleRow: View {
     /// The current title-translation text plus whether it's still streaming in,
     /// or nil when there's nothing to show for this row.
     private var resolvedTitleTranslation: (text: String, streaming: Bool)? {
-        switch titleTranslator.state(for: article.id) {
+        switch titleTranslator.state(for: article.id, title: article.title) {
         case .translating(let partial): return (partial, true)
         case .translated(let final): return (final, false)
         case nil: return nil
