@@ -1451,6 +1451,33 @@ public final class ReaderStore {
     /// trouble. Defaults off.
     public static let coherentArticleTranslationKey = "coherentArticleTranslation"
 
+    /// `UserDefaults` key recording that the one-time filters tutorial has been
+    /// shown (the first time the user opens Filters settings). Per-app, not synced
+    /// — seeing the guide is per-install UI state. Defaults false.
+    public static let filterGuideSeenKey = "filterGuideSeen"
+
+    /// How many currently-loaded articles a single filter would hide, for the live
+    /// feedback shown next to it in settings. Computed off the main actor so a big
+    /// library doesn't hitch typing; returns 0 for a disabled/empty/invalid filter.
+    public func matchCount(for filter: ArticleFilter) async -> Int {
+        guard filter.enabled, !filter.pattern.isEmpty else { return 0 }
+        let snapshot = articles
+        return await Task.detached(priority: .utility) {
+            let regex: NSRegularExpression?
+            if filter.kind == .regex {
+                let options: NSRegularExpression.Options = filter.caseSensitive ? [] : [.caseInsensitive]
+                guard let compiled = try? NSRegularExpression(pattern: filter.pattern, options: options) else { return 0 }
+                regex = compiled
+            } else {
+                regex = nil
+            }
+            return snapshot.reduce(into: 0) { count, article in
+                let text = filter.candidateText(title: article.title, summary: article.summary)
+                if ReaderStore.filterMatches(filter, regex: regex, in: text) { count += 1 }
+            }
+        }.value
+    }
+
     /// Whether the native reader should show reader-mode-extracted content
     /// instead of the raw feed body by default.
     public var usesReaderContentByDefault: Bool {

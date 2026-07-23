@@ -512,17 +512,29 @@ private struct FeedsSettingsScreen: View {
 
 private struct FiltersSettingsScreen: View {
     let store: ReaderStore
+    @AppStorage(ReaderStore.filterGuideSeenKey) private var filterGuideSeen = false
+    @State private var showGuide = false
 
     var body: some View {
         List {
             Section("Filters") {
-                FilterSettingsContent(store: store)
+                FilterSettingsContent(store: store, onShowGuide: { showGuide = true })
             }
             .warmRows()
         }
         .warmListBackground()
         .navigationTitle("Filters")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showGuide) {
+            FilterGuideView(onDone: { showGuide = false })
+                .presentationDragIndicator(.visible)
+        }
+        // Show the tutorial once, the first time the user opens Filters settings.
+        .task {
+            guard !filterGuideSeen else { return }
+            filterGuideSeen = true
+            showGuide = true
+        }
     }
 }
 

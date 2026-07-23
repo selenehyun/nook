@@ -2655,13 +2655,25 @@ struct ReaderSettingsView: View {
 }
 
 private struct FiltersSettingsTab: View {
+    @AppStorage(ReaderStore.filterGuideSeenKey) private var filterGuideSeen = false
+    @State private var showGuide = false
+
     var body: some View {
         Form {
             Section("Filters") {
-                FilterSettingsContent(store: .shared)
+                FilterSettingsContent(store: .shared, onShowGuide: { showGuide = true })
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showGuide) {
+            FilterGuideView(onDone: { showGuide = false })
+        }
+        // Show the tutorial once, the first time the user opens Filters settings.
+        .onAppear {
+            guard !filterGuideSeen else { return }
+            filterGuideSeen = true
+            showGuide = true
+        }
     }
 }
 
