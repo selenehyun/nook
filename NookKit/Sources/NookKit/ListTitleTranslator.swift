@@ -36,9 +36,6 @@ public final class ListTitleTranslator {
     /// How many titles translate at once (Apple Intelligence is serialized enough
     /// that a small cap keeps it responsive).
     private let maxConcurrent = 2
-    /// Extra attempts after the first when a translation errors or comes back
-    /// degenerate, before giving up and showing the original.
-    private let maxRetries = 2
 
     private var enabled = false
     private var targetLanguageName = ""
@@ -209,45 +206,53 @@ public final class ListTitleTranslator {
             }
 
             // Show the block once, up front, as a "translating" placeholder so the
-            // row reveals a single time; tokens then fill it in (the block fits its
-            // content, growing at most from one line to two while it streams).
+            // row reveals a single time; the translation then fills it in.
             self.states[id] = .translating("")
 
-            for attempt in 0...self.maxRetries {
-                if Task.isCancelled { return }
-                do {
-                    let result = try await NaturalTranslator.streamTranslateBlock(title, into: name) { [weak self] partial in
-                        guard let self, !Task.isCancelled else { return }
-                        let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
-                    }
-                    if Task.isCancelled { return }
-                    let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-                    // A degenerate result (empty, or an echo of the source) counts
-                    // as a failed attempt so a retry can produce a real one.
-                    if !final.isEmpty, !Self.isEcho(final, of: title) {
-                        self.rememberTranslation(key, final)
-                        self.states[id] = .translated(final)
-                        return
-                    }
-                } catch is CancellationError {
-                    return
-                } catch {
-                    if Task.isCancelled { return }
-                    // A real translation error: fall through to retry / give up.
+            // 1) Guided, streaming translation (retries once internally).
+            do {
+                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name) { [weak self] partial in
+                    guard let self, !Task.isCancelled else { return }
+                    let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty { self.states[id] = .translating(trimmed) }
                 }
+                if Task.isCancelled { return }
+                let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !final.isEmpty, !Self.isEcho(final, of: title) {
+                    self.rememberTranslation(key, final)
+                    self.states[id] = .translated(final)
+                    return
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                if Task.isCancelled { return }
+                // Guided decoding failed — commonly an echo of a short or
+                // proper-noun-heavy title. Fall through to the plain fallback.
+            }
 
-                if attempt < self.maxRetries {
-                    // Reset the partial (so a shorter retry can't look like it's
-                    // rewinding) but keep the block up; back off before retrying.
-                    self.states[id] = .translating("")
-                    do { try await Task.sleep(for: .seconds(0.6 * Double(attempt + 1))) }
-                    catch { return } // cancelled during backoff — not a failure
+            // 2) Escalate to a fresh, non-guided session. Small on-device models
+            //    echo short / proper-noun-heavy titles verbatim under guided
+            //    (structured) decoding, so the guardrails reject them and the title
+            //    would otherwise never translate (e.g. "Everyone Should Know SIMD",
+            //    "LG to Ban Residential Proxies from Smart TV Apps"). A plain prompt
+            //    that keeps the proper nouns verbatim recovers a real translation —
+            //    the same recovery the reader uses.
+            if Task.isCancelled { return }
+            self.states[id] = .translating("")
+            let keepTerms = NaturalTranslator.heuristicKeepTokens(title)
+            if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms) {
+                if Task.isCancelled { return }
+                let final = plain.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !final.isEmpty, !Self.isEcho(final, of: title) {
+                    self.rememberTranslation(key, final)
+                    self.states[id] = .translated(final)
+                    return
                 }
             }
 
-            // Exhausted every attempt: collapse the block, show the original, and
-            // don't retry this title again until relaunch.
+            // 3) Give up: collapse the block, show the original, and don't retry
+            //    this title again until relaunch.
             if Task.isCancelled { return }
             self.abandoned.insert(key)
             self.states[id] = nil
