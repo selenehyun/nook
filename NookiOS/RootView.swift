@@ -930,6 +930,13 @@ private struct FeedsTab: View {
                 .animation(.easeInOut(duration: 0.18), value: isRefreshing)
                 .feedActivityFlash(trigger: store.feedUpdateToken(feedID: feed.id))
                 Text(feed.displayTitle).lineLimit(1)
+                if feed.healthScore <= 0, !isRefreshing {
+                    // Quiet, Mail-style "couldn't sync" mark — no alert.
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel(Text("Couldn't refresh this feed"))
+                }
                 Spacer()
                 let count = store.unreadCount(feedID: feed.id)
                 if count > 0 {
@@ -1288,6 +1295,13 @@ private struct Sidebar: View {
             .animation(.easeInOut(duration: 0.18), value: isRefreshing)
             .feedActivityFlash(trigger: store.feedUpdateToken(feedID: feed.id))
             Text(feed.displayTitle).lineLimit(1)
+            if feed.healthScore <= 0, !isRefreshing {
+                // Quiet, Mail-style "couldn't sync" mark — no alert.
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .accessibilityLabel(Text("Couldn't refresh this feed"))
+            }
             Spacer()
             let count = store.unreadCount(feedID: feed.id)
             if count > 0 {

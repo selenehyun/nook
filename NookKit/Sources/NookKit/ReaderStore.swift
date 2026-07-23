@@ -1417,6 +1417,30 @@ public final class ReaderStore {
             // Nook doesn't jolt the UI while content trickles in.
             await self?.refreshAllFeeds(mode: .ambient)
             self?.activationRefreshInFlight = false
+            // Re-opening after a long background can hit a network that isn't
+            // ready yet, failing some feeds transiently. Retry just those once,
+            // quietly, after a short delay — so a long-suspended launch still ends
+            // up refreshed without any user action or alert.
+            await self?.retryFailedFeedsOnce()
+        }
+    }
+
+    private var isRetryingFailedFeeds = false
+
+    /// One quiet retry of the feeds that failed the last refresh (marked
+    /// unhealthy), a few seconds later. Recovers transient post-background
+    /// failures; a persistently-broken feed just re-flags itself (no alert).
+    private func retryFailedFeedsOnce() async {
+        guard !isRetryingFailedFeeds else { return }
+        let failed = feeds.filter { $0.healthScore <= 0 }.map(\.id)
+        guard !failed.isEmpty else { return }
+        isRetryingFailedFeeds = true
+        defer { isRetryingFailedFeeds = false }
+        try? await Task.sleep(for: .seconds(4))
+        guard !Task.isCancelled else { return }
+        for feed in failed.compactMap(feed(for:)) {
+            if Task.isCancelled { return }
+            await refreshFeed(feed)
         }
     }
 
@@ -1781,7 +1805,7 @@ public final class ReaderStore {
                 launch(targets[next])
                 next += 1
             }
-            while let (feedID, parsed, failure) = await group.next() {
+            while let (feedID, parsed, _) = await group.next() {
                 endFeedFetch(feedID)
                 // Cancelled (e.g. the user tapped "Add Feed"): stop launching more
                 // fetches and drain the in-flight ones without touching state, so
@@ -1795,10 +1819,13 @@ public final class ReaderStore {
                     ensureFavicon(for: parsed.feed)
                     lastRefreshedAt = Date.now
                     pruneSelectionIfHidden()
-                    errorMessage = nil
                 } else {
+                    // A refresh failure (offline, HTTP host down, parse error) must
+                    // never interrupt the user: don't surface a global alert. Just
+                    // flag the feed unhealthy so the list can show a quiet
+                    // sync-failed indicator; the flag clears on the next successful
+                    // refresh (merge resets healthScore).
                     markFeedUnhealthy(feedID: feedID)
-                    errorMessage = failure
                 }
                 if next < targets.count {
                     beginFeedFetch(targets[next].id, spinner: mode.showsSpinner)
@@ -1852,10 +1879,10 @@ public final class ReaderStore {
     private func refreshFeed(_ feed: Feed) async {
         do {
             _ = try await fetch(url: feed.feedURL, existingFeedID: feed.id)
-            errorMessage = nil
         } catch {
+            // A refresh failure stays quiet (no global alert) — just flag the feed
+            // so the list shows a sync-failed indicator; it clears on next success.
             markFeedUnhealthy(feedID: feed.id)
-            errorMessage = error.localizedDescription
         }
     }
 
