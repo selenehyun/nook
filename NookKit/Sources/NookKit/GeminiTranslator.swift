@@ -12,11 +12,23 @@ public enum GeminiTranslator {
     public static let model = "gemini-flash-latest"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
 
-    /// Whether the model accepts `thinkingConfig.thinkingBudget = 0` (disable
-    /// "thinking"). We try to disable it — translation needs no reasoning and it
-    /// adds seconds per request — but if a model rejects the field (400), we latch
-    /// this off for the session and retry without it, so translation never breaks.
-    nonisolated(unsafe) private static var thinkingDisableSupported = true
+    /// How to keep "thinking" (which adds seconds of first-token latency and is not
+    /// needed for translation) to a minimum. The correct field differs by model
+    /// generation — Gemini 3.x uses `thinkingLevel`, 2.5 uses `thinkingBudget` — so
+    /// we try them in order and latch onto whichever the model accepts, retrying on
+    /// a 400 so translation never breaks regardless of which model the alias maps to.
+    private static let thinkingStrategyCount = 3
+    nonisolated(unsafe) private static var thinkingStrategyIndex = 0
+
+    /// The `thinkingConfig` for a strategy: 0 = Gemini 3.x `thinkingLevel: low`,
+    /// 1 = Gemini 2.5 `thinkingBudget: 0`, else the model default (no field).
+    private static func thinkingConfig(forStrategy index: Int) -> [String: Any]? {
+        switch index {
+        case 0: return ["thinkingLevel": "low"]
+        case 1: return ["thinkingBudget": 0]
+        default: return nil
+        }
+    }
 
     public static var isConfigured: Bool { GeminiCredential.hasKey }
 
@@ -62,18 +74,16 @@ public enum GeminiTranslator {
 
     // MARK: - Transport (with thinking-config self-healing retry)
 
-    /// Opens an SSE byte stream, validating the status. If the model rejects the
-    /// thinking-disable field (400), latch it off and retry once without it.
+    /// Opens an SSE byte stream, validating the status. On a 400 (e.g. the model
+    /// doesn't accept the current thinking field) it advances to the next thinking
+    /// strategy and retries, latching onto whichever the model accepts.
     private static func openStream(path: String, system: String, prompt: String) async throws -> URLSession.AsyncBytes {
-        for includeThinkingDisable in thinkingAttempts() {
-            let request = try makeRequest(path: path, system: system, prompt: prompt, disableThinking: includeThinkingDisable)
+        for index in thinkingStrategyIndex..<thinkingStrategyCount {
+            let request = try makeRequest(path: path, system: system, prompt: prompt, thinkingConfig: thinkingConfig(forStrategy: index))
             let (bytes, response) = try await URLSession.shared.bytes(for: request)
             guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
-            if http.statusCode == 200 { return bytes }
-            if http.statusCode == 400, includeThinkingDisable {
-                thinkingDisableSupported = false
-                continue   // retry without the thinking-disable field
-            }
+            if http.statusCode == 200 { thinkingStrategyIndex = index; return bytes }
+            if http.statusCode == 400 { thinkingStrategyIndex = index + 1; continue }
             var body = ""
             for try await line in bytes.lines { body += line }
             throw Failure(message: "HTTP \(http.statusCode): \(String(body.prefix(300)))")
@@ -82,27 +92,18 @@ public enum GeminiTranslator {
     }
 
     private static func postForData(path: String, system: String, prompt: String) async throws -> Data {
-        for includeThinkingDisable in thinkingAttempts() {
-            let request = try makeRequest(path: path, system: system, prompt: prompt, disableThinking: includeThinkingDisable)
+        for index in thinkingStrategyIndex..<thinkingStrategyCount {
+            let request = try makeRequest(path: path, system: system, prompt: prompt, thinkingConfig: thinkingConfig(forStrategy: index))
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
-            if http.statusCode == 200 { return data }
-            if http.statusCode == 400, includeThinkingDisable {
-                thinkingDisableSupported = false
-                continue
-            }
+            if http.statusCode == 200 { thinkingStrategyIndex = index; return data }
+            if http.statusCode == 400 { thinkingStrategyIndex = index + 1; continue }
             throw Failure(message: "HTTP \(http.statusCode): \(String(String(data: data, encoding: .utf8)?.prefix(300) ?? ""))")
         }
         throw Failure(message: "Request failed")
     }
 
-    /// Attempt order: prefer disabling thinking; fall back to leaving it on. Once
-    /// the model has rejected the field this session, only the "on" attempt runs.
-    private static func thinkingAttempts() -> [Bool] {
-        thinkingDisableSupported ? [true, false] : [false]
-    }
-
-    private static func makeRequest(path: String, system: String, prompt: String, disableThinking: Bool) throws -> URLRequest {
+    private static func makeRequest(path: String, system: String, prompt: String, thinkingConfig: [String: Any]?) throws -> URLRequest {
         guard let key = GeminiCredential.apiKey else { throw Failure(message: "Missing Gemini API key") }
         guard let url = URL(string: "\(endpoint)/\(path)") else { throw Failure(message: "Bad URL") }
         var request = URLRequest(url: url)
@@ -110,14 +111,9 @@ public enum GeminiTranslator {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
         request.timeoutInterval = 60
-        // temperature 0 → deterministic/faithful, matching the on-device greedy
-        // choice (same input → same output).
+        // temperature 0 → deterministic/faithful, matching the on-device greedy choice.
         var generationConfig: [String: Any] = ["temperature": 0, "candidateCount": 1]
-        if disableThinking {
-            // thinkingBudget 0 disables Flash "thinking": translation needs no
-            // reasoning, and thinking adds seconds of latency to every request.
-            generationConfig["thinkingConfig"] = ["thinkingBudget": 0]
-        }
+        if let thinkingConfig { generationConfig["thinkingConfig"] = thinkingConfig }
         var payload: [String: Any] = [
             "contents": [["role": "user", "parts": [["text": prompt]]]],
             "generationConfig": generationConfig,

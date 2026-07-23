@@ -705,6 +705,25 @@ public final class NativeArticleTranslator {
         token: Int,
         emit: @escaping (HTMLContentBlock) -> Void
     ) async -> (HTMLContentBlock, String) {
+        // Gemini: translate the whole block in a single request (its large context
+        // window handles it) instead of one request per paragraph — this is the
+        // "batch paragraphs" win that cuts the per-block startup count. Apple keeps
+        // the per-segment streaming below (small on-device window). translateFragment
+        // -Streaming does not chunk for Gemini, so this is one network round-trip.
+        if provider == .gemini {
+            var settledHTML = html
+            let streamed = await translateFragmentStreaming(
+                html, language: language, context: context, token: token
+            ) { partial in
+                guard token == self.generation else { return }
+                let block: HTMLContentBlock = headingLevel.map { .heading(level: $0, html: partial) } ?? .text(partial)
+                emit(block)
+            }
+            if let streamed { settledHTML = streamed.0 }
+            let settled: HTMLContentBlock = headingLevel.map { .heading(level: $0, html: settledHTML) } ?? .text(settledHTML)
+            return (settled, context)
+        }
+
         var context = context
         let segments = InlineMarkupTranslator.segments(html)
         var output = segments.map(\.raw)
@@ -781,7 +800,7 @@ public final class NativeArticleTranslator {
         // context (which would silently fail and leave the text untranslated).
         // Chunks translate in order; the live text shows finished chunks plus the
         // one currently streaming.
-        let chunks = InlineMarkupTranslator.chunk(template)
+        let chunks = provider == .gemini ? [template] : InlineMarkupTranslator.chunk(template)
         var htmlParts: [String] = []
         var finishedStripped = ""
         for chunk in chunks {
@@ -985,7 +1004,7 @@ public final class NativeArticleTranslator {
         // Same chunking + per-chunk rebuild as the streaming path (no live
         // callback) so long cells/quotes don't overflow or echo, and one bad chunk
         // doesn't strip styles from the whole cell/quote.
-        let chunks = InlineMarkupTranslator.chunk(template)
+        let chunks = provider == .gemini ? [template] : InlineMarkupTranslator.chunk(template)
         var htmlParts: [String] = []
         for chunk in chunks {
             guard token == generation else { return nil }
