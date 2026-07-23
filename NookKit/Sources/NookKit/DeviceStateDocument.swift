@@ -110,6 +110,12 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     public var feedState: [Feed.ID: FeedState]
     /// Folder existence as an add/remove LWW: `true` = created, `false` = removed.
     public var folders: [String: LWWRegister<Bool>]
+    /// User article filters as ONE last-writer-wins register over the whole
+    /// ordered list. Whole-list LWW (rather than per-filter) keeps the user's
+    /// ordering stable and fits config that is edited rarely and usually on a
+    /// single device; a concurrent edit on another device converges to the later
+    /// write. Optional so older shards (which never wrote it) decode cleanly.
+    public var filters: LWWRegister<[ArticleFilter]>?
 
     public init(
         deviceID: String,
@@ -117,7 +123,8 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         updatedAt: Date = Date(),
         articleState: [Article.ID: ArticleState] = [:],
         feedState: [Feed.ID: FeedState] = [:],
-        folders: [String: LWWRegister<Bool>] = [:]
+        folders: [String: LWWRegister<Bool>] = [:],
+        filters: LWWRegister<[ArticleFilter]>? = nil
     ) {
         self.schema = Self.currentSchema
         self.deviceID = deviceID
@@ -127,10 +134,11 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         self.articleState = articleState
         self.feedState = feedState
         self.folders = folders
+        self.filters = filters
     }
 
     enum CodingKeys: String, CodingKey {
-        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders
+        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders, filters
     }
 
     public init(from decoder: Decoder) throws {
@@ -143,6 +151,7 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         articleState = try container.decodeIfPresent([Article.ID: ArticleState].self, forKey: .articleState) ?? [:]
         feedState = try container.decodeIfPresent([Feed.ID: FeedState].self, forKey: .feedState) ?? [:]
         folders = try container.decodeIfPresent([String: LWWRegister<Bool>].self, forKey: .folders) ?? [:]
+        filters = try container.decodeIfPresent(LWWRegister<[ArticleFilter]>.self, forKey: .filters)
     }
 }
 
@@ -244,6 +253,10 @@ extension DeviceStateDocument {
         folders[name] = LWWRegister(value: present, hlc: hlc)
     }
 
+    public mutating func setFilters(_ value: [ArticleFilter], hlc: HLC) {
+        filters = LWWRegister(value: value, hlc: hlc)
+    }
+
     /// The greatest clock anywhere in this shard, so a device loading peers'
     /// shards can advance its own clock past everything it has observed.
     public var maxObservedHLC: HLC {
@@ -262,6 +275,7 @@ extension DeviceStateDocument {
             fold(state.seed?.hlc)
         }
         for register in folders.values { fold(register.hlc) }
+        fold(filters?.hlc)
         return result
     }
 }
@@ -273,10 +287,11 @@ extension DeviceStateDocument {
     /// by highest HLC. Pure and order-independent.
     static func mergedState(
         from shards: [DeviceStateDocument]
-    ) -> (articles: [Article.ID: ArticleState], feeds: [Feed.ID: FeedState], folders: [String: LWWRegister<Bool>]) {
+    ) -> (articles: [Article.ID: ArticleState], feeds: [Feed.ID: FeedState], folders: [String: LWWRegister<Bool>], filters: LWWRegister<[ArticleFilter]>?) {
         var articles: [Article.ID: ArticleState] = [:]
         var feeds: [Feed.ID: FeedState] = [:]
         var folders: [String: LWWRegister<Bool>] = [:]
+        var filters: LWWRegister<[ArticleFilter]>?
         for shard in shards {
             for (id, state) in shard.articleState {
                 articles[id] = articles[id].map { $0.merged(with: state) } ?? state
@@ -287,8 +302,9 @@ extension DeviceStateDocument {
             for (name, register) in shard.folders {
                 folders[name] = mergeRegisters(folders[name], register)
             }
+            filters = mergeRegisters(filters, shard.filters)
         }
-        return (articles, feeds, folders)
+        return (articles, feeds, folders, filters)
     }
 
     /// Produces the effective library the app should show: the regenerable
@@ -454,7 +470,8 @@ extension DeviceStateDocument {
             feeds: feeds,
             articles: articles,
             lastRefreshedAt: base.lastRefreshedAt,
-            folders: Array(folders)
+            folders: Array(folders),
+            filters: merged.filters?.value ?? []
         )
     }
 }

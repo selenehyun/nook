@@ -353,6 +353,7 @@ private enum AppTab: Hashable { case home, feeds, starred, settings }
 /// A navigable source in the Feeds tab.
 private enum FeedTarget: Hashable {
     case all
+    case filtered
     case folder(String)
     case feed(Feed.ID)
 }
@@ -525,6 +526,8 @@ private struct CompactShell: View {
         switch target {
         case .all:
             store.selectSmartSource(.all)
+        case .filtered:
+            store.selectSmartSource(.filtered)
         case .folder(let name):
             store.selectFolder(name)
         case .feed(let id):
@@ -850,6 +853,24 @@ private struct FeedsTab: View {
                     }
                     .listRowBackground(Rectangle().fill(.ultraThinMaterial))
                 }
+
+                // Tucked at the bottom, only once filters exist: the articles
+                // hidden by the user's filters.
+                if store.hasFilters {
+                    Section {
+                        NavigationLink(value: FeedTarget.filtered) {
+                            HStack {
+                                Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
+                                Spacer()
+                                let count = store.count(for: .filtered)
+                                if count > 0 {
+                                    Text(count, format: .number).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color("ListBackground").ignoresSafeArea())
@@ -1158,7 +1179,7 @@ private struct Sidebar: View {
     var body: some View {
         List(selection: $selection) {
             Section("Library") {
-                ForEach(SmartSource.allCases) { source in
+                ForEach(SmartSource.library) { source in
                     HStack {
                         Label(source.title, systemImage: source.systemImage)
                         Spacer()
@@ -1199,6 +1220,23 @@ private struct Sidebar: View {
                             }
                         }
                     }
+                }
+                .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+            }
+
+            // Tucked at the bottom, only once filters exist: the articles hidden
+            // by the user's filters.
+            if store.hasFilters {
+                Section {
+                    HStack {
+                        Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
+                        Spacer()
+                        let count = store.count(for: .filtered)
+                        if count > 0 {
+                            Text(count, format: .number).foregroundStyle(.secondary)
+                        }
+                    }
+                    .tag(SidebarItem.smart(.filtered))
                 }
                 .listRowBackground(Rectangle().fill(.ultraThinMaterial))
             }

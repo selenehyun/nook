@@ -55,6 +55,11 @@ struct SettingsView: View {
                         Label("Feeds", systemImage: "dot.radiowaves.up.forward")
                     }
                     NavigationLink {
+                        FiltersSettingsScreen(store: store)
+                    } label: {
+                        Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                    NavigationLink {
                         ExperimentalSettingsScreen()
                     } label: {
                         Label("Experimental", systemImage: "flask")
@@ -504,6 +509,22 @@ private struct FeedsSettingsScreen: View {
 }
 
 // MARK: - Experimental
+
+private struct FiltersSettingsScreen: View {
+    let store: ReaderStore
+
+    var body: some View {
+        List {
+            Section("Filters") {
+                FilterSettingsContent(store: store)
+            }
+            .warmRows()
+        }
+        .warmListBackground()
+        .navigationTitle("Filters")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
 
 private struct ExperimentalSettingsScreen: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true

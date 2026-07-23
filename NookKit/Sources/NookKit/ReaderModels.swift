@@ -54,6 +54,80 @@ public struct ArticleBody: Codable, Sendable, Equatable {
     }
 }
 
+/// A user-defined rule that hides matching articles from the normal lists and
+/// from every unread/badge count, collecting them under the "Filtered" source
+/// instead. Filtering is non-destructive and computed — no article is deleted —
+/// so disabling or removing a filter brings its articles right back. Filters
+/// sync across devices (in the per-device state shard) so every device hides the
+/// same articles.
+public struct ArticleFilter: Codable, Sendable, Equatable, Identifiable {
+    /// How `pattern` is interpreted.
+    public enum Kind: String, Codable, Sendable, CaseIterable {
+        /// A literal (case-optional) substring match.
+        case plainText
+        /// An ICU regular expression (`NSRegularExpression`).
+        case regex
+    }
+
+    /// Which of the article's text fields the pattern is tested against.
+    public enum MatchTarget: String, Codable, Sendable, CaseIterable {
+        case title
+        case summary
+        case titleAndSummary
+    }
+
+    public var id: String
+    public var kind: Kind
+    public var pattern: String
+    public var matchTarget: MatchTarget
+    public var enabled: Bool
+    public var caseSensitive: Bool
+
+    public init(
+        id: String = UUID().uuidString,
+        kind: Kind = .plainText,
+        pattern: String = "",
+        matchTarget: MatchTarget = .titleAndSummary,
+        enabled: Bool = true,
+        caseSensitive: Bool = false
+    ) {
+        self.id = id
+        self.kind = kind
+        self.pattern = pattern
+        self.matchTarget = matchTarget
+        self.enabled = enabled
+        self.caseSensitive = caseSensitive
+    }
+
+    /// The article text this filter tests against, per its match target.
+    public func candidateText(title: String, summary: String) -> String {
+        switch matchTarget {
+        case .title: return title
+        case .summary: return summary
+        case .titleAndSummary: return title + "\n" + summary
+        }
+    }
+}
+
+public extension ArticleFilter.Kind {
+    var title: String {
+        switch self {
+        case .plainText: String(localized: "Text", bundle: Bundle.module)
+        case .regex: String(localized: "Regex", bundle: Bundle.module)
+        }
+    }
+}
+
+public extension ArticleFilter.MatchTarget {
+    var title: String {
+        switch self {
+        case .title: String(localized: "Title", bundle: Bundle.module)
+        case .summary: String(localized: "Summary", bundle: Bundle.module)
+        case .titleAndSummary: String(localized: "Title & Summary", bundle: Bundle.module)
+        }
+    }
+}
+
 public struct ReaderLibrary: Codable, Sendable {
     public var feeds: [Feed]
     public var articles: [Article]
@@ -61,16 +135,21 @@ public struct ReaderLibrary: Codable, Sendable {
     /// Explicit folder names, including empty folders, so they persist and sync
     /// even with no feeds inside (the ".gitkeep" role for folders).
     public var folders: [String]
+    /// User article filters. NOT persisted in the content baseline (absent from
+    /// `CodingKeys`): filters live only in the per-device state shard and are
+    /// carried here in-memory by `materialize` for the store to read.
+    public var filters: [ArticleFilter]
 
     enum CodingKeys: String, CodingKey {
         case feeds, articles, lastRefreshedAt, folders
     }
 
-    public init(feeds: [Feed], articles: [Article], lastRefreshedAt: Date?, folders: [String]) {
+    public init(feeds: [Feed], articles: [Article], lastRefreshedAt: Date?, folders: [String], filters: [ArticleFilter] = []) {
         self.feeds = feeds
         self.articles = articles
         self.lastRefreshedAt = lastRefreshedAt
         self.folders = folders
+        self.filters = filters
     }
 
     public init(from decoder: Decoder) throws {
@@ -79,6 +158,7 @@ public struct ReaderLibrary: Codable, Sendable {
         articles = try container.decode([Article].self, forKey: .articles)
         lastRefreshedAt = try container.decodeIfPresent(Date.self, forKey: .lastRefreshedAt)
         folders = try container.decodeIfPresent([String].self, forKey: .folders) ?? []
+        filters = []
     }
 }
 
@@ -294,6 +374,9 @@ extension Article {
         case .smart(.unread): !isRead
         case .smart(.today): Calendar.current.isDateInToday(publishedAt)
         case .smart(.starred): isStarred
+        // Filtered membership depends on the user's live filter rules, not the
+        // article alone, so the store computes it; a static test never matches.
+        case .smart(.filtered): false
         case .feed(let feedID): self.feedID == feedID
         }
     }
@@ -338,6 +421,14 @@ public enum SmartSource: String, CaseIterable, Identifiable, Sendable {
     case today
     case starred
     case all
+    /// Articles hidden by the user's filters. Kept out of `library` so it doesn't
+    /// sit in the main list; the sidebar pins it separately at the bottom.
+    case filtered
+
+    /// The sources shown in the main Library list. `filtered` is deliberately
+    /// excluded — it's pinned at the very bottom of the sidebar, out of the way,
+    /// and only surfaced when the user actually has filters configured.
+    public static let library: [SmartSource] = [.unread, .today, .starred, .all]
 
     public var id: Self { self }
 
@@ -347,6 +438,7 @@ public enum SmartSource: String, CaseIterable, Identifiable, Sendable {
         case .today: String(localized: "Today", bundle: Bundle.module)
         case .starred: String(localized: "Starred", bundle: Bundle.module)
         case .all: String(localized: "All Articles", bundle: Bundle.module)
+        case .filtered: String(localized: "Filtered", bundle: Bundle.module)
         }
     }
 
@@ -356,6 +448,7 @@ public enum SmartSource: String, CaseIterable, Identifiable, Sendable {
         case .today: "calendar"
         case .starred: "star"
         case .all: "tray.full"
+        case .filtered: "line.3.horizontal.decrease.circle"
         }
     }
 }

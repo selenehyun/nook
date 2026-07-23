@@ -8,10 +8,13 @@ public final class ReaderStore {
     public var feeds: [Feed] = [] { didSet { scheduleArticleFilter(debounced: true) } }
     var articles: [Article] = [] {
         didSet {
-            // Counts + unread badge recompute on every change (a single O(all)
-            // pass, cheap) so the Dock/app-icon badge and sidebar counts always
-            // stay live — including a read toggle made while a refresh is in
-            // flight. Only the filter+sort is debounced/coalesced.
+            // Classify hidden (filtered) articles first so counts and the list
+            // both see the current set. Counts + unread badge then recompute on
+            // every change (a single O(all) pass, cheap) so the Dock/app-icon
+            // badge and sidebar counts always stay live — including a read toggle
+            // made while a refresh is in flight. Only the filter+sort is
+            // debounced/coalesced.
+            recomputeFilteredIDs()
             recomputeCounts()
             updateUnreadBadge()
             scheduleArticleFilter(debounced: true)
@@ -92,6 +95,15 @@ public final class ReaderStore {
     public private(set) var syncFolderDisplayPath: String?
     private(set) var feedIcons: [Feed.ID: PlatformImage] = [:]
     private(set) var folders: [String] = []
+    /// User-defined article filters, synced across devices via the state shard.
+    /// Read-only to the UI; mutate through `addFilter`/`updateFilter`/etc., which
+    /// re-classify hidden articles and record the change to the shard.
+    public private(set) var filters: [ArticleFilter] = []
+    /// Ids of articles hidden by the enabled filters. Excluded from every normal
+    /// list and from all unread/badge counts (a filtered article is never treated
+    /// as unread); surfaced only under the `.filtered` source. Recomputed whenever
+    /// `articles` or `filters` change.
+    private var filteredArticleIDs: Set<Article.ID> = []
 
     // Favicon fetching is deduplicated by host and rate-limited so a large
     // library doesn't spawn a storm of concurrent requests on launch.
@@ -309,6 +321,7 @@ public final class ReaderStore {
         let feedSelection = self.feedSelection
         let smartSelection = self.smartSelection
         let retained = retainedArticleIDs
+        let filteredIDs = filteredArticleIDs
         let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let order = currentSortOrder
 
@@ -319,7 +332,7 @@ public final class ReaderStore {
         if query.isEmpty && snapshot.count < Self.backgroundFilterThreshold {
             applyDisplayed(Self.computeVisibleArticles(
                 snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
-                smartSelection: smartSelection, retained: retained, query: query, order: order
+                smartSelection: smartSelection, retained: retained, filteredIDs: filteredIDs, query: query, order: order
             ), animated: animated)
             return
         }
@@ -328,7 +341,7 @@ public final class ReaderStore {
             let result = await Task.detached(priority: .userInitiated) {
                 Self.computeVisibleArticles(
                     snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
-                    smartSelection: smartSelection, retained: retained, query: query, order: order
+                    smartSelection: smartSelection, retained: retained, filteredIDs: filteredIDs, query: query, order: order
                 )
             }.value
             guard !Task.isCancelled, let self else { return }
@@ -367,6 +380,7 @@ public final class ReaderStore {
         feedSelection: Set<Feed.ID>,
         smartSelection: SmartSource?,
         retained: Set<Article.ID>,
+        filteredIDs: Set<Article.ID>,
         query: String,
         order: ArticleSortOrder
     ) -> [Article] {
@@ -382,6 +396,7 @@ public final class ReaderStore {
             case .some(.unread), .some(.all), .none: return true
             case .some(.today): return Calendar.current.isDateInToday(article.publishedAt)
             case .some(.starred): return article.isStarred
+            case .some(.filtered): return false
             }
         }
 
@@ -394,8 +409,20 @@ public final class ReaderStore {
             return article.bodyParagraphs.contains { $0.localizedStandardContains(query) }
         }
 
+        // The Filtered source shows exactly the hidden articles (regardless of
+        // read state); every other source hides them.
+        if feedSelection.isEmpty, smartSelection == .filtered {
+            return articles
+                .filter { filteredIDs.contains($0.id) && matchesQuery($0) }
+                .sorted { Article.isOrdered($0, $1, by: order) }
+        }
+
         return articles
-            .filter { (matchesSource($0) || (retained.contains($0.id) && matchesSourceIgnoringReadState($0))) && matchesQuery($0) }
+            .filter {
+                !filteredIDs.contains($0.id)
+                    && (matchesSource($0) || (retained.contains($0.id) && matchesSourceIgnoringReadState($0)))
+                    && matchesQuery($0)
+            }
             .sorted { Article.isOrdered($0, $1, by: order) }
     }
 
@@ -677,7 +704,7 @@ public final class ReaderStore {
         // Compare against the same folder normalization `apply` produces.
         let impliedFolders = merged.feeds.map(\.folderName).filter { !$0.isEmpty }
         let mergedFolders = Set(merged.folders).union(impliedFolders)
-        if merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) {
+        if merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) || merged.filters != filters {
             apply(merged)
             pruneSelectionIfHidden()
         }
@@ -935,6 +962,9 @@ public final class ReaderStore {
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)
         for article in articles {
+            // A filtered article is hidden everywhere and must never count toward
+            // unread / today / starred / per-feed badges (nor the Dock badge).
+            if filteredArticleIDs.contains(article.id) { continue }
             if !article.isRead {
                 byFeed[article.feedID, default: 0] += 1
                 total += 1
@@ -950,6 +980,108 @@ public final class ReaderStore {
         totalUnread = total
         todayCount = today
         starredCount = starred
+    }
+
+    /// Rebuilds `filteredArticleIDs` from the enabled filters. An empty pattern or
+    /// an invalid regex is inert (matches nothing). Cheap: filters are few, and
+    /// each article is tested only against its filters' chosen text field.
+    private func recomputeFilteredIDs() {
+        let active = filters.filter { $0.enabled && !$0.pattern.isEmpty }
+        guard !active.isEmpty else {
+            if !filteredArticleIDs.isEmpty { filteredArticleIDs = [] }
+            return
+        }
+        // Compile each regex once (nil = invalid → inert).
+        let compiled: [(filter: ArticleFilter, regex: NSRegularExpression?)] = active.map { filter in
+            switch filter.kind {
+            case .plainText:
+                return (filter, nil)
+            case .regex:
+                let options: NSRegularExpression.Options = filter.caseSensitive ? [] : [.caseInsensitive]
+                return (filter, try? NSRegularExpression(pattern: filter.pattern, options: options))
+            }
+        }
+        var ids = Set<Article.ID>()
+        for article in articles {
+            for entry in compiled {
+                let text = entry.filter.candidateText(title: article.title, summary: article.summary)
+                if Self.filterMatches(entry.filter, regex: entry.regex, in: text) {
+                    ids.insert(article.id)
+                    break
+                }
+            }
+        }
+        filteredArticleIDs = ids
+    }
+
+    /// Whether one filter matches the given text. Plain-text is a (case-optional)
+    /// substring test; regex uses the precompiled expression (a nil/invalid regex
+    /// never matches, so a malformed pattern hides nothing).
+    nonisolated private static func filterMatches(_ filter: ArticleFilter, regex: NSRegularExpression?, in text: String) -> Bool {
+        switch filter.kind {
+        case .plainText:
+            let options: String.CompareOptions = filter.caseSensitive ? [] : [.caseInsensitive]
+            return text.range(of: filter.pattern, options: options) != nil
+        case .regex:
+            guard let regex else { return false }
+            let range = NSRange(text.startIndex..., in: text)
+            return regex.firstMatch(in: text, options: [], range: range) != nil
+        }
+    }
+
+    /// Re-classify after a filter change, then refresh counts, badge, and list.
+    private func applyFilterChange() {
+        recomputeFilteredIDs()
+        // Removing/disabling/clearing the last active filter hides the "Filtered"
+        // sidebar entry, so a user sitting on that source would be stranded on a
+        // now-unreachable, empty list — send them back to All Articles. Uses the
+        // same `hasFilters` condition that gates the sidebar row.
+        if !hasFilters, feedSelection.isEmpty, smartSelection == .filtered {
+            selectSmartSource(.all)
+        }
+        recomputeCounts()
+        updateUnreadBadge()
+        scheduleArticleFilter()
+    }
+
+    // MARK: - Article filters (public API)
+
+    /// Appends a new filter, then persists/syncs it and re-classifies articles.
+    @discardableResult
+    public func addFilter(
+        kind: ArticleFilter.Kind = .plainText,
+        pattern: String = "",
+        matchTarget: ArticleFilter.MatchTarget = .titleAndSummary
+    ) -> ArticleFilter {
+        let filter = ArticleFilter(kind: kind, pattern: pattern, matchTarget: matchTarget)
+        filters.append(filter)
+        recordFilters()
+        applyFilterChange()
+        return filter
+    }
+
+    /// Replaces the filter with the same id (an edit from the settings UI).
+    public func updateFilter(_ filter: ArticleFilter) {
+        guard let index = filters.firstIndex(where: { $0.id == filter.id }) else { return }
+        guard filters[index] != filter else { return }
+        filters[index] = filter
+        recordFilters()
+        applyFilterChange()
+    }
+
+    /// Removes a filter; its articles reappear in the normal lists.
+    public func removeFilter(id: ArticleFilter.ID) {
+        guard filters.contains(where: { $0.id == id }) else { return }
+        filters.removeAll { $0.id == id }
+        recordFilters()
+        applyFilterChange()
+    }
+
+    /// Reorders filters (UI convenience). Order doesn't affect matching, so this
+    /// only persists — no re-classification needed.
+    public func moveFilters(fromOffsets: IndexSet, toOffset: Int) {
+        filters.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        recordFilters()
     }
 
     /// Installed by the platform app to reflect the unread badge (macOS Dock,
@@ -1032,9 +1164,16 @@ public final class ReaderStore {
         case .unread: totalUnread
         case .today: todayCount
         case .starred: starredCount
-        case .all: articles.count
+        // `.all` excludes filtered articles (they live only under `.filtered`).
+        case .all: articles.count - filteredArticleIDs.count
+        case .filtered: filteredArticleIDs.count
         }
     }
+
+    /// Whether any filter is actually active (enabled with a non-empty pattern).
+    /// Drives whether the sidebar surfaces the "Filtered" entry — so a freshly
+    /// added blank filter or an only-disabled filter doesn't show an empty row.
+    public var hasFilters: Bool { filters.contains { $0.enabled && !$0.pattern.isEmpty } }
 
     public func addFeed(urlString: String, toFolder folder: String = "") async throws {
         guard isStorageConfigured else {
@@ -1128,7 +1267,9 @@ public final class ReaderStore {
         // Never notify about an article the user already saw in the list on any
         // device — "seen" syncs via the shards, so it suppresses across devices.
         let seen = storage.map { mergedSeenArticleIDs(storage: $0) } ?? []
-        let candidates = articles.filter { !$0.isRead && !seen.contains($0.id) }
+        // A filtered article is hidden and never treated as unread, so it must
+        // never fire a "new article" notification either.
+        let candidates = articles.filter { !$0.isRead && !seen.contains($0.id) && !filteredArticleIDs.contains($0.id) }
         let fresh = (try? replicaStore?.reserveNotifications(for: candidates)) ?? []
         let sorted = fresh.sorted(by: Article.isOrderedBefore)
         return BackgroundRefreshResult(
@@ -2111,6 +2252,10 @@ public final class ReaderStore {
         }
 
         feeds = repairedFeeds
+        // Set filters BEFORE articles: assigning `articles` triggers its didSet,
+        // which re-classifies filtered ids against `filters` — so the merged
+        // filters must already be in place (a peer's filter edit reclassifies).
+        filters = library.filters
         articles = library.articles
         lastRefreshedAt = library.lastRefreshedAt
         // Merge explicit folders with any folders implied by feed categories.
@@ -2346,6 +2491,13 @@ public final class ReaderStore {
 
     private func recordFolder(_ name: String, present: Bool) {
         ownShard.setFolderPresent(name, present, hlc: nextHLC())
+    }
+
+    /// Stamps the whole filter list into this device's shard and schedules a
+    /// save, so the change syncs to peers (last-writer-wins over the list).
+    private func recordFilters() {
+        ownShard.setFilters(filters, hlc: nextHLC())
+        scheduleShardSave()
     }
 
     /// Schedules a coalesced background write of this device's shard. Runs off

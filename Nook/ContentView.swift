@@ -427,7 +427,7 @@ private struct FeedSidebar: View {
     var body: some View {
         List(selection: $store.feedSelection) {
             Section("Library") {
-                ForEach(SmartSource.allCases) { source in
+                ForEach(SmartSource.library) { source in
                     smartSourceRow(source)
                 }
             }
@@ -490,6 +490,7 @@ private struct FeedSidebar: View {
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
+                filteredSourceRow
                 sidebarActionBar
                 SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
                 UpdateBanner(updateController: updateController)
@@ -716,6 +717,43 @@ private struct FeedSidebar: View {
         .draggable(feed.id)
         .contextMenu {
             feedContextMenu(feed)
+        }
+    }
+
+    /// A subtle "Filtered" entry pinned in the bottom corner of the sidebar,
+    /// tucked below the feeds. Only shown once the user has filters configured,
+    /// so it stays out of the way otherwise. Opens the filtered-out articles.
+    @ViewBuilder
+    private var filteredSourceRow: some View {
+        if store.hasFilters {
+            let isActive = store.feedSelection.isEmpty && store.smartSelection == .filtered
+            Divider()
+            Button {
+                store.selectSmartSource(.filtered)
+            } label: {
+                HStack(spacing: 8) {
+                    Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
+                        .font(.callout)
+                    Spacer(minLength: 8)
+                    let count = store.count(for: .filtered)
+                    if count > 0 {
+                        Text(count, format: .number)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(isActive ? Color.white.opacity(0.85) : Color.secondary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+                .foregroundStyle(isActive ? Color.white : Color.secondary)
+                .background(
+                    isActive
+                        ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor).padding(.horizontal, 8)
+                        : nil
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -2605,12 +2643,25 @@ struct ReaderSettingsView: View {
                 .tabItem { Label("Reader", systemImage: "textformat") }
             FeedsSettingsTab()
                 .tabItem { Label("Feeds", systemImage: "dot.radiowaves.up.forward") }
+            FiltersSettingsTab()
+                .tabItem { Label("Filters", systemImage: "line.3.horizontal.decrease.circle") }
             ExperimentalSettingsTab()
                 .tabItem { Label("Experimental", systemImage: "flask") }
             AboutSettingsTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 540, height: 430)
+    }
+}
+
+private struct FiltersSettingsTab: View {
+    var body: some View {
+        Form {
+            Section("Filters") {
+                FilterSettingsContent(store: .shared)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

@@ -1,9 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
+    "" : {},
     "— Diagnostics (helps with troubleshooting; feel free to delete) —" : {
       "localizations" : {
         "en" : {
@@ -60,9 +58,7 @@
         }
       }
     },
-    "%lld" : {
-
-    },
+    "%lld" : {},
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -148,9 +144,7 @@
         }
       }
     },
-    "99+" : {
-
-    },
+    "99+" : {},
     "About" : {
       "localizations" : {
         "en" : {
@@ -949,9 +943,7 @@
         }
       }
     },
-    "Couldn't refresh this feed" : {
-
-    },
+    "Couldn't refresh this feed" : {},
     "Create" : {
       "localizations" : {
         "en" : {
@@ -1164,9 +1156,7 @@
         }
       }
     },
-    "Deletes all saved title translations on this device. Titles are translated again as you view them." : {
-
-    },
+    "Deletes all saved title translations on this device. Titles are translated again as you view them." : {},
     "Deselect All" : {
       "localizations" : {
         "en" : {
@@ -3244,9 +3234,7 @@
         }
       }
     },
-    "Open in Safari" : {
-
-    },
+    "Open in Safari" : {},
     "Open Original" : {
       "localizations" : {
         "en" : {
@@ -4944,9 +4932,6 @@
       }
     },
     "Translated by Gemini" : {
-
-    },
-    "Translated by Gemini" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -5421,6 +5406,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部看完啦"
+          }
+        }
+      }
+    },
+    "Filters" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器"
           }
         }
       }
