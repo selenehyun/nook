@@ -452,24 +452,36 @@ public final class NativeArticleTranslator {
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
         var context = ""
 
-        // Detect the article's subject up front so each block is translated with
-        // field-appropriate terminology (best-effort; empty if unavailable).
-        conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks, limit: 1200), provider: provider) ?? ""
-        guard token == generation else { return }
+        if provider == .gemini {
+            // Gemini runs over the network, so every extra detection pass is a full
+            // round-trip that stacks up serially. It's also a large model with a big
+            // context window, so it keeps terminology consistent on its own. Use only
+            // the local proper-noun heuristic (no network) and skip the domain and
+            // glossary passes, so translating a page issues just the block requests.
+            mergeKeepTerms(NaturalTranslator.heuristicKeepTokens(title))
+        } else {
+            // Apple Intelligence: on-device, so these detections are effectively free
+            // and materially improve the small model's output. Unchanged.
+            //
+            // Detect the article's subject up front so each block is translated with
+            // field-appropriate terminology (best-effort; empty if unavailable).
+            conceptDomain = await NaturalTranslator.detectConcept(from: conceptSample(title: title, blocks: blocks, limit: 1200), provider: provider) ?? ""
+            guard token == generation else { return }
 
-        // Seed the keep-verbatim glossary from the title; it then grows per block
-        // below, before each block is translated.
-        mergeKeepTerms(await NaturalTranslator.detectKeepTerms(from: title, provider: provider))
-        guard token == generation else { return }
+            // Seed the keep-verbatim glossary from the title; it then grows per block
+            // below, before each block is translated.
+            mergeKeepTerms(await NaturalTranslator.detectKeepTerms(from: title, provider: provider))
+            guard token == generation else { return }
 
-        // Build the bilingual glossary once, from a sample of the whole article, so
-        // recurring terms translate identically in every block. Excludes the
-        // keep-verbatim terms. Best-effort: empty on failure changes nothing.
-        glossary = await NaturalTranslator.detectGlossary(
-            from: conceptSample(title: title, blocks: blocks, limit: 2000),
-            into: language, domain: conceptDomain, keepTerms: keepTerms, provider: provider
-        )
-        guard token == generation else { return }
+            // Build the bilingual glossary once, from a sample of the whole article, so
+            // recurring terms translate identically in every block. Excludes the
+            // keep-verbatim terms. Best-effort: empty on failure changes nothing.
+            glossary = await NaturalTranslator.detectGlossary(
+                from: conceptSample(title: title, blocks: blocks, limit: 2000),
+                into: language, domain: conceptDomain, keepTerms: keepTerms, provider: provider
+            )
+            guard token == generation else { return }
+        }
 
         // Experimental coherent mode: one per-article session that carries the last
         // translated paragraph as rolling context. Built here (after domain/terms/
@@ -511,6 +523,12 @@ public final class NativeArticleTranslator {
     private func accumulateKeepTerms(from block: HTMLContentBlock, token: Int) async {
         let text = blockPlainText(block).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        if provider == .gemini {
+            // Local heuristic only — a per-block network call here is what doubled
+            // Gemini's serial round-trips. (Apple keeps its on-device model pass.)
+            mergeKeepTerms(NaturalTranslator.heuristicKeepTokens(text))
+            return
+        }
         let terms = await NaturalTranslator.detectKeepTerms(from: text, provider: provider)
         guard token == generation else { return }
         mergeKeepTerms(terms)
@@ -844,15 +862,18 @@ public final class NativeArticleTranslator {
         }
         guard token == generation else { return template }
         // 2) Fresh guided streaming — a new session usually escapes a repetition
-        // loop or echo the first attempt hit, and streams so it types in and can
-        // be aborted early if it too runs away.
-        if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider,
-            onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
-        ) {
-            return result.translation
+        // loop or echo the first attempt hit. This is an on-device (Apple) failure
+        // mode; a fresh Gemini request rarely differs and would just double the
+        // network latency, so skip it for Gemini and go straight to the plain pass.
+        if provider != .gemini {
+            if let result = try? await NaturalTranslator.streamTranslateBlock(
+                template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider,
+                onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
+            ) {
+                return result.translation
+            }
+            guard token == generation else { return template }
         }
-        guard token == generation else { return template }
         // 3) Plain, non-guided translation — recovers from the echo failure mode
         // guided decoding falls into, at the cost of this chunk's inline markup.
         if let plain = await NaturalTranslator.translatePlainFallback(

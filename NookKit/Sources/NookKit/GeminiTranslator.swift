@@ -12,6 +12,12 @@ public enum GeminiTranslator {
     public static let model = "gemini-flash-latest"
     private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
 
+    /// Whether the model accepts `thinkingConfig.thinkingBudget = 0` (disable
+    /// "thinking"). We try to disable it — translation needs no reasoning and it
+    /// adds seconds per request — but if a model rejects the field (400), we latch
+    /// this off for the session and retry without it, so translation never breaks.
+    nonisolated(unsafe) private static var thinkingDisableSupported = true
+
     public static var isConfigured: Bool { GeminiCredential.hasKey }
 
     /// Streams a translation. `onPartial` receives the cumulative text so callers
@@ -20,14 +26,7 @@ public enum GeminiTranslator {
     /// (the SSE loop only awaits — it never blocks the main thread).
     @MainActor
     public static func stream(system: String, prompt: String, onPartial: @escaping (String) -> Void) async throws -> String {
-        let request = try makeRequest(path: "\(model):streamGenerateContent?alt=sse", system: system, prompt: prompt)
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
-        guard http.statusCode == 200 else {
-            var body = ""
-            for try await line in bytes.lines { body += line }
-            throw Failure(message: "HTTP \(http.statusCode): \(String(body.prefix(300)))")
-        }
+        let bytes = try await openStream(path: "\(model):streamGenerateContent?alt=sse", system: system, prompt: prompt)
         var full = ""
         var finishReason: String?
         var blockReason: String?
@@ -54,19 +53,56 @@ public enum GeminiTranslator {
     /// One-shot (non-streaming) generation — for the short helper calls (language
     /// detection, glossary) where streaming buys nothing.
     public static func complete(system: String, prompt: String) async throws -> String {
-        let request = try makeRequest(path: "\(model):generateContent", system: system, prompt: prompt)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
-        guard http.statusCode == 200 else {
-            throw Failure(message: "HTTP \(http.statusCode): \(String(String(data: data, encoding: .utf8)?.prefix(300) ?? ""))")
-        }
+        let data = try await postForData(path: "\(model):generateContent", system: system, prompt: prompt)
         let result = parse(data)
         if let blockReason = result.blockReason { throw Failure(message: "blocked: \(blockReason)") }
         guard result.finishReason == "STOP" else { throw Failure(message: "incomplete: \(result.finishReason ?? "no finishReason")") }
         return result.text ?? ""
     }
 
-    private static func makeRequest(path: String, system: String, prompt: String) throws -> URLRequest {
+    // MARK: - Transport (with thinking-config self-healing retry)
+
+    /// Opens an SSE byte stream, validating the status. If the model rejects the
+    /// thinking-disable field (400), latch it off and retry once without it.
+    private static func openStream(path: String, system: String, prompt: String) async throws -> URLSession.AsyncBytes {
+        for includeThinkingDisable in thinkingAttempts() {
+            let request = try makeRequest(path: path, system: system, prompt: prompt, disableThinking: includeThinkingDisable)
+            let (bytes, response) = try await URLSession.shared.bytes(for: request)
+            guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
+            if http.statusCode == 200 { return bytes }
+            if http.statusCode == 400, includeThinkingDisable {
+                thinkingDisableSupported = false
+                continue   // retry without the thinking-disable field
+            }
+            var body = ""
+            for try await line in bytes.lines { body += line }
+            throw Failure(message: "HTTP \(http.statusCode): \(String(body.prefix(300)))")
+        }
+        throw Failure(message: "Request failed")
+    }
+
+    private static func postForData(path: String, system: String, prompt: String) async throws -> Data {
+        for includeThinkingDisable in thinkingAttempts() {
+            let request = try makeRequest(path: path, system: system, prompt: prompt, disableThinking: includeThinkingDisable)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
+            if http.statusCode == 200 { return data }
+            if http.statusCode == 400, includeThinkingDisable {
+                thinkingDisableSupported = false
+                continue
+            }
+            throw Failure(message: "HTTP \(http.statusCode): \(String(String(data: data, encoding: .utf8)?.prefix(300) ?? ""))")
+        }
+        throw Failure(message: "Request failed")
+    }
+
+    /// Attempt order: prefer disabling thinking; fall back to leaving it on. Once
+    /// the model has rejected the field this session, only the "on" attempt runs.
+    private static func thinkingAttempts() -> [Bool] {
+        thinkingDisableSupported ? [true, false] : [false]
+    }
+
+    private static func makeRequest(path: String, system: String, prompt: String, disableThinking: Bool) throws -> URLRequest {
         guard let key = GeminiCredential.apiKey else { throw Failure(message: "Missing Gemini API key") }
         guard let url = URL(string: "\(endpoint)/\(path)") else { throw Failure(message: "Bad URL") }
         var request = URLRequest(url: url)
@@ -74,11 +110,17 @@ public enum GeminiTranslator {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
         request.timeoutInterval = 60
+        // temperature 0 → deterministic/faithful, matching the on-device greedy
+        // choice (same input → same output).
+        var generationConfig: [String: Any] = ["temperature": 0, "candidateCount": 1]
+        if disableThinking {
+            // thinkingBudget 0 disables Flash "thinking": translation needs no
+            // reasoning, and thinking adds seconds of latency to every request.
+            generationConfig["thinkingConfig"] = ["thinkingBudget": 0]
+        }
         var payload: [String: Any] = [
             "contents": [["role": "user", "parts": [["text": prompt]]]],
-            // temperature 0 → deterministic/faithful, matching the on-device greedy
-            // choice (same input → same output).
-            "generationConfig": ["temperature": 0, "candidateCount": 1],
+            "generationConfig": generationConfig,
         ]
         if !system.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             payload["systemInstruction"] = ["parts": [["text": system]]]
