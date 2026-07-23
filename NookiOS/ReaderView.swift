@@ -79,6 +79,12 @@ struct ReaderDetailView: View {
     /// and tiny jitters can't flicker the bars.
     @State private var lastScrollY: CGFloat = 0
     @State private var scrollAccum: CGFloat = 0
+    /// Whether the chrome was showing when a next/prev pull began, so it can be
+    /// restored if the pull is released without navigating.
+    @State private var chromeShownBeforePull = false
+    /// Set when a pull actually commits to a navigation, so the pull-release
+    /// handler doesn't restore chrome that the new article should drive instead.
+    @State private var navigatedFromPull = false
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -311,8 +317,26 @@ struct ReaderDetailView: View {
             .readerSwipeNavigation(
                 nextTitle: store.article(after: article.id)?.title,
                 previousTitle: store.article(before: article.id)?.title,
-                onNext: { navigateReader(forward: true) },
-                onPrevious: { navigateReader(forward: false) }
+                onNext: { navigatedFromPull = true; navigateReader(forward: true) },
+                onPrevious: { navigatedFromPull = true; navigateReader(forward: false) },
+                onPullEngagedChange: { engaged in
+                    // While the next/prev affordance is on screen, get the (possibly
+                    // tap-shown) chrome out of its way so the bar and the indicator
+                    // don't overlap. Restore it if the pull is released without
+                    // navigating; if it navigates, the new article's scroll position
+                    // drives the chrome afresh.
+                    if engaged {
+                        navigatedFromPull = false
+                        chromeShownBeforePull = !chromeHidden
+                        if !chromeHidden {
+                            withAnimation(.easeInOut(duration: 0.2)) { chromeHidden = true }
+                        }
+                    } else if navigatedFromPull {
+                        navigatedFromPull = false
+                    } else if chromeShownBeforePull, chromeHidden {
+                        withAnimation(.easeInOut(duration: 0.2)) { chromeHidden = false }
+                    }
+                }
             )
             .onPreferenceChange(TitleHeightKey.self) { titleHeight = $0 }
             // Reveal the navigation-bar title once the inline title has scrolled up

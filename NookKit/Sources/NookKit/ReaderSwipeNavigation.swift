@@ -22,13 +22,15 @@ public extension View {
         nextTitle: String?,
         previousTitle: String?,
         onNext: @escaping () -> Void,
-        onPrevious: @escaping () -> Void
+        onPrevious: @escaping () -> Void,
+        onPullEngagedChange: @escaping (Bool) -> Void = { _ in }
     ) -> some View {
         modifier(ReaderSwipeNavigation(
             nextTitle: nextTitle,
             previousTitle: previousTitle,
             onNext: onNext,
-            onPrevious: onPrevious
+            onPrevious: onPrevious,
+            onPullEngagedChange: onPullEngagedChange
         ))
     }
 }
@@ -57,6 +59,14 @@ private struct ReaderSwipeNavigation: ViewModifier {
     let previousTitle: String?
     let onNext: () -> Void
     let onPrevious: () -> Void
+    /// Reports when a pull is engaged enough to show the affordance, so the host
+    /// can get out of its way (e.g. hide reader chrome that would overlap it).
+    var onPullEngagedChange: (Bool) -> Void = { _ in }
+
+    /// Distance past which the affordance is on screen; past this the pull is
+    /// "engaged" and the host is told, so it can hide overlapping chrome.
+    private static let engageThreshold: CGFloat = 24
+    @State private var pullEngaged = false
 
     /// Pull distance past an edge needed to commit to a navigation. Deliberately
     /// firmer than the web reader's, so a small nudge at the top/bottom of a short
@@ -87,6 +97,14 @@ private struct ReaderSwipeNavigation: ViewModifier {
             // disarm the moment it returns to rest. Timed off the pull itself, so it
             // covers both platforms (each drives `pull`).
             .onChange(of: pull) { _, newValue in
+                // Tell the host when the affordance is actually on screen, so it
+                // can hide chrome that would otherwise overlap the indicator.
+                let visiblyEngaged = newValue.top > Self.engageThreshold || newValue.bottom > Self.engageThreshold
+                if visiblyEngaged != pullEngaged {
+                    pullEngaged = visiblyEngaged
+                    onPullEngagedChange(visiblyEngaged)
+                }
+
                 let engaged = newValue.top > 0 || newValue.bottom > 0
                 if engaged {
                     if armTask == nil, !armed {
