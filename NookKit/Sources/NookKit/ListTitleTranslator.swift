@@ -293,6 +293,28 @@ public final class ListTitleTranslator {
         states.removeAll()
     }
 
+    /// Deletes every saved title translation — the in-memory caches, the
+    /// "same language" / "gave up" sets, and the on-disk file — and stops and
+    /// clears anything in flight or on screen. Titles re-translate from scratch
+    /// the next time their rows are viewed. Device-local; affects only this app.
+    public func clearCache() {
+        cancelAll()
+        // Also forget which rows are on screen, so cancelled tasks don't reschedule
+        // and immediately rebuild the cache we just cleared.
+        visibleTitles.removeAll()
+        cache.removeAll()
+        cacheOrder.removeAll()
+        sameLanguage.removeAll()
+        sameLanguageOrder.removeAll()
+        abandoned.removeAll()
+        // Drop any pending save, then delete the persisted file.
+        saveTask?.cancel()
+        saveTask = nil
+        if let url = Self.cacheURL() {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     private func cacheKey(for title: String) -> String { "\(targetLanguageCode)|\(title)" }
 
     private nonisolated static func baseCode(_ code: String) -> String {

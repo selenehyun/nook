@@ -508,6 +508,7 @@ private struct FeedsSettingsScreen: View {
 private struct ExperimentalSettingsScreen: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
     @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
+    @State private var confirmingClearTranslationCache = false
 
     var body: some View {
         List {
@@ -524,12 +525,30 @@ private struct ExperimentalSettingsScreen: View {
                 Text("Titles of the stories on screen are translated into your language with Apple Intelligence, shown beneath the original. Only titles that stay in view are translated, and results are cached. Titles already in your language are left as-is.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button(role: .destructive) {
+                    confirmingClearTranslationCache = true
+                } label: {
+                    Text("Clear Translation Cache")
+                }
             }
             .warmRows()
         }
         .warmListBackground()
         .navigationTitle("Experimental")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "Clear Translation Cache",
+            isPresented: $confirmingClearTranslationCache,
+            titleVisibility: .visible
+        ) {
+            Button("Clear Translation Cache", role: .destructive) {
+                ListTitleTranslator.shared.clearCache()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Deletes all saved title translations on this device. Titles are translated again as you view them.")
+        }
     }
 }
 

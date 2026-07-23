@@ -1147,6 +1147,28 @@
         }
       }
     },
+    "Clear Translation Cache" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳キャッシュを消去"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역 캐시 지우기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除翻译缓存"
+          }
+        }
+      }
+    },
     "Close" : {
       "localizations" : {
         "en" : {
@@ -1442,6 +1464,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除这篇文章？"
+          }
+        }
+      }
+    },
+    "Deletes all saved title translations on this device. Titles are translated again as you view them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスに保存されたタイトルの翻訳をすべて削除します。タイトルは表示するたびに再翻訳されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 기기에 저장된 제목 번역을 모두 삭제합니다. 제목은 다시 볼 때 재번역됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除此设备上保存的所有标题翻译。标题会在你查看时重新翻译。"
           }
         }
       }
@@ -5759,6 +5803,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在翻译…"
+          }
+        }
+      }
+    },
+    "Translation Cache" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳キャッシュ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역 캐시"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译缓存"
           }
         }
       }
