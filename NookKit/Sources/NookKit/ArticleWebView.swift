@@ -38,6 +38,10 @@ public struct ArticleWebView {
     var onBottomOverscroll: (CGFloat) -> Void
     /// The bottom pull ended with the given amount (decide close/next/snap).
     var onBottomOverscrollEnded: (CGFloat) -> Void
+    /// The page's current URL as it navigates (redirects, SPA changes), so the
+    /// host can hand the exact page — not just the original article URL — to
+    /// Safari / the system browser for login/passkey flows.
+    var onURLChange: (URL?) -> Void
 
     public init(
         url: URL,
@@ -51,7 +55,8 @@ public struct ArticleWebView {
         onOverscroll: @escaping (CGFloat) -> Void = { _ in },
         onOverscrollEnded: @escaping (CGFloat) -> Void = { _ in },
         onBottomOverscroll: @escaping (CGFloat) -> Void = { _ in },
-        onBottomOverscrollEnded: @escaping (CGFloat) -> Void = { _ in }
+        onBottomOverscrollEnded: @escaping (CGFloat) -> Void = { _ in },
+        onURLChange: @escaping (URL?) -> Void = { _ in }
     ) {
         self.url = url
         self.useReaderMode = useReaderMode
@@ -65,6 +70,7 @@ public struct ArticleWebView {
         self.onOverscrollEnded = onOverscrollEnded
         self.onBottomOverscroll = onBottomOverscroll
         self.onBottomOverscrollEnded = onBottomOverscrollEnded
+        self.onURLChange = onURLChange
     }
 
     @MainActor
@@ -274,8 +280,10 @@ extension ArticleWebView: NSViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.onLoadingProgress = onLoadingProgress
+        context.coordinator.onURLChange = onURLChange
         context.coordinator.attach(to: webView)
         context.coordinator.observeProgress(of: webView)
+        context.coordinator.observeURL(of: webView)
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -289,6 +297,7 @@ extension ArticleWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         context.coordinator.onTranslatingChange = onTranslatingChange
         context.coordinator.onLoadingProgress = onLoadingProgress
+        context.coordinator.onURLChange = onURLChange
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
@@ -320,7 +329,9 @@ extension ArticleWebView: UIViewRepresentable {
         context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.onBottomOverscroll = onBottomOverscroll
         context.coordinator.onBottomOverscrollEnded = onBottomOverscrollEnded
+        context.coordinator.onURLChange = onURLChange
         context.coordinator.observeProgress(of: webView)
+        context.coordinator.observeURL(of: webView)
         webView.scrollView.panGestureRecognizer.addTarget(context.coordinator, action: #selector(Coordinator.handleScrollPan(_:)))
         webView.load(URLRequest(url: url))
         return webView
@@ -333,6 +344,7 @@ extension ArticleWebView: UIViewRepresentable {
         context.coordinator.onLoadingProgress = onLoadingProgress
         context.coordinator.onBottomOverscroll = onBottomOverscroll
         context.coordinator.onBottomOverscrollEnded = onBottomOverscrollEnded
+        context.coordinator.onURLChange = onURLChange
         context.coordinator.applyTranslation(translate: translate, languageName: translationLanguage)
     }
 
@@ -356,7 +368,9 @@ extension ArticleWebView {
         var onLoadingProgress: (Double) -> Void = { _ in }
         var onBottomOverscroll: (CGFloat) -> Void = { _ in }
         var onBottomOverscrollEnded: (CGFloat) -> Void = { _ in }
+        var onURLChange: (URL?) -> Void = { _ in }
         private var progressObservation: NSKeyValueObservation?
+        private var urlObservation: NSKeyValueObservation?
 
         weak var webView: WKWebView?
         private var atTop = true
@@ -1058,6 +1072,99 @@ extension ArticleWebView {
         func stopObservingProgress() {
             progressObservation?.invalidate()
             progressObservation = nil
+            urlObservation?.invalidate()
+            urlObservation = nil
+        }
+
+        /// Observes the page's URL (via KVO) so the host always has the exact
+        /// current address — following redirects and SPA navigation, not just the
+        /// initial article URL — to hand off to Safari / the system browser.
+        func observeURL(of webView: WKWebView) {
+            urlObservation = webView.observe(\.url, options: [.initial, .new]) { [weak self] webView, _ in
+                let url = webView.url
+                Task { @MainActor in self?.onURLChange(url) }
+            }
+        }
+
+        // MARK: JavaScript dialogs
+
+        // Sites (including login / re-auth / consent flows) use alert/confirm/
+        // prompt; without these the call silently no-ops and the flow can stall.
+
+        public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                            initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+            presentDialog(message: message, kind: .alert, defaultText: nil) { _ in completionHandler() }
+        }
+
+        public func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                            initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+            presentDialog(message: message, kind: .confirm, defaultText: nil) { result in
+                completionHandler(result != nil)
+            }
+        }
+
+        public func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
+                            defaultText: String?, initiatedByFrame frame: WKFrameInfo,
+                            completionHandler: @escaping (String?) -> Void) {
+            presentDialog(message: prompt, kind: .prompt, defaultText: defaultText ?? "") { result in
+                completionHandler(result)
+            }
+        }
+
+        private enum DialogKind { case alert, confirm, prompt }
+
+        /// Presents a native dialog and calls `finish` exactly once — with a
+        /// non-nil string for a confirmed/entered value, nil for cancel.
+        private func presentDialog(message: String, kind: DialogKind, defaultText: String?,
+                                   finish: @escaping (String?) -> Void) {
+            var didFinish = false
+            let complete: (String?) -> Void = { value in
+                guard !didFinish else { return }
+                didFinish = true
+                finish(value)
+            }
+            #if canImport(UIKit)
+            guard let presenter = webView?.topMostViewController() else { complete(nil); return }
+            let controller = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+            if kind == .prompt {
+                controller.addTextField { $0.text = defaultText }
+            }
+            if kind != .alert {
+                controller.addAction(UIAlertAction(title: String(localized: "Cancel", bundle: .module), style: .cancel) { _ in
+                    complete(nil)
+                })
+            }
+            controller.addAction(UIAlertAction(title: String(localized: "OK", bundle: .module), style: .default) { _ in
+                complete(kind == .prompt ? (controller.textFields?.first?.text ?? "") : "")
+            })
+            presenter.present(controller, animated: true)
+            #elseif canImport(AppKit)
+            let alert = NSAlert()
+            alert.messageText = message
+            alert.addButton(withTitle: String(localized: "OK", bundle: .module))
+            if kind != .alert { alert.addButton(withTitle: String(localized: "Cancel", bundle: .module)) }
+            var input: NSTextField?
+            if kind == .prompt {
+                let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+                field.stringValue = defaultText ?? ""
+                alert.accessoryView = field
+                input = field
+            }
+            let respond: (NSApplication.ModalResponse) -> Void = { response in
+                if response == .alertFirstButtonReturn {
+                    complete(kind == .prompt ? (input?.stringValue ?? "") : "")
+                } else {
+                    complete(nil)
+                }
+            }
+            if let window = webView?.window {
+                alert.beginSheetModal(for: window, completionHandler: respond)
+            } else {
+                respond(alert.runModal())
+            }
+            #else
+            complete(nil)
+            #endif
         }
 
         public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
@@ -1133,3 +1240,15 @@ extension ArticleWebView {
         }
     }
 }
+
+#if canImport(UIKit)
+extension UIView {
+    /// The top-most presented view controller in this view's window — the right
+    /// presenter for a JS dialog raised by the web content.
+    func topMostViewController() -> UIViewController? {
+        var top = window?.rootViewController
+        while let presented = top?.presentedViewController { top = presented }
+        return top
+    }
+}
+#endif

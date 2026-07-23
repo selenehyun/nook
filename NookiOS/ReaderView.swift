@@ -1,5 +1,6 @@
 import NaturalLanguage
 import NookKit
+import SafariServices
 import SwiftUI
 import Translation
 
@@ -906,13 +907,17 @@ struct InAppBrowserSheet: View {
     let linkOpensInApp: Bool
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @State private var isTranslationOn = false
     @State private var translationInFlight = false
     @State private var loadingProgress: Double = 0
     @State private var bottomPull: CGFloat = 0
+    /// The page's live URL (following redirects / navigation), handed to Safari.
+    @State private var currentWebURL: URL?
+    /// When set, present the page in Safari (shares the system session, so
+    /// logins and passkeys work); nil dismisses.
+    @State private var safariURL: URL?
 
     /// Web-view translation uses Apple Intelligence; offer it only when that's
     /// available and the article's language differs from the app's.
@@ -965,7 +970,8 @@ struct InAppBrowserSheet: View {
                 onTranslatingChange: { translationInFlight = $0 },
                 onLoadingProgress: { loadingProgress = $0 },
                 onBottomOverscroll: { bottomPull = $0 },
-                onBottomOverscrollEnded: handleBottomRelease
+                onBottomOverscrollEnded: handleBottomRelease,
+                onURLChange: { currentWebURL = $0 }
             )
             .id("\(article.id)|\(store.browserMode.rawValue)|\(style.identity)")
             .ignoresSafeArea(edges: .bottom)
@@ -1005,14 +1011,24 @@ struct InAppBrowserSheet: View {
                         }
                     }
                     Button {
-                        openURL(article.url)
+                        // Open the CURRENT page in Safari (in-app) — it shares the
+                        // system session, so logins and passkeys, which an embedded
+                        // WKWebView can't do for arbitrary sites, work there.
+                        let target = currentWebURL ?? article.url
+                        safariURL = ["http", "https"].contains(target.scheme?.lowercased() ?? "") ? target : article.url
                     } label: {
                         Image(systemName: "safari")
                     }
+                    .accessibilityLabel(Text("Open in Safari"))
                     ShareLink(item: article.url) {
                         Image(systemName: "square.and.arrow.up")
                     }
                 }
+            }
+        }
+        .fullScreenCover(isPresented: Binding(get: { safariURL != nil }, set: { if !$0 { safariURL = nil } })) {
+            if let safariURL {
+                SafariView(url: safariURL).ignoresSafeArea()
             }
         }
         .task(id: article.id) {
@@ -1022,6 +1038,20 @@ struct InAppBrowserSheet: View {
             }
         }
     }
+}
+
+/// Presents a page in `SFSafariViewController` — a real Safari surface that runs
+/// in its own process with the user's Safari session, so logins and passkeys
+/// (which an embedded WKWebView can't do for arbitrary sites) work. Shown in-app
+/// as a full-screen cover; its session doesn't flow back into our WKWebView.
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
 
 /// Applies the press-and-hold-to-open-browser gesture only when the opt-in
