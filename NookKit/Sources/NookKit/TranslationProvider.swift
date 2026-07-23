@@ -75,6 +75,13 @@ public enum GeminiCredential {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
+            // Use the data-protection keychain (as on iOS) rather than macOS's
+            // legacy file keychain. Access is then governed by the app's entitlement
+            // / access group instead of a per-item ACL, so a signed app reads its
+            // own key with no access prompt — including after a restart, which is
+            // where the legacy keychain otherwise pops the "allow access" dialog.
+            // Still device-only + non-synced via the accessibility attribute below.
+            kSecUseDataProtectionKeychain as String: true,
         ]
     }
 }
