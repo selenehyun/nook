@@ -33,9 +33,11 @@ public final class ListTitleTranslator {
 
     /// How long a row must stay on screen before its title is translated.
     public var dwell: TimeInterval = 1.5
-    /// How many titles translate at once (Apple Intelligence is serialized enough
-    /// that a small cap keeps it responsive).
-    private let maxConcurrent = 2
+    /// How many titles translate at once, drained FIFO from `pending`. Gemini is a
+    /// network backend, so it's processed strictly one-at-a-time (a serial queue)
+    /// to avoid a burst of requests when a screen of titles becomes eligible;
+    /// on-device Apple Intelligence keeps a small parallel cap.
+    private var maxConcurrent: Int { provider == .gemini ? 1 : 2 }
 
     private var enabled = false
     private var targetLanguageName = ""
