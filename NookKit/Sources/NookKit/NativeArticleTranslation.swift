@@ -384,6 +384,10 @@ public final class NativeArticleTranslator {
     private var keepTerms: [String] = []
     /// Lowercased keys of `keepTerms` for O(1) de-duplication across blocks.
     private var keepTermsSeen: Set<String> = []
+    /// Article-wide bilingual glossary (recurring term → consistent target
+    /// rendering), built once up front so every block translates the same term the
+    /// same way — a lightweight translation memory for long-article consistency.
+    private var glossary: [String: String] = [:]
 
     public init() {}
 
@@ -402,6 +406,9 @@ public final class NativeArticleTranslator {
         isTranslating = true
         generation += 1
         let token = generation
+        // Warm the on-device model ahead of the block-by-block burst so the first
+        // block doesn't pay the cold-start latency.
+        NaturalTranslator.prewarm()
         let blocks = HTMLContentParser.parse(html, baseURL: baseURL)
         task = Task { [weak self] in
             await self?.run(title: title, blocks: blocks, language: languageName, token: token)
@@ -419,6 +426,7 @@ public final class NativeArticleTranslator {
         conceptDomain = ""
         keepTerms = []
         keepTermsSeen = []
+        glossary = [:]
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
@@ -432,6 +440,15 @@ public final class NativeArticleTranslator {
         // Seed the keep-verbatim glossary from the title; it then grows per block
         // below, before each block is translated.
         mergeKeepTerms(await NaturalTranslator.detectKeepTerms(from: title))
+        guard token == generation else { return }
+
+        // Build the bilingual glossary once, from a sample of the whole article, so
+        // recurring terms translate identically in every block. Excludes the
+        // keep-verbatim terms. Best-effort: empty on failure changes nothing.
+        glossary = await NaturalTranslator.detectGlossary(
+            from: conceptSample(title: title, blocks: blocks, limit: 2000),
+            into: language, domain: conceptDomain, keepTerms: keepTerms
+        )
         guard token == generation else { return }
 
         // Title: a plain, bounded translation. Using the simple translator (not
@@ -776,7 +793,7 @@ public final class NativeArticleTranslator {
     ) async -> String {
         // 1) Guided streaming — markers preserved, streams token by token.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain, keepTerms: keepTerms,
+            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
             return result.translation
@@ -786,7 +803,7 @@ public final class NativeArticleTranslator {
         // loop or echo the first attempt hit, and streams so it types in and can
         // be aborted early if it too runs away.
         if let result = try? await NaturalTranslator.streamTranslateBlock(
-            template, into: language, domain: conceptDomain, keepTerms: keepTerms,
+            template, into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary,
             onPartial: { partial in onPartial(InlineMarkupTranslator.stripMarkers(partial)) }
         ) {
             return result.translation
@@ -795,7 +812,7 @@ public final class NativeArticleTranslator {
         // 3) Plain, non-guided translation — recovers from the echo failure mode
         // guided decoding falls into, at the cost of this chunk's inline markup.
         if let plain = await NaturalTranslator.translatePlainFallback(
-            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain, keepTerms: keepTerms
+            InlineMarkupTranslator.stripMarkers(template), into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary
         ) {
             await paceEmit(plain, onPartial: onPartial, token: token)
             return plain

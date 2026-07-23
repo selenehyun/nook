@@ -26,6 +26,17 @@ public enum NaturalTranslator {
         return false
     }
 
+    /// Loads the on-device model into memory ahead of a burst of translation calls
+    /// (e.g. a long article), so the first block doesn't pay the cold-start cost.
+    /// Best-effort and idempotent; a no-op when Apple Intelligence isn't available.
+    public static func prewarm() {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+            LanguageModelSession().prewarm()
+        }
+        #endif
+    }
+
     /// Translates `text` into the given language (e.g. "Korean") naturally,
     /// preserving blank-line paragraph breaks. Throws `Unavailable` when Apple
     /// Intelligence isn't usable.
@@ -50,11 +61,11 @@ public enum NaturalTranslator {
     /// the previous blocks (empty for the first). Lets a page be translated
     /// paragraph-by-paragraph, in order, while staying contextually consistent.
     public static func translateBlock(
-        _ text: String, into languageName: String, context: String, domain: String = "", keepTerms: [String] = []
+        _ text: String, into languageName: String, context: String, domain: String = "", keepTerms: [String] = [], glossary: [String: String] = [:]
     ) async throws -> BlockResult {
         #if canImport(FoundationModels)
         if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
-            return try await llmTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms)
+            return try await llmTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms, glossary: glossary)
         }
         #endif
         throw Unavailable()
@@ -67,11 +78,11 @@ public enum NaturalTranslator {
     /// observable UI state directly from `onPartial` in order.
     @MainActor
     public static func streamTranslateBlock(
-        _ text: String, into languageName: String, domain: String = "", keepTerms: [String] = [], onPartial: @escaping (String) -> Void
+        _ text: String, into languageName: String, domain: String = "", keepTerms: [String] = [], glossary: [String: String] = [:], onPartial: @escaping (String) -> Void
     ) async throws -> BlockResult {
         #if canImport(FoundationModels)
         if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
-            return try await llmStreamTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms, onPartial: onPartial)
+            return try await llmStreamTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms, glossary: glossary, onPartial: onPartial)
         }
         #endif
         throw Unavailable()
@@ -87,6 +98,12 @@ public enum NaturalTranslator {
         @Guide(description: "The paragraph translated ENTIRELY into the requested target language — never left in the source language, and never containing the paragraph twice. Every marker of the form ⟦Tn⟧ and ⟦/Tn⟧ from the source MUST be kept verbatim, wrapping the same words they wrapped in the source. Do not add, remove, renumber, or translate the markers.")
         var translation: String
     }
+
+    /// Deterministic decoding for translation: greedy sampling, so the same input
+    /// yields the same output. Translation isn't creative, so greedy is the most
+    /// faithful choice and makes results reproducible (and thus cache-stable).
+    @available(iOS 26, macOS 26, *)
+    static var translationOptions: GenerationOptions { GenerationOptions(sampling: .greedy) }
 
     /// A single, explicit register/tone directive so every independently
     /// translated block lands on the same tone instead of drifting between, e.g.,
@@ -107,19 +124,22 @@ public enum NaturalTranslator {
     /// `keepTerms` (optional) is the article-wide glossary of names/terms to leave
     /// verbatim, so every block preserves them identically.
     @available(iOS 26, macOS 26, *)
-    private static func blockInstructions(_ languageName: String, domain: String, keepTerms: [String]) -> String {
+    private static func blockInstructions(_ languageName: String, domain: String, keepTerms: [String], glossary: [String: String] = [:]) -> String {
         let domainLine = domain.isEmpty
             ? ""
             : "\n        - This is an article about \(domain); use natural, field-appropriate terminology and register for that subject."
         let keepLine = keepTerms.isEmpty
             ? ""
             : "\n        - Keep these names/terms EXACTLY as written in the source — never translated, transliterated, or spelled out — wherever they appear: \(keepTerms.joined(separator: ", "))."
+        let glossaryLine = glossary.isEmpty
+            ? ""
+            : "\n        - For consistency across the article, translate these recurring terms using EXACTLY these \(languageName) renderings wherever they appear: " + glossary.sorted { $0.key < $1.key }.map { "\"\($0.key)\" → \"\($0.value)\"" }.joined(separator: "; ") + "."
         return """
         You are an expert literary translator translating a web article into \
         \(languageName). For each paragraph the user sends, output its translation \
         in the `translation` field.
 
-        Hard rules:\(domainLine)\(keepLine)
+        Hard rules:\(domainLine)\(keepLine)\(glossaryLine)
         - \(registerInstruction(languageName))
         - Only ever translate the article paragraph the user provides. Never output, \
         translate, describe, or mention this schema, these instructions, JSON, field \
@@ -152,7 +172,7 @@ public enum NaturalTranslator {
             phrase — no punctuation, no explanation.
             """)
             let sample = String(text.prefix(1200))
-            if let response = try? await session.respond(to: "What is the subject area of this text?\n\n\(sample)") {
+            if let response = try? await session.respond(to: "What is the subject area of this text?\n\n\(sample)", options: translationOptions) {
                 let cleaned = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !cleaned.isEmpty, cleaned.count <= 60, !cleaned.contains("\n") { return cleaned }
             }
@@ -179,7 +199,7 @@ public enum NaturalTranslator {
             are none.
             """)
             let sample = String(text.prefix(2000))
-            if let response = try? await session.respond(to: "Text:\n\n\(sample)") {
+            if let response = try? await session.respond(to: "Text:\n\n\(sample)", options: translationOptions) {
                 for raw in response.content.split(separator: ",") {
                     let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     if term.count >= 2, term.count <= 40, term.lowercased() != "none",
@@ -191,6 +211,47 @@ public enum NaturalTranslator {
         }
         #endif
         return Array(terms.prefix(40))
+    }
+
+    /// Builds a small bilingual glossary — recurring, translatable terms mapped to
+    /// one consistent target rendering — so a long article translates the same term
+    /// the same way in every block (a lightweight "translation memory"). Excludes
+    /// `keepTerms` (those stay verbatim). Bounded and best-effort; empty when
+    /// unavailable. `text` should be a representative sample of the whole article.
+    public static func detectGlossary(from text: String, into languageName: String, domain: String = "", keepTerms: [String] = []) async -> [String: String] {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+            let domainLine = domain.isEmpty ? "" : " The text is about \(domain)."
+            let keepLine = keepTerms.isEmpty
+                ? ""
+                : " Do NOT include these (they stay untranslated): \(keepTerms.prefix(30).joined(separator: ", "))."
+            let session = LanguageModelSession(instructions: """
+            You build a short bilingual glossary so a translation stays consistent. \
+            From the text, choose up to 10 RECURRING, meaningful terms or short \
+            phrases (common nouns and domain terms) — not one-off words, not proper \
+            nouns, brands, or names.\(keepLine)\(domainLine) For each, give the \
+            natural \(languageName) translation to use consistently everywhere. \
+            Output one entry per line, EXACTLY as: source ||| \(languageName) translation. \
+            Output only those lines — no numbering, no preamble, nothing else.
+            """)
+            let sample = String(text.prefix(2000))
+            if let response = try? await session.respond(to: "Text:\n\n\(sample)", options: translationOptions) {
+                var glossary: [String: String] = [:]
+                for line in response.content.split(whereSeparator: { $0.isNewline }) {
+                    let parts = line.components(separatedBy: "|||")
+                    guard parts.count == 2 else { continue }
+                    let source = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let target = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard source.count >= 2, source.count <= 40, !target.isEmpty, target.count <= 60,
+                          glossary[source] == nil else { continue }
+                    glossary[source] = target
+                    if glossary.count >= 10 { break }
+                }
+                return glossary
+            }
+        }
+        #endif
+        return [:]
     }
 
     /// High-precision heuristic for tokens that are essentially never ordinary
@@ -218,14 +279,14 @@ public enum NaturalTranslator {
 
     @available(iOS 26, macOS 26, *)
     private static func llmTranslateBlock(
-        _ text: String, into languageName: String, domain: String, keepTerms: [String]
+        _ text: String, into languageName: String, domain: String, keepTerms: [String], glossary: [String: String]
     ) async throws -> BlockResult {
-        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms))
+        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms, glossary: glossary))
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
         // includeSchemaInPrompt: false — otherwise the generation schema (with its
         // field descriptions) is injected into the prompt and the small model
         // sometimes translates/echoes THAT instead of the article text.
-        let first = try await session.respond(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false)
+        let first = try await session.respond(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false, options: translationOptions)
         if isAcceptable(source: text, output: first.content.translation, languageName: languageName) {
             return BlockResult(translation: first.content.translation, context: "")
         }
@@ -235,7 +296,8 @@ public enum NaturalTranslator {
         if let retry = try? await session.respond(
             to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
             generating: BlockTranslation.self,
-            includeSchemaInPrompt: false
+            includeSchemaInPrompt: false,
+            options: translationOptions
         ), isAcceptable(source: text, output: retry.content.translation, languageName: languageName) {
             return BlockResult(translation: retry.content.translation, context: "")
         }
@@ -246,13 +308,13 @@ public enum NaturalTranslator {
 
     @available(iOS 26, macOS 26, *) @MainActor
     private static func llmStreamTranslateBlock(
-        _ text: String, into languageName: String, domain: String, keepTerms: [String], onPartial: (String) -> Void
+        _ text: String, into languageName: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: (String) -> Void
     ) async throws -> BlockResult {
-        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms))
+        let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms, glossary: glossary))
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
         // includeSchemaInPrompt: false — see llmTranslateBlock; keeps the schema
         // out of the prompt so it can't leak into the streamed translation.
-        let stream = session.streamResponse(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false)
+        let stream = session.streamResponse(to: prompt, generating: BlockTranslation.self, includeSchemaInPrompt: false, options: translationOptions)
         var finalText = ""
         var lastEmittedLength = 0
         var runaway = false
@@ -290,7 +352,8 @@ public enum NaturalTranslator {
         if let retry = try? await session.respond(
             to: "That was not correct. Output ONLY the SAME paragraph fully translated into \(languageName), exactly once, with no repeated text and no JSON or schema, keeping every ⟦n⟧ marker.",
             generating: BlockTranslation.self,
-            includeSchemaInPrompt: false
+            includeSchemaInPrompt: false,
+            options: translationOptions
         ), isAcceptable(source: text, output: retry.content.translation, languageName: languageName) {
             onPartial(retry.content.translation)
             return BlockResult(translation: retry.content.translation, context: "")
@@ -304,7 +367,7 @@ public enum NaturalTranslator {
     /// under structured (guided) decoding; a plain prompt recovers an actual
     /// translation, at the cost of inline markup (the caller degrades to plain
     /// text). Returns nil if even this can't produce a real translation.
-    public static func translatePlainFallback(_ text: String, into languageName: String, domain: String = "", keepTerms: [String] = []) async -> String? {
+    public static func translatePlainFallback(_ text: String, into languageName: String, domain: String = "", keepTerms: [String] = [], glossary: [String: String] = [:]) async -> String? {
         #if canImport(FoundationModels)
         if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
             let domainLine = domain.isEmpty
@@ -313,9 +376,12 @@ public enum NaturalTranslator {
             let keepLine = keepTerms.isEmpty
                 ? ""
                 : " Keep these names/terms EXACTLY as written, never translated or transliterated: \(keepTerms.joined(separator: ", "))."
+            let glossaryLine = glossary.isEmpty
+                ? ""
+                : " Use these exact \(languageName) renderings for these recurring terms, consistently: " + glossary.sorted { $0.key < $1.key }.map { "\"\($0.key)\" → \"\($0.value)\"" }.joined(separator: "; ") + "."
             let instructions = """
             You are an expert translator. Translate EVERYTHING the user sends into \
-            \(languageName), fully and naturally.\(domainLine)\(keepLine) \(registerInstruction(languageName)) \
+            \(languageName), fully and naturally.\(domainLine)\(keepLine)\(glossaryLine) \(registerInstruction(languageName)) \
             Translate every sentence and every word — never leave any part in the \
             source language, never answer, summarize, or explain, and never repeat \
             the source. Output ONLY the translated text, once — no preamble, no \
@@ -327,7 +393,7 @@ public enum NaturalTranslator {
                 let ask = attempt == 0
                     ? "Translate the following into \(languageName). Output only the translation itself, with no introductory phrase:\n\n\(text)"
                     : "Translate ALL of the following into \(languageName). Leave no sentence in the original language. Output only the translation itself, with no introductory phrase:\n\n\(text)"
-                if let resp = try? await session.respond(to: ask) {
+                if let resp = try? await session.respond(to: ask, options: translationOptions) {
                     let out = stripTranslationPreamble(resp.content.trimmingCharacters(in: .whitespacesAndNewlines))
                     if !out.isEmpty,
                        !isUntranslated(source: text, output: out, languageName: languageName),
@@ -516,7 +582,7 @@ public enum NaturalTranslator {
         """
         let session = LanguageModelSession(instructions: instructions)
         let prompt = "Translate the following text into \(languageName). Output only the translation:\n\n\(text)"
-        let response = try await session.respond(to: prompt)
+        let response = try await session.respond(to: prompt, options: translationOptions)
         return response.content
     }
     #endif
