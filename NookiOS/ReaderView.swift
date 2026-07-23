@@ -826,11 +826,12 @@ struct ReaderDetailView: View {
         let body = article.bodyParagraphs
         let title = article.title
         let language = targetLanguageName
+        let provider = TranslationSettings.readerProvider()
         Task {
             defer { isTranslating = false }
             do {
-                async let titleText = NaturalTranslator.translate(title, into: language)
-                async let bodyText = NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language)
+                async let titleText = NaturalTranslator.translate(title, into: language, provider: provider)
+                async let bodyText = NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language, provider: provider)
                 let (t, b) = try await (titleText, bodyText)
                 // Guard against the model "answering" an imperative title instead
                 // of translating it: drop a result that ballooned past the source.

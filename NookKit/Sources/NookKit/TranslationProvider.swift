@@ -52,17 +52,22 @@ public enum GeminiCredential {
 
     public static var hasKey: Bool { apiKey != nil }
 
-    /// Stores (or, with nil/empty, clears) the key. Always device-only.
-    public static func setAPIKey(_ key: String?) {
+    /// Stores (or, with nil/empty, clears) the key. Always device-only. The
+    /// observable "configured" flag reflects the ACTUAL stored state (a failed
+    /// write leaves no key and the flag false), never just the input.
+    @discardableResult
+    public static func setAPIKey(_ key: String?) -> Bool {
         SecItemDelete(baseQuery as CFDictionary)
         let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var stored = false
         if !trimmed.isEmpty, let data = trimmed.data(using: .utf8) {
             var attributes = baseQuery
             attributes[kSecValueData as String] = data
             attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            SecItemAdd(attributes as CFDictionary, nil)
+            stored = SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess
         }
-        UserDefaults.standard.set(!trimmed.isEmpty, forKey: TranslationSettings.geminiKeyConfiguredKey)
+        UserDefaults.standard.set(stored, forKey: TranslationSettings.geminiKeyConfiguredKey)
+        return stored
     }
 
     private static var baseQuery: [String: Any] {

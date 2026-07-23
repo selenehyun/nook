@@ -29,16 +29,25 @@ public enum GeminiTranslator {
             throw Failure(message: "HTTP \(http.statusCode): \(String(body.prefix(300)))")
         }
         var full = ""
+        var finishReason: String?
+        var blockReason: String?
         for try await line in bytes.lines {
             try Task.checkCancellation()
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
             guard !payload.isEmpty, payload != "[DONE]", let data = payload.data(using: .utf8) else { continue }
-            if let delta = extractText(data), !delta.isEmpty {
+            let chunk = parse(data)
+            if let reason = chunk.blockReason { blockReason = reason }
+            if let reason = chunk.finishReason { finishReason = reason }
+            if let delta = chunk.text, !delta.isEmpty {
                 full += delta
                 onPartial(full)
             }
         }
+        // Reject a blocked, truncated, or abnormally-ended response so the caller
+        // falls back instead of showing a partial translation as if complete.
+        if let blockReason { throw Failure(message: "blocked: \(blockReason)") }
+        guard finishReason == "STOP" else { throw Failure(message: "incomplete: \(finishReason ?? "no finishReason")") }
         return full
     }
 
@@ -51,7 +60,10 @@ public enum GeminiTranslator {
         guard http.statusCode == 200 else {
             throw Failure(message: "HTTP \(http.statusCode): \(String(String(data: data, encoding: .utf8)?.prefix(300) ?? ""))")
         }
-        return extractText(data) ?? ""
+        let result = parse(data)
+        if let blockReason = result.blockReason { throw Failure(message: "blocked: \(blockReason)") }
+        guard result.finishReason == "STOP" else { throw Failure(message: "incomplete: \(result.finishReason ?? "no finishReason")") }
+        return result.text ?? ""
     }
 
     private static func makeRequest(path: String, system: String, prompt: String) throws -> URLRequest {
@@ -75,13 +87,19 @@ public enum GeminiTranslator {
         return request
     }
 
-    /// Pulls the concatenated text out of one GenerateContentResponse chunk.
-    private static func extractText(_ data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let candidates = object["candidates"] as? [[String: Any]],
-              let content = candidates.first?["content"] as? [String: Any],
-              let parts = content["parts"] as? [[String: Any]] else { return nil }
-        let text = parts.compactMap { $0["text"] as? String }.joined()
-        return text.isEmpty ? nil : text
+    /// Pulls the text, finish reason, and any prompt block reason out of one
+    /// GenerateContentResponse chunk.
+    private static func parse(_ data: Data) -> (text: String?, finishReason: String?, blockReason: String?) {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (nil, nil, nil)
+        }
+        let blockReason = (object["promptFeedback"] as? [String: Any])?["blockReason"] as? String
+        guard let candidate = (object["candidates"] as? [[String: Any]])?.first else {
+            return (nil, nil, blockReason)
+        }
+        let finishReason = candidate["finishReason"] as? String
+        let parts = (candidate["content"] as? [String: Any])?["parts"] as? [[String: Any]]
+        let text = parts?.compactMap { $0["text"] as? String }.joined()
+        return ((text?.isEmpty ?? true) ? nil : text, finishReason, blockReason)
     }
 }

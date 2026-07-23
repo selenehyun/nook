@@ -82,20 +82,21 @@ public final class ListTitleTranslator {
     /// but keeps the caches.
     public func configure(enabled: Bool, targetLanguageName: String, targetLanguageCode: String) {
         let languageChanged = targetLanguageCode != self.targetLanguageCode
+        let newProvider = TranslationSettings.titleProvider()
+        let providerChanged = newProvider != self.provider
         let wasEnabled = self.enabled
-        self.provider = TranslationSettings.titleProvider()
-        self.enabled = enabled && NaturalTranslator.isAvailable(for: provider)
+        self.provider = newProvider
+        self.enabled = enabled && NaturalTranslator.isAvailable(for: newProvider)
         self.targetLanguageName = targetLanguageName
         self.targetLanguageCode = targetLanguageCode
         if self.enabled { loadCacheIfNeeded() }
-        if !self.enabled || languageChanged {
+        if !self.enabled || languageChanged || providerChanged {
             cancelAll()
         }
-        // Just turned on (or switched language while on): translate the rows that
-        // are already on screen right now — without waiting for a dwell — so the
-        // list the user is looking at starts translating immediately instead of
-        // only after they scroll (their onAppear already fired).
-        if self.enabled, !wasEnabled || languageChanged {
+        // Just turned on, or switched language/provider while on: translate the
+        // rows already on screen now — without waiting for a dwell — so the list
+        // the user is looking at updates immediately instead of only after scroll.
+        if self.enabled, !wasEnabled || languageChanged || providerChanged {
             for (id, title) in visibleTitles {
                 scheduleTranslation(id: id, title: title, afterDwell: false)
             }
@@ -191,6 +192,9 @@ public final class ListTitleTranslator {
         let key = cacheKey(for: title)
         let name = targetLanguageName
         let code = targetLanguageCode
+        // Capture the provider for this task so a mid-flight provider switch can't
+        // mix backends within one translation.
+        let provider = self.provider
         taskGeneration += 1
         let token = taskGeneration
         let task = Task { [weak self] in
@@ -318,7 +322,7 @@ public final class ListTitleTranslator {
         }
     }
 
-    private func cacheKey(for title: String) -> String { "\(targetLanguageCode)|\(title)" }
+    private func cacheKey(for title: String) -> String { "\(provider.rawValue)|\(targetLanguageCode)|\(title)" }
 
     private nonisolated static func baseCode(_ code: String) -> String {
         Locale.Language(identifier: code).languageCode?.identifier ?? code

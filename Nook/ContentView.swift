@@ -1876,11 +1876,12 @@ private struct ReaderDetailView: View {
         let body = article.bodyParagraphs
         let title = article.title
         let language = targetLanguageName
+        let provider = TranslationSettings.readerProvider()
         Task {
             defer { isTranslating = false }
             guard
-                let titleText = try? await NaturalTranslator.translate(title, into: language),
-                let bodyText = try? await NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language)
+                let titleText = try? await NaturalTranslator.translate(title, into: language, provider: provider),
+                let bodyText = try? await NaturalTranslator.translate(body.joined(separator: "\n\n"), into: language, provider: provider)
             else { return }
             let cleanedTitle = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
             translatedTitle = cleanedTitle.count <= max(120, title.count * 4) ? cleanedTitle : title
