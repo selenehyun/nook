@@ -18,6 +18,16 @@ struct ListRowHeightInvalidationTracker {
     }
 }
 
+/// Carries the animated reveal sample from a translated child to the outer
+/// macOS list row, where the native container can remeasure the actual row.
+public enum NativeListRowRevealProgressKey: PreferenceKey {
+    public static let defaultValue: CGFloat = 0
+
+    public static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// Lays out a single subview at its natural height scaled by `progress` (0…1),
 /// computed synchronously in the same layout pass. Because the height is known
 /// the moment the row is laid out — not measured asynchronously and fed back
@@ -111,23 +121,65 @@ private struct MacListRowHeightInvalidator: NSViewRepresentable {
         }
 
         private func invalidateEnclosingRow() {
-            guard let tableView = enclosingTableView() else {
-                needsAttachmentRetry = true
+            invalidateHostingHierarchy()
+
+            if let tableView = enclosingView(of: NSTableView.self) {
+                let rowView = enclosingView(of: NSTableRowView.self)
+                let row = rowView.map { tableView.row(for: $0) }
+                    ?? rowAtProbe(in: tableView)
+                guard row >= 0 else {
+                    needsAttachmentRetry = true
+                    return
+                }
+                needsAttachmentRetry = false
+                tableView.noteHeightOfRows(
+                    withIndexesChanged: IndexSet(integer: row)
+                )
+                tableView.needsLayout = true
+                tableView.layoutSubtreeIfNeeded()
                 return
             }
-            let row = tableView.row(for: self)
-            guard row >= 0 else {
-                needsAttachmentRetry = true
+
+            // Newer SwiftUI List implementations can be collection-backed.
+            // Invalidating the layout does not reload items or replace SwiftUI
+            // identity, so selection, scrolling, and the reveal animation remain
+            // intact.
+            if let collectionView = enclosingView(of: NSCollectionView.self) {
+                needsAttachmentRetry = false
+                collectionView.collectionViewLayout?.invalidateLayout()
+                collectionView.needsLayout = true
+                collectionView.layoutSubtreeIfNeeded()
                 return
             }
-            needsAttachmentRetry = false
-            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: row))
+
+            needsAttachmentRetry = true
         }
 
-        private func enclosingTableView() -> NSTableView? {
+        private func invalidateHostingHierarchy() {
             var candidate: NSView? = self
             while let current = candidate {
-                if let tableView = current as? NSTableView { return tableView }
+                current.invalidateIntrinsicContentSize()
+                current.needsUpdateConstraints = true
+                current.needsLayout = true
+                if current is NSTableView || current is NSCollectionView { break }
+                candidate = current.superview
+            }
+        }
+
+        private func rowAtProbe(in tableView: NSTableView) -> Int {
+            let point = convert(
+                CGPoint(x: bounds.midX, y: bounds.midY),
+                to: tableView
+            )
+            return tableView.row(at: point)
+        }
+
+        private func enclosingView<ViewType: NSView>(
+            of type: ViewType.Type
+        ) -> ViewType? {
+            var candidate: NSView? = self
+            while let current = candidate {
+                if let match = current as? ViewType { return match }
                 candidate = current.superview
             }
             return nil
@@ -142,7 +194,6 @@ private struct MacListRowHeightInvalidator: NSViewRepresentable {
 /// invalidates dynamic row heights correctly.
 private struct ListRowSynchronizedReveal: @preconcurrency AnimatableModifier {
     var progress: CGFloat
-    let layoutRevision: Int
 
     var animatableData: CGFloat {
         get { progress }
@@ -151,21 +202,13 @@ private struct ListRowSynchronizedReveal: @preconcurrency AnimatableModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        #if os(macOS)
         IntrinsicRevealLayout(progress: progress) {
             content
         }
-        .background(
-            MacListRowHeightInvalidator(
-                progress: progress,
-                layoutRevision: layoutRevision
-            )
+        .preference(
+            key: NativeListRowRevealProgressKey.self,
+            value: progress
         )
-        #else
-        IntrinsicRevealLayout(progress: progress) {
-            content
-        }
-        #endif
     }
 }
 
@@ -185,11 +228,6 @@ private struct ExpandRevealModifier: ViewModifier {
     /// Whether an appearance should animate. False for a cache hit scrolling in.
     let animateAppearance: Bool
     let animation: Animation
-    /// Changes whenever surrounding row content can affect its natural height.
-    /// macOS uses this to invalidate the exact cached `NSTableView` row even when
-    /// the reveal progress itself is already 1.
-    let layoutRevision: Int
-
     /// Height phase: is the row grown to make room?
     @State private var expanded: Bool
     /// Content phase: is the content faded in?
@@ -204,13 +242,11 @@ private struct ExpandRevealModifier: ViewModifier {
     init(
         isVisible: Bool,
         animateAppearance: Bool,
-        animation: Animation,
-        layoutRevision: Int
+        animation: Animation
     ) {
         self.isVisible = isVisible
         self.animateAppearance = animateAppearance
         self.animation = animation
-        self.layoutRevision = layoutRevision
         // Seed from the prop so a cached row is correct from its first layout.
         _expanded = State(initialValue: isVisible)
         _revealed = State(initialValue: isVisible)
@@ -220,8 +256,7 @@ private struct ExpandRevealModifier: ViewModifier {
         content
         .modifier(
             ListRowSynchronizedReveal(
-                progress: expanded ? 1 : 0,
-                layoutRevision: layoutRevision
+                progress: expanded ? 1 : 0
             )
         )
         .opacity(revealed ? 1 : 0)
@@ -272,6 +307,26 @@ private struct ExpandRevealModifier: ViewModifier {
 }
 
 public extension View {
+    /// Connects a SwiftUI row-level layout revision to its native macOS list
+    /// container. Place this on the outer row, not only on a changing descendant,
+    /// so newly inserted rows cannot retain their initial AppKit height.
+    @ViewBuilder
+    func synchronizeNativeListRowHeight(
+        progress: CGFloat,
+        layoutRevision: Int
+    ) -> some View {
+        #if os(macOS)
+        background(
+            MacListRowHeightInvalidator(
+                progress: progress,
+                layoutRevision: layoutRevision
+            )
+        )
+        #else
+        self
+        #endif
+    }
+
     /// Grows this view from zero to its natural height then fades its content in
     /// (reverse on hide), without popping the layout — safe inside a `List` on both
     /// platforms. Pass `animateAppearance: false` when the content is already known
@@ -280,15 +335,13 @@ public extension View {
     func expandReveal(
         isVisible: Bool,
         animateAppearance: Bool = true,
-        animation: Animation = .smooth(duration: 0.32),
-        layoutRevision: Int = 0
+        animation: Animation = .smooth(duration: 0.32)
     ) -> some View {
         modifier(
             ExpandRevealModifier(
                 isVisible: isVisible,
                 animateAppearance: animateAppearance,
-                animation: animation,
-                layoutRevision: layoutRevision
+                animation: animation
             )
         )
     }

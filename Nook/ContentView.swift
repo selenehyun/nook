@@ -1385,6 +1385,7 @@ private struct ArticleRow: View {
     var article: Article
     var feed: Feed?
     let translationBox: ListTitleTranslator.StateBox
+    @State private var translationRevealProgress: CGFloat = 0
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -1421,8 +1422,7 @@ private struct ArticleRow: View {
 
                     ListTitleTranslationBlock(
                         title: article.title,
-                        box: translationBox,
-                        surroundingLayoutRevision: article.categories.hashValue
+                        box: translationBox
                     )
                 }
 
@@ -1446,6 +1446,17 @@ private struct ArticleRow: View {
             }
         }
         .padding(.vertical, 8)
+        .onPreferenceChange(
+            NativeListRowRevealProgressKey.self
+        ) { translationRevealProgress = $0 }
+        // Observe the per-title revision at the row root. macOS native lists can
+        // otherwise keep the height measured when a freshly inserted article had
+        // no translation block, even though the child view later grows correctly.
+        .synchronizeNativeListRowHeight(
+            progress: translationRevealProgress,
+            layoutRevision: translationBox.layoutRevision
+                ^ article.categories.hashValue
+        )
     }
 
 }

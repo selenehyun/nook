@@ -42,7 +42,18 @@ public final class ListTitleTranslator {
     @Observable
     public final class StateBox {
         public fileprivate(set) var state: TitleState?
+        /// Monotonic signal consumed by the outer native list row. Observing this
+        /// at row scope is important on macOS: observing only the translated child
+        /// can leave AppKit's newly inserted row-height cache unchanged.
+        public fileprivate(set) var layoutRevision = 0
+
         fileprivate init(state: TitleState? = nil) { self.state = state }
+
+        func setState(_ newState: TitleState?) {
+            guard state != newState else { return }
+            state = newState
+            layoutRevision &+= 1
+        }
     }
 
     /// How long a row must stay on screen before its title is translated.
@@ -77,7 +88,7 @@ public final class ListTitleTranslator {
 
     private func setState(_ newState: TitleState?, for id: Article.ID) {
         let box = box(for: id)
-        if box.state != newState { box.state = newState }
+        box.setState(newState)
     }
 
     // Device-local caches (never synced), persisted to Application Support so a

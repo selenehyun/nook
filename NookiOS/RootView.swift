@@ -1784,8 +1784,7 @@ private struct ArticleList: View {
                 // Shared leaf view observes ONLY this row's state box.
                 ListTitleTranslationBlock(
                     title: article.title,
-                    box: titleTranslator.box(for: article.id),
-                    surroundingLayoutRevision: article.categories.hashValue
+                    box: titleTranslator.box(for: article.id)
                 )
             }
             if !article.summary.isEmpty {

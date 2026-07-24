@@ -32,4 +32,26 @@ struct ExpandRevealInvalidationTests {
         #expect(!duplicateRevision)
         #expect(categoryChange)
     }
+
+    @MainActor
+    @Test("A row-level revision advances for every visible translation state change")
+    func translationStateAdvancesRowRevision() {
+        let translator = ListTitleTranslator()
+        let box = translator.box(for: "new-article")
+
+        #expect(box.layoutRevision == 0)
+
+        box.setState(.translating("", provider: .gemini))
+        let beganTranslation = box.layoutRevision
+        box.setState(.translating("번역 중", provider: .gemini))
+        let streamedText = box.layoutRevision
+        box.setState(.translated("번역 완료", provider: .gemini))
+        let completedTranslation = box.layoutRevision
+        box.setState(.translated("번역 완료", provider: .gemini))
+
+        #expect(beganTranslation == 1)
+        #expect(streamedText == 2)
+        #expect(completedTranslation == 3)
+        #expect(box.layoutRevision == completedTranslation)
+    }
 }

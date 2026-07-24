@@ -7,20 +7,17 @@ public struct ListTitleTranslationBlock: View {
     private let title: String
     private let box: ListTitleTranslator.StateBox
     private let translator: ListTitleTranslator
-    private let surroundingLayoutRevision: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         title: String,
         box: ListTitleTranslator.StateBox,
-        translator: ListTitleTranslator = .shared,
-        surroundingLayoutRevision: Int = 0
+        translator: ListTitleTranslator = .shared
     ) {
         self.title = title
         self.box = box
         self.translator = translator
-        self.surroundingLayoutRevision = surroundingLayoutRevision
     }
 
     public var body: some View {
@@ -75,11 +72,7 @@ public struct ListTitleTranslationBlock: View {
         }
         .expandReveal(
             isVisible: presentation != nil,
-            animateAppearance: streaming && !reduceMotion,
-            // Stream snapshots can change the block from one line to two, while
-            // category badges can independently change the same outer row.
-            // Feed both into the targeted macOS row-height invalidation.
-            layoutRevision: text.hashValue ^ surroundingLayoutRevision
+            animateAppearance: streaming && !reduceMotion
         )
     }
 
