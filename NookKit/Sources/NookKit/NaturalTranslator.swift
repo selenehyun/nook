@@ -219,21 +219,20 @@ public enum NaturalTranslator {
             .filter { !$0.isEmpty }
         guard !names.isEmpty else { return [] }
 
-        let numbered = names.enumerated().map { "- \($0.element)" }.joined(separator: "\n")
-        let instructions = """
-        You assign a news article to categories from a FIXED list:
-        \(numbered)
-        Reply with ONLY the category names that clearly apply, each on its own line, \
-        copied EXACTLY as written above (a name may itself contain commas). If none \
-        clearly apply, reply with nothing at all. Never invent a category that is \
-        not in the list.
-        """
+        let instructions = categoryClassificationInstructions(for: names)
         let sample = String((title + "\n\n" + summary).prefix(1500))
         let prompt = "Which of the listed categories apply to this article?\n\n\(sample)"
 
         let raw: String?
         if provider == .gemini {
-            raw = try? await GeminiTranslator.complete(system: instructions, prompt: prompt)
+            // Classification is short but semantically subtle. Flash follows the
+            // conservative primary-subject rules more reliably than Flash Lite,
+            // especially when several broad category names are available.
+            raw = try? await GeminiTranslator.complete(
+                system: instructions,
+                prompt: prompt,
+                model: .flash
+            )
         } else {
             #if canImport(FoundationModels)
             if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
@@ -247,7 +246,46 @@ public enum NaturalTranslator {
             #endif
         }
         guard let raw else { return [] }
+        return parseCategoryClassification(raw, allowedNames: names)
+    }
 
+    static func categoryClassificationInstructions(for names: [String]) -> String {
+        let numbered = names.map { "- \($0)" }.joined(separator: "\n")
+        return """
+        You classify a news article by its PRIMARY SUBJECT using this FIXED list:
+        \(numbered)
+
+        Select the smallest sufficient set:
+        - Prefer the single best category.
+        - Select a category only when it describes a central subject discussed \
+        substantially in the title or summary.
+        - Do not select a category because of an incidental word, abbreviation, \
+        person, organization, product name, example, or passing mention.
+        - Select multiple categories only when the article has multiple distinct \
+        central subjects and omitting any selected category would materially \
+        misrepresent the article.
+        - When broad and specific categories overlap, keep only the category that \
+        best describes the article's actual focus.
+        - Software terms must be interpreted in their software context. For \
+        example, an article about an AI coding agent, IDE, LSP, debugger, \
+        extensions, or a software PR is a technology article; "PR" means pull \
+        request there and is not evidence of politics.
+        - A Politics category applies only when government, elections, parties, \
+        legislation, public policy, diplomacy, or political power is itself a \
+        central subject. A technology article does not become political merely \
+        because a government, policy, or public institution is mentioned.
+
+        Silently compare every candidate against these rules before answering. \
+        Reply with ONLY the selected category names, each on its own line, copied \
+        EXACTLY as written above (a name may itself contain commas). If none is a \
+        central subject, reply with nothing. Never invent a category.
+        """
+    }
+
+    static func parseCategoryClassification(
+        _ raw: String,
+        allowedNames names: [String]
+    ) -> [String] {
         // Match whole lines (case-insensitive, leading bullets stripped) to the
         // provided names, so a hallucinated/paraphrased label is dropped and a name
         // that itself contains a comma still matches. Preserve the input order.

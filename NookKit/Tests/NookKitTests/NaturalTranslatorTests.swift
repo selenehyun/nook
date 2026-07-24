@@ -67,4 +67,32 @@ struct NaturalTranslatorTests {
         let empty = "다음은 번역입니다:"
         #expect(NaturalTranslator.stripTranslationPreamble(empty) == empty)
     }
+
+    @Test("Category classification requires a primary subject, not incidental overlap")
+    func categoryClassificationIsConservative() {
+        let instructions = NaturalTranslator.categoryClassificationInstructions(
+            for: ["정치", "IT"]
+        )
+
+        #expect(instructions.contains("PRIMARY SUBJECT"))
+        #expect(instructions.contains("Prefer the single best category"))
+        #expect(instructions.contains("software PR"))
+        #expect(instructions.contains("not evidence of politics"))
+        #expect(instructions.contains("government, elections, parties"))
+        #expect(instructions.contains("- 정치\n- IT"))
+    }
+
+    @Test("Category response parsing accepts only exact listed category lines")
+    func parsesCategoryClassificationResponse() {
+        let parsed = NaturalTranslator.parseCategoryClassification(
+            """
+            - IT
+            Technology
+            설명: 정치도 관련 있음
+            """,
+            allowedNames: ["정치", "IT", "AI, ML"]
+        )
+
+        #expect(parsed == ["IT"])
+    }
 }
