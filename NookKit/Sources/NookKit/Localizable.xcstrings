@@ -2025,34 +2025,6 @@
         }
       }
     },
-    "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フィルタは一致する記事を隠します。単語やフレーズには **テキスト**、パターンには **正規表現** を使います。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "필터는 일치하는 글을 숨깁니다. 단어나 구절에는 **텍스트**, 패턴에는 **정규식**을 사용하세요."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "过滤器会隐藏所有匹配的文章。单词或短语用 **文本**，模式用 **正则表达式**。"
-          }
-        }
-      }
-    },
     "Choose what it checks" : {
       "localizations" : {
         "en" : {
@@ -2581,6 +2553,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隐藏 %lld 条"
+          }
+        }
+      }
+    },
+    "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern. Matches ignore case unless you turn on **Aa**." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern. Matches ignore case unless you turn on **Aa**."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタは一致する記事を隠します。単語やフレーズには **テキスト**、パターンには **正規表現** を使います。**Aa** をオンにしない限り、大文字と小文字は区別されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터는 일치하는 글을 숨깁니다. 단어나 구절에는 **텍스트**, 패턴에는 **정규식**을 사용하세요. **Aa**를 켜지 않으면 대소문자를 구분하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器会隐藏所有匹配的文章。单词或短语用 **文本**，模式用 **正则表达式**。除非开启 **Aa**，否则匹配不区分大小写。"
           }
         }
       }

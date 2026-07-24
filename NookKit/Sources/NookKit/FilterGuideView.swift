@@ -22,7 +22,7 @@ public struct FilterGuideView: View {
                         number: 1,
                         systemImage: "character.cursor.ibeam",
                         title: "Write a rule",
-                        message: "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern.",
+                        message: "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern. Matches ignore case unless you turn on **Aa**.",
                         examples: [
                             .init(label: "Text", value: "cryptocurrency"),
                             .init(label: "Regex", value: #"(?i)\bads?\b"#),
