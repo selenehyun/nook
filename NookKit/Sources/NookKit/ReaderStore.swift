@@ -1592,9 +1592,9 @@ public final class ReaderStore {
         }
     }
 
-    /// Downloads a batch of articles for offline reading (the "Download all in
-    /// this view" action), with bounded concurrency so a big batch doesn't spawn
-    /// dozens of extraction WebViews at once. Skips already-saved articles.
+    /// Downloads the articles the user selected in the offline download picker,
+    /// extracting them one at a time so a big batch doesn't spawn dozens of
+    /// extraction WebViews at once. Skips already-saved articles.
     public func downloadOffline(_ articles: [Article]) {
         let pending = articles.filter { !OfflineArticleStore.shared.isSaved($0.id) }
         guard !pending.isEmpty, offlineDownloadProgress == nil else { return }

@@ -1,9 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
+    "" : {},
     "'%@' is not a valid URL." : {
       "localizations" : {
         "en" : {
@@ -346,9 +344,7 @@
         }
       }
     },
-    "Apple Intelligence" : {
-
-    },
+    "Apple Intelligence" : {},
     "Article list titles" : {
       "localizations" : {
         "ja" : {
@@ -870,9 +866,7 @@
         }
       }
     },
-    "Done" : {
-
-    },
+    "Done" : {},
     "Download %lld" : {
       "localizations" : {
         "en" : {
@@ -1259,9 +1253,7 @@
         }
       }
     },
-    "Gemini" : {
-
-    },
+    "Gemini" : {},
     "Gemini API key" : {
       "localizations" : {
         "ja" : {
@@ -1932,9 +1924,7 @@
         }
       }
     },
-    "OK" : {
-
-    },
+    "OK" : {},
     "Open Embedded Content" : {
       "localizations" : {
         "en" : {
@@ -2370,34 +2360,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存"
-          }
-        }
-      }
-    },
-    "Save an article for offline from its context menu (or swipe), or use Download for Offline to save a whole list. Saved articles open instantly without a connection and are kept on this device only." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save an article for offline from its context menu (or swipe), or use Download for Offline to save a whole list. Saved articles open instantly without a connection and are kept on this device only."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "記事のコンテキストメニュー（またはスワイプ）からオフライン保存するか、「オフライン用にダウンロード」でリスト全体を保存できます。保存した記事は接続なしで即座に開き、この端末にのみ保存されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글의 컨텍스트 메뉴(또는 스와이프)에서 오프라인 저장하거나, ‘오프라인 다운로드’로 목록 전체를 저장하세요. 저장된 글은 연결 없이도 즉시 열리며 이 기기에만 보관됩니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从文章的上下文菜单（或滑动）保存以离线阅读，或用“下载以离线阅读”保存整个列表。已保存的文章无需联网即可立即打开，且仅保存在此设备上。"
           }
         }
       }
@@ -3264,6 +3226,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密钥仅存储在此设备上，绝不同步。选择 Gemini 时，文章文本会发送给 Google 进行翻译。"
+          }
+        }
+      }
+    },
+    "Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「記事をダウンロード」で保存する記事を選べます。保存した記事は接続なしで即座に開き、この端末にのみ保存されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘글 다운로드’로 저장할 글을 선택하세요. 저장된 글은 연결 없이도 즉시 열리며 이 기기에만 보관됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用“下载文章”选择要保存的文章。已保存的文章无需联网即可立即打开，且仅保存在此设备上。"
           }
         }
       }

@@ -78,7 +78,7 @@ public struct OfflineSettingsContent: View {
             Text("Deletes every article saved for offline reading on this device.", bundle: .module)
         }
 
-        Text("Save an article for offline from its context menu (or swipe), or use Download for Offline to save a whole list. Saved articles open instantly without a connection and are kept on this device only.", bundle: .module)
+        Text("Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only.", bundle: .module)
             .font(.caption)
             .foregroundStyle(.secondary)
     }
