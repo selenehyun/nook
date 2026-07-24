@@ -12,7 +12,6 @@ import SwiftUI
 public struct FilterSettingsContent: View {
     private let store: ReaderStore
     private let onShowGuide: () -> Void
-    @AppStorage(ReaderStore.filterRegexEnabledKey) private var regexEnabled = false
 
     public init(store: ReaderStore, onShowGuide: @escaping () -> Void) {
         self.store = store
@@ -27,7 +26,6 @@ public struct FilterSettingsContent: View {
         ForEach(store.filters) { filter in
             FilterRow(
                 filter: filter,
-                allowRegex: regexEnabled,
                 onChange: { store.updateFilter($0) },
                 onDelete: { store.removeFilter(id: filter.id) },
                 matchCount: { await store.matchCount(for: $0) }
@@ -43,11 +41,6 @@ public struct FilterSettingsContent: View {
         Text("Matching stories are hidden from every list and unread count, and collected under Filtered. Filters sync across your devices.", bundle: .module)
             .font(.caption)
             .foregroundStyle(.secondary)
-
-        Toggle(isOn: $regexEnabled) {
-            Text("Enable regular expressions", bundle: .module)
-            Text("For advanced pattern matching. Off by default — a plain word or phrase is all most filters need.", bundle: .module)
-        }
     }
 }
 
@@ -60,10 +53,6 @@ public struct FilterSettingsContent: View {
 /// adopted back into the draft when there's nothing unsaved.
 private struct FilterRow: View {
     let filter: ArticleFilter
-    /// Whether the Text/Regex picker is offered. When false, a filter is plain
-    /// text and the picker is hidden — unless the filter is already a regex (e.g.
-    /// synced from a device that had regex on), so it stays visible and editable.
-    let allowRegex: Bool
     let onChange: (ArticleFilter) -> Void
     let onDelete: () -> Void
     let matchCount: (ArticleFilter) async -> Int
@@ -79,13 +68,11 @@ private struct FilterRow: View {
 
     init(
         filter: ArticleFilter,
-        allowRegex: Bool,
         onChange: @escaping (ArticleFilter) -> Void,
         onDelete: @escaping () -> Void,
         matchCount: @escaping (ArticleFilter) async -> Int
     ) {
         self.filter = filter
-        self.allowRegex = allowRegex
         self.onChange = onChange
         self.onDelete = onDelete
         self.matchCount = matchCount
@@ -93,10 +80,15 @@ private struct FilterRow: View {
         _baseline = State(initialValue: filter)
     }
 
-    /// Show the Text/Regex picker when regex is enabled, or when this filter is
-    /// already a regex (based on the stable synced value, so it doesn't vanish
-    /// mid-edit) so a synced regex filter stays visible and editable.
-    private var showsKindPicker: Bool { allowRegex || baseline.kind == .regex }
+    /// Per-filter regex switch, mapped onto the draft's `kind`. Off (plain text)
+    /// by default, so a filter is just "the word or phrase you type" unless the
+    /// user opts this one filter into pattern matching.
+    private var usesRegex: Binding<Bool> {
+        Binding(
+            get: { draft.kind == .regex },
+            set: { draft.kind = $0 ? .regex : .plainText }
+        )
+    }
 
     private var invalidRegex: Bool {
         draft.kind == .regex
@@ -136,16 +128,15 @@ private struct FilterRow: View {
             }
 
             HStack(spacing: 12) {
-                if showsKindPicker {
-                    labeledPicker(caption: Text("Type", bundle: .module), selection: $draft.kind) {
-                        ForEach(ArticleFilter.Kind.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                }
                 labeledPicker(caption: Text("In", bundle: .module), selection: $draft.matchTarget) {
                     ForEach(ArticleFilter.MatchTarget.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
 
                 Spacer(minLength: 4)
+
+                Toggle(isOn: usesRegex) { Text("Regex", bundle: .module) }
+                    .toggleStyle(.button)
+                    .accessibilityLabel(Text("Use a regular expression", bundle: .module))
 
                 Toggle(isOn: $draft.caseSensitive) { Text(verbatim: "Aa") }
                     .toggleStyle(.button)

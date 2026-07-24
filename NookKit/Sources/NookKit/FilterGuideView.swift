@@ -7,7 +7,6 @@ import SwiftUI
 /// and iOS. Localised in NookKit (`.module`).
 public struct FilterGuideView: View {
     private let onDone: () -> Void
-    @AppStorage(ReaderStore.filterRegexEnabledKey) private var regexEnabled = false
 
     public init(onDone: @escaping () -> Void) {
         self.onDone = onDone
@@ -23,15 +22,11 @@ public struct FilterGuideView: View {
                         number: 1,
                         systemImage: "character.cursor.ibeam",
                         title: "Write a rule",
-                        message: regexEnabled
-                            ? "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern. Matches ignore case unless you turn on **Aa**."
-                            : "A filter hides any story that contains the word or phrase you type. Matches ignore case unless you turn on **Aa**.",
-                        examples: regexEnabled
-                            ? [
-                                .init(label: "Text", value: "cryptocurrency"),
-                                .init(label: "Regex", value: #"(?i)\bads?\b"#),
-                            ]
-                            : [.init(label: nil, value: "cryptocurrency")]
+                        message: "A filter hides any story that matches it — usually just a word or phrase. Turn on **Regex** on a filter for pattern matching. Matches ignore case unless you turn on **Aa**.",
+                        examples: [
+                            .init(label: "Text", value: "cryptocurrency"),
+                            .init(label: "Regex", value: #"(?i)\bads?\b"#),
+                        ]
                     )
 
                     GuideStep(
@@ -58,7 +53,7 @@ public struct FilterGuideView: View {
                         examples: []
                     )
 
-                    if regexEnabled { regexTips }
+                    regexTips
                 }
                 .padding(24)
             }
