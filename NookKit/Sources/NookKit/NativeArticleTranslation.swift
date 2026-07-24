@@ -573,7 +573,7 @@ public final class NativeArticleTranslator {
         // glossary) so its instructions match the per-block sessions. nil = off
         // (or when the provider is Gemini, which needs no persistent session).
         if useCoherentMode {
-            articleSession = NaturalTranslator.ArticleSession.make(
+            articleSession = await NaturalTranslator.ArticleSession.make(
                 into: language, domain: conceptDomain, keepTerms: keepTerms, glossary: glossary, provider: provider
             )
         }

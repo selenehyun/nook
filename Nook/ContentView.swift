@@ -1385,8 +1385,6 @@ private struct ArticleRow: View {
     var article: Article
     var feed: Feed?
     let translationBox: ListTitleTranslator.StateBox
-    private let titleTranslator = ListTitleTranslator.shared
-    @AppStorage(TranslationSettings.titleProviderKey) private var titleProvider = TranslationProvider.appleIntelligence.rawValue
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -1421,7 +1419,10 @@ private struct ArticleRow: View {
                         }
                     }
 
-                    translatedTitle
+                    ListTitleTranslationBlock(
+                        title: article.title,
+                        box: translationBox
+                    )
                 }
 
                 Text(article.summary)
@@ -1446,53 +1447,6 @@ private struct ArticleRow: View {
         .padding(.vertical, 8)
     }
 
-    /// The Apple Intelligence title translation shown beneath the original when
-    /// the experiment is on and the title isn't already in the user's language.
-    /// Accent-tinted with the intelligence glyph so it reads as a distinct,
-    /// machine-produced companion line — never mistaken for the source title.
-    ///
-    /// Always mounted; `expandReveal` grows it from zero height so the row pushes
-    /// the following content down smoothly rather than the block popping in.
-    private var translatedTitle: some View {
-        let resolved = resolvedTitleTranslation
-        let text = resolved?.text ?? ""
-        let streaming = resolved?.streaming ?? false
-        let usesGemini = titleProvider == TranslationProvider.gemini.rawValue
-        return HStack(alignment: .top, spacing: 5) {
-            Image(systemName: usesGemini ? "sparkles" : "apple.intelligence")
-                .symbolEffect(.pulse, options: .repeating, isActive: streaming)
-                .accessibilityLabel(usesGemini ? "Translated by Gemini" : "Translated by Apple Intelligence")
-            if text.isEmpty {
-                Text("Translating…")
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            } else {
-                Text(text)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-            }
-        }
-        .font(.callout)
-        .foregroundStyle(Color.accentColor)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .padding(.top, 4)
-        // Animate the reveal only for a live (streaming) translation; a cache hit
-        // scrolling into view appears instantly.
-        .expandReveal(isVisible: resolved != nil, animateAppearance: streaming)
-    }
-
-    /// The current title-translation text plus whether it's still streaming in,
-    /// or nil when there's nothing to show for this row.
-    private var resolvedTitleTranslation: (text: String, streaming: Bool)? {
-        switch titleTranslator.state(for: translationBox, title: article.title) {
-        case .translating(let partial): return (partial, true)
-        case .translated(let final): return (final, false)
-        case nil: return nil
-        }
-    }
 }
 
 private struct ArticleListStatusBar: View {

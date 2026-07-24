@@ -46,9 +46,9 @@ private struct IntrinsicRevealLayout: Layout {
 /// `isVisible` so an already-translated (cached) row that scrolls into view is
 /// full height immediately instead of growing in again.
 ///
-/// On macOS the row height is opened instantly (only the content fades), because
-/// animating `NSTableView` row heights mid-scroll is what destabilises the list;
-/// iOS keeps the animated grow, which its collection-view-backed list absorbs.
+/// A live reveal animates one deliberate row-height change on both platforms.
+/// Streaming text itself never owns a height animation, so macOS avoids the old
+/// `NSTableView` failure mode where every generated token remeasured the list.
 private struct ExpandRevealModifier: ViewModifier {
     let isVisible: Bool
     /// Whether an appearance should animate. False for a cache hit scrolling in.
@@ -97,16 +97,6 @@ private struct ExpandRevealModifier: ViewModifier {
             setInstantly(expanded: true, revealed: true)
             return
         }
-        #if os(macOS)
-        // Open the height instantly (no mid-scroll NSTableView row-height
-        // animation), then fade the content in on the next runloop tick.
-        setExpanded(true, animated: false)
-        Task { @MainActor in
-            await Task.yield()
-            guard id == transitionID else { return }
-            withAnimation(contentReveal) { revealed = true }
-        }
-        #else
         // Phase 1: grow the empty row. Phase 2: fade the content in.
         withAnimation(animation) {
             expanded = true
@@ -114,7 +104,6 @@ private struct ExpandRevealModifier: ViewModifier {
             guard id == transitionID else { return }
             withAnimation(contentReveal) { revealed = true }
         }
-        #endif
     }
 
     private func hide(transitionID id: Int) {
@@ -123,21 +112,7 @@ private struct ExpandRevealModifier: ViewModifier {
             revealed = false
         } completion: {
             guard id == transitionID else { return }
-            #if os(macOS)
-            setExpanded(false, animated: false)
-            #else
             withAnimation(animation) { expanded = false }
-            #endif
-        }
-    }
-
-    private func setExpanded(_ value: Bool, animated: Bool) {
-        if animated {
-            withAnimation(animation) { expanded = value }
-        } else {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { expanded = value }
         }
     }
 

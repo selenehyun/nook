@@ -1781,12 +1781,10 @@ private struct ArticleList: View {
                             .accessibilityLabel(Text("Saved offline"))
                     }
                 }
-                // Own child view so it observes ONLY its own state box — a title
-                // translation update re-renders this one line, not the whole list.
-                ArticleListTranslatedTitle(
+                // Shared leaf view observes ONLY this row's state box.
+                ListTitleTranslationBlock(
                     title: article.title,
-                    box: titleTranslator.box(for: article.id),
-                    usesGemini: titleProvider == TranslationProvider.gemini.rawValue
+                    box: titleTranslator.box(for: article.id)
                 )
             }
             if !article.summary.isEmpty {
@@ -1802,53 +1800,5 @@ private struct ArticleList: View {
 
             CategoryBadges(store.categories(forArticle: article))
         }
-    }
-}
-
-/// The title-translation line beneath a list row's title. A standalone view so it
-/// observes only its own `StateBox` — the streaming translation update re-renders
-/// just this line, not every row (which stuttered the list during scroll). Always
-/// mounted; `expandReveal` grows it from zero height so the row pushes content
-/// down smoothly rather than popping in.
-private struct ArticleListTranslatedTitle: View {
-    let title: String
-    let box: ListTitleTranslator.StateBox
-    let usesGemini: Bool
-    private let translator = ListTitleTranslator.shared
-
-    var body: some View {
-        let resolved: (text: String, streaming: Bool)?
-        switch translator.state(for: box, title: title) {
-        case .translating(let partial): resolved = (partial, true)
-        case .translated(let final): resolved = (final, false)
-        case nil: resolved = nil
-        }
-        let text = resolved?.text ?? ""
-        let streaming = resolved?.streaming ?? false
-        return HStack(alignment: .top, spacing: 5) {
-            Image(systemName: usesGemini ? "sparkles" : "apple.intelligence")
-                .font(.caption)
-                .symbolEffect(.pulse, options: .repeating, isActive: streaming)
-                .accessibilityLabel(usesGemini ? "Translated by Gemini" : "Translated by Apple Intelligence")
-            if text.isEmpty {
-                Text("Translating…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            } else {
-                Text(text)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(2)
-            }
-        }
-        .foregroundStyle(Color.accentColor)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .padding(.top, 4)
-        // Animate the reveal only for a live (streaming) translation; a cache hit
-        // scrolling into view appears instantly.
-        .expandReveal(isVisible: resolved != nil, animateAppearance: streaming)
     }
 }

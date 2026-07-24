@@ -16,8 +16,10 @@ import Observation
 ///   and never re-translated. Everything is on device, so there is no network
 ///   cost; the cache just avoids recompute.
 ///
-/// `@MainActor` so observable state updates (streaming) and SwiftUI reads stay on
-/// the main actor. A single shared instance keeps the cache across list rebuilds.
+/// `@MainActor` so viewport scheduling and the final observable-state assignments
+/// stay serialized with SwiftUI. Translation, provider streaming, validation, and
+/// typewriter pacing live in ``ListTitleTranslationWorker`` and never execute on
+/// this actor. A single shared instance keeps the cache across list rebuilds.
 /// The coordinator is deliberately NOT `@Observable`: a single observable state
 /// dictionary made every row re-render (and re-measure) on any one title's update,
 /// stuttering the list during scroll. Instead, per-article state lives in a small
@@ -29,9 +31,9 @@ public final class ListTitleTranslator {
     /// The visible state of a row's title translation.
     public enum TitleState: Equatable, Sendable {
         /// Streaming in — the latest cumulative snapshot.
-        case translating(String)
+        case translating(String, provider: TranslationProvider)
         /// Final translated title.
-        case translated(String)
+        case translated(String, provider: TranslationProvider)
     }
 
     /// Per-article observable state. A row observes only its own box, so a
@@ -144,7 +146,9 @@ public final class ListTitleTranslator {
     public func state(for box: StateBox, title: String) -> TitleState? {
         if let live = box.state { return live }
         guard enabled, !title.isEmpty else { return nil }
-        if let cached = cache[cacheKey(for: title)] { return .translated(cached) }
+        if let cached = cache[cacheKey(for: title)] {
+            return .translated(cached, provider: provider)
+        }
         return nil
     }
 
@@ -171,7 +175,7 @@ public final class ListTitleTranslator {
         let key = cacheKey(for: title)
         if sameLanguage.contains(key) || abandoned.contains(key) { return }
         if let cached = cache[key] {
-            setState(.translated(cached), for: id)
+            setState(.translated(cached, provider: provider), for: id)
             return
         }
         if dwellTasks[id] != nil || activeTasks[id] != nil { return }
@@ -204,7 +208,10 @@ public final class ListTitleTranslator {
 
     private func enqueue(id: Article.ID, title: String) {
         let key = cacheKey(for: title)
-        if let cached = cache[key] { setState(.translated(cached), for: id); return }
+        if let cached = cache[key] {
+            setState(.translated(cached, provider: provider), for: id)
+            return
+        }
         if sameLanguage.contains(key) || abandoned.contains(key) { return }
         guard activeTasks[id] == nil, !pending.contains(where: { $0.id == id }) else { return }
         pending.append((id, title))
@@ -242,63 +249,31 @@ public final class ListTitleTranslator {
                 return
             }
 
-            // A list title is NOT revealed mid-flight: we deliberately skip the
-            // intermediate `.translating` states and reveal only the final result,
-            // in one step. Streaming a title into a `List` row changed the row's
-            // height on every token, and each height change re-lays-out the whole
-            // visible list (NSTableView re-anchors all rows), which is what
-            // stuttered scrolling. Revealing once means a single layout pass, and
-            // it lands after the dwell + inference (usually once scrolling settled).
-            // The reader keeps its token-by-token streaming; only list titles pop
-            // in whole, matching how a cache hit already appears.
-
-            // Proper nouns / brands / acronyms (LG, SIMD, OpenAI, GPT-4, …) to keep
-            // verbatim rather than translate or transliterate, in both passes.
-            let keepTerms = NaturalTranslator.heuristicKeepTokens(title)
-
-            // 1) Guided translation (retries once internally). We still use the
-            //    streaming API for its guardrails/quality but discard partials so
-            //    the row never re-lays-out per token.
-            do {
-                let result = try await NaturalTranslator.streamTranslateBlock(title, into: name, keepTerms: keepTerms, provider: provider) { _ in }
-                if Task.isCancelled { return }
-                let final = result.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !final.isEmpty, !Self.isEcho(final, of: title) {
+            // Proper nouns / brands / acronyms (LG, SIMD, OpenAI, GPT-4, …) stay
+            // verbatim in both the guided and fallback passes. Extraction, model
+            // work, validation, reveal gating, and pacing all happen in the worker.
+            let request = ListTitleTranslationWorker.Request(
+                source: title,
+                languageName: name,
+                provider: provider
+            )
+            // Mount the empty block before the worker is allowed to emit text.
+            // This state assignment is the only reveal work performed on MainActor.
+            self.setState(.translating("", provider: provider), for: id)
+            let events = await ListTitleTranslationWorker.shared.events(for: request)
+            for await event in events {
+                guard !Task.isCancelled else { return }
+                switch event {
+                case .partial(let partial, let eventProvider):
+                    self.setState(.translating(partial, provider: eventProvider), for: id)
+                case .completed(let final, let eventProvider):
                     self.rememberTranslation(key, final)
-                    self.setState(.translated(final), for: id)
-                    return
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                if Task.isCancelled { return }
-                // Guided decoding failed — commonly an echo of a short or
-                // proper-noun-heavy title. Fall through to the plain fallback.
-            }
-
-            // 2) Escalate to a fresh, non-guided session. Small on-device models
-            //    echo short / proper-noun-heavy titles verbatim under guided
-            //    (structured) decoding, so the guardrails reject them and the title
-            //    would otherwise never translate (e.g. "Everyone Should Know SIMD",
-            //    "LG to Ban Residential Proxies from Smart TV Apps"). A plain prompt
-            //    that keeps the proper nouns verbatim recovers a real translation —
-            //    the same recovery the reader uses.
-            if Task.isCancelled { return }
-            if let plain = await NaturalTranslator.translatePlainFallback(title, into: name, keepTerms: keepTerms, provider: provider) {
-                if Task.isCancelled { return }
-                let final = plain.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !final.isEmpty, !Self.isEcho(final, of: title) {
-                    self.rememberTranslation(key, final)
-                    self.setState(.translated(final), for: id)
-                    return
+                    self.setState(.translated(final, provider: eventProvider), for: id)
+                case .failed:
+                    self.abandoned.insert(key)
+                    self.setState(nil, for: id)
                 }
             }
-
-            // 3) Give up: collapse the block, show the original, and don't retry
-            //    this title again until relaunch.
-            if Task.isCancelled { return }
-            self.abandoned.insert(key)
-            self.setState(nil, for: id)
         }
         activeTasks[id] = (token, task)
     }
@@ -364,18 +339,6 @@ public final class ListTitleTranslator {
 
     private nonisolated static func baseCode(_ code: String) -> String {
         Locale.Language(identifier: code).languageCode?.identifier ?? code
-    }
-
-    /// Whether `output` is really just the source echoed back untranslated,
-    /// comparing after trimming, Unicode canonicalization, and case folding so a
-    /// cosmetic difference doesn't hide an untranslated result.
-    private nonisolated static func isEcho(_ output: String, of source: String) -> Bool {
-        func normalize(_ text: String) -> String {
-            text.trimmingCharacters(in: .whitespacesAndNewlines)
-                .precomposedStringWithCanonicalMapping
-                .lowercased()
-        }
-        return normalize(output) == normalize(source)
     }
 
     /// Whether `title` already reads as the user's language, so translating it

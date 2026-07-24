@@ -40,11 +40,13 @@ public enum NaturalTranslator {
     /// Best-effort and idempotent; a no-op for Gemini or when unavailable.
     public static func prewarm(provider: TranslationProvider = .appleIntelligence) {
         guard provider == .appleIntelligence else { return }
-        #if canImport(FoundationModels)
-        if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
-            LanguageModelSession().prewarm()
+        Task.detached(priority: .utility) {
+            #if canImport(FoundationModels)
+            if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+                LanguageModelSession().prewarm()
+            }
+            #endif
         }
-        #endif
     }
 
     /// Translates `text` into the given language (e.g. "Korean") naturally,
@@ -86,14 +88,40 @@ public enum NaturalTranslator {
         throw Unavailable()
     }
 
-    /// Streaming variant: `onPartial` is called on the main actor with each
-    /// cumulative snapshot of the translation as it generates (ChatGPT-style),
-    /// so callers can REPLACE the displayed text token by token. Returns the
-    /// final, validated result. Runs on the main actor so callers can update
-    /// observable UI state directly from `onPartial` in order.
+    /// UI-facing streaming variant. Model inference, network consumption, parsing,
+    /// and validation run on the cooperative background executor; only the tiny
+    /// cumulative-snapshot callback hops to the main actor. Callers replace their
+    /// displayed text with each snapshot rather than appending it.
     @MainActor
     public static func streamTranslateBlock(
-        _ text: String, into languageName: String, domain: String = "", keepTerms: [String] = [], glossary: [String: String] = [:], provider: TranslationProvider = .appleIntelligence, onPartial: @escaping (String) -> Void
+        _ text: String, into languageName: String, domain: String = "", keepTerms: [String] = [], glossary: [String: String] = [:], provider: TranslationProvider = .appleIntelligence, onPartial: @escaping @MainActor @Sendable (String) -> Void
+    ) async throws -> BlockResult {
+        try await streamTranslateBlockOffMain(
+            text,
+            into: languageName,
+            domain: domain,
+            keepTerms: keepTerms,
+            glossary: glossary,
+            provider: provider
+        ) { partial in
+            await MainActor.run {
+                onPartial(partial)
+            }
+        }
+    }
+
+    /// Worker-facing streaming primitive. Nothing in this method is main-actor
+    /// isolated: provider I/O, Foundation Models streaming, throttling, and output
+    /// validation all stay away from SwiftUI. The async callback lets consumers
+    /// apply their own back-pressure or actor hop explicitly.
+    static func streamTranslateBlockOffMain(
+        _ text: String,
+        into languageName: String,
+        domain: String = "",
+        keepTerms: [String] = [],
+        glossary: [String: String] = [:],
+        provider: TranslationProvider = .appleIntelligence,
+        onPartial: @escaping @Sendable (String) async -> Void
     ) async throws -> BlockResult {
         if provider == .gemini {
             return try await geminiStreamTranslateBlock(text, into: languageName, domain: domain, keepTerms: keepTerms, glossary: glossary, onPartial: onPartial)
@@ -109,9 +137,8 @@ public enum NaturalTranslator {
     /// Gemini block translation: streamed over SSE, then run through the SAME
     /// acceptability guardrails as the on-device path (echo/repetition/leak/
     /// runaway) so a bad result escalates identically.
-    @MainActor
     private static func geminiStreamTranslateBlock(
-        _ text: String, into languageName: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: @escaping (String) -> Void
+        _ text: String, into languageName: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: @escaping @Sendable (String) async -> Void
     ) async throws -> BlockResult {
         let system = blockInstructions(languageName, domain: domain, keepTerms: keepTerms, glossary: glossary)
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
@@ -124,10 +151,10 @@ public enum NaturalTranslator {
             raw = partial
             if partial.count - lastEmitted >= 12 {
                 lastEmitted = partial.count
-                onPartial(partial)
+                await onPartial(partial)
             }
         }
-        onPartial(raw)
+        await onPartial(raw)
         let final = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !final.isEmpty, isAcceptable(source: text, output: final, languageName: languageName) else {
             throw TranslationRejected()
@@ -368,9 +395,9 @@ public enum NaturalTranslator {
         throw TranslationRejected()
     }
 
-    @available(iOS 26, macOS 26, *) @MainActor
+    @available(iOS 26, macOS 26, *)
     private static func llmStreamTranslateBlock(
-        _ text: String, into languageName: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: (String) -> Void
+        _ text: String, into languageName: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: @escaping @Sendable (String) async -> Void
     ) async throws -> BlockResult {
         let session = LanguageModelSession(instructions: blockInstructions(languageName, domain: domain, keepTerms: keepTerms, glossary: glossary))
         let prompt = "Translate this paragraph into \(languageName). Output only the translation, once:\n\n\(text)"
@@ -397,14 +424,14 @@ public enum NaturalTranslator {
             }
             if translation.count - lastEmittedLength >= 12 {
                 lastEmittedLength = translation.count
-                onPartial(translation)
+                await onPartial(translation)
             }
         }
         // A runaway is unrecoverable in this session — throw straight to the
         // caller's escalation (a fresh session usually doesn't loop) rather than
         // retrying in the same, poisoned session.
         if runaway { throw TranslationRejected() }
-        onPartial(finalText)
+        await onPartial(finalText)
         if isAcceptable(source: text, output: finalText, languageName: languageName) {
             return BlockResult(translation: finalText, context: "")
         }
@@ -417,7 +444,7 @@ public enum NaturalTranslator {
             includeSchemaInPrompt: false,
             options: translationOptions
         ), isAcceptable(source: text, output: retry.content.translation, languageName: languageName) {
-            onPartial(retry.content.translation)
+            await onPartial(retry.content.translation)
             return BlockResult(translation: retry.content.translation, context: "")
         }
         // Still bad — let the caller escalate (fresh session / plain fallback).
@@ -723,12 +750,11 @@ public enum NaturalTranslator {
     /// returns nil when Apple Intelligence is unavailable, and `translate` returns
     /// nil whenever the persistent attempt is unusable — the caller then falls back
     /// to its normal per-block path, and this session self-heals for the next call.
-    public final class ArticleSession {
+    public final class ArticleSession: @unchecked Sendable {
         private let box: AnyObject?
         private init(box: AnyObject?) { self.box = box }
 
-        @MainActor
-        public static func make(into language: String, domain: String, keepTerms: [String], glossary: [String: String], provider: TranslationProvider = .appleIntelligence) -> ArticleSession? {
+        public static func make(into language: String, domain: String, keepTerms: [String], glossary: [String: String], provider: TranslationProvider = .appleIntelligence) async -> ArticleSession? {
             // Coherent mode is an Apple-Intelligence-only optimisation (it manages
             // the small on-device context window). Gemini has a large window and
             // translates per-block, so no persistent session is needed there.
@@ -749,11 +775,20 @@ public enum NaturalTranslator {
         @MainActor
         public func translate(
             _ template: String, domain: String, keepTerms: [String], glossary: [String: String],
-            onPartial: @escaping (String) -> Void
+            onPartial: @escaping @MainActor @Sendable (String) -> Void
         ) async -> String? {
             #if canImport(FoundationModels)
             if #available(iOS 26, macOS 26, *), let impl = box as? ArticleSessionImpl {
-                return await impl.translate(template, domain: domain, keepTerms: keepTerms, glossary: glossary, onPartial: onPartial)
+                return await impl.translate(
+                    template,
+                    domain: domain,
+                    keepTerms: keepTerms,
+                    glossary: glossary
+                ) { partial in
+                    await MainActor.run {
+                        onPartial(partial)
+                    }
+                }
             }
             #endif
             return nil
@@ -764,8 +799,7 @@ public enum NaturalTranslator {
     /// The real implementation, isolated so all Foundation Models types stay behind
     /// the availability gate.
     @available(iOS 26, macOS 26, *)
-    @MainActor
-    final class ArticleSessionImpl {
+    actor ArticleSessionImpl {
         private let language: String
         private var instructionEntries: [Transcript.Entry]
         private var session: LanguageModelSession
@@ -796,7 +830,13 @@ public enum NaturalTranslator {
             self.session = base
         }
 
-        func translate(_ template: String, domain: String, keepTerms: [String], glossary: [String: String], onPartial: @escaping (String) -> Void) async -> String? {
+        func translate(
+            _ template: String,
+            domain: String,
+            keepTerms: [String],
+            glossary: [String: String],
+            onPartial: @escaping @Sendable (String) async -> Void
+        ) async -> String? {
             guard !disabled else { return nil }
             if Task.isCancelled { return nil }
             // Keep instructions current: a later block may have added keep-verbatim
@@ -841,9 +881,9 @@ public enum NaturalTranslator {
                     if NaturalTranslator.looksRunaway(translation) || translation.count > maxLength {
                         return failAndReset()
                     }
-                    onPartial(translation)
+                    await onPartial(translation)
                 }
-                onPartial(finalText)
+                await onPartial(finalText)
                 if Task.isCancelled { return nil }
                 let out = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
                 let sourceNormalized = NaturalTranslator.normalizeForComparison(template)
