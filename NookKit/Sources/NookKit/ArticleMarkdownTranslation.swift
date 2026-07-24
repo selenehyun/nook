@@ -1,123 +1,34 @@
 import Foundation
 import Markdown
 
-/// A translation-specific Markdown document. The model sees the whole article,
-/// but every top-level block is fenced with a stable identifier so streaming
-/// output can be validated and projected onto the original native block tree.
+/// Builds the ordinary Markdown document Gemini translates as one coherent
+/// article. A temporary H1 carries the title in the same context as the body.
 struct MarkdownTranslationTemplate: Sendable {
-    static let maxBatchCharacters = 48_000
-    static let formatVersion = 1
-
-    struct Unit: Sendable, Equatable {
-        let id: String
-        let blockIndex: Int?
-        let source: String
-    }
-
-    struct Batch: Sendable {
-        let units: [Unit]
-        let prompt: String
-    }
+    static let formatVersion = 2
 
     let title: String
     let baseURL: URL?
     let originalBlocks: [HTMLContentBlock]
-    let units: [Unit]
-    let protectedBlocks: [Int: HTMLContentBlock]
-    let sourceMarkdown: String
 
     init(title: String, blocks: [HTMLContentBlock], baseURL: URL?) {
         self.title = title
         self.baseURL = baseURL
         self.originalBlocks = blocks
-
-        var units: [Unit] = [
-            Unit(id: "title", blockIndex: nil, source: Self.escapePlain(title)),
-        ]
-        var protected: [Int: HTMLContentBlock] = [:]
-        var sourceParts: [String] = []
-
-        for (index, block) in blocks.enumerated() {
-            if Self.isProtected(block) {
-                protected[index] = block
-                sourceParts.append(Self.protectedMarker(index))
-                continue
-            }
-            let markdown = ArticleMarkdown.render([block], baseURL: baseURL)
-            guard !markdown.isEmpty else {
-                protected[index] = block
-                sourceParts.append(Self.protectedMarker(index))
-                continue
-            }
-            units.append(Unit(id: "block-\(index)", blockIndex: index, source: markdown))
-            sourceParts.append(markdown)
-        }
-
-        self.units = units
-        self.protectedBlocks = protected
-        self.sourceMarkdown = sourceParts.joined(separator: "\n\n")
     }
 
     var sourceIdentity: String {
-        "\(Self.formatVersion)\n\(baseURL?.absoluteString ?? "")\n\(title)\n\(sourceMarkdown)"
+        "\(Self.formatVersion)\n\(baseURL?.absoluteString ?? "")\n\(markerlessDocumentMarkdown)"
     }
 
-    func batches(maxCharacters: Int = maxBatchCharacters) -> [Batch] {
-        var batches: [[Unit]] = []
-        var current: [Unit] = []
-        var currentCount = 0
-
-        for unit in units {
-            let wrapped = Self.wrapped(unit)
-            if !current.isEmpty, currentCount + wrapped.count > maxCharacters {
-                batches.append(current)
-                current = []
-                currentCount = 0
-            }
-            current.append(unit)
-            currentCount += wrapped.count
-        }
-        if !current.isEmpty { batches.append(current) }
-
-        return batches.map { units in
-            Batch(units: units, prompt: units.map(Self.wrapped).joined(separator: "\n\n"))
-        }
-    }
-
-    func assembledMarkdown(translations: [String: String]) -> String {
-        originalBlocks.indices.map { index in
-            if protectedBlocks[index] != nil { return Self.protectedMarker(index) }
-            return translations["block-\(index)"]
-                ?? units.first(where: { $0.blockIndex == index })?.source
-                ?? ""
-        }
-        .filter { !$0.isEmpty }
-        .joined(separator: "\n\n")
-    }
-
-    func parsedBlocks(markdown: String) -> [HTMLContentBlock]? {
-        MarkdownNativeParser.blocks(
-            from: markdown,
-            baseURL: baseURL,
-            protectedBlocks: protectedBlocks
-        )
-    }
-
-    static func beginMarker(_ id: String) -> String { "<!--NOOK:BEGIN:\(id)-->" }
-    static func endMarker(_ id: String) -> String { "<!--NOOK:END:\(id)-->" }
-    static func protectedMarker(_ index: Int) -> String { "<!--NOOK:PROTECTED:\(index)-->" }
-
-    private static func wrapped(_ unit: Unit) -> String {
-        "\(beginMarker(unit.id))\n\(unit.source)\n\(endMarker(unit.id))"
-    }
-
-    private static func isProtected(_ block: HTMLContentBlock) -> Bool {
-        switch block {
-        case .codeBlock, .thematicBreak, .image, .video, .audio, .embed:
-            true
-        default:
-            false
-        }
+    /// Gemini receives one ordinary Markdown document. The temporary H1 lets the
+    /// title share article-wide context without custom transport markers; it is
+    /// removed again before the body is rendered or exported.
+    var markerlessDocumentMarkdown: String {
+        let escapedTitle = Self.escapePlain(title)
+        let body = ArticleMarkdown.render(originalBlocks, baseURL: baseURL)
+        return body.isEmpty
+            ? "# \(escapedTitle)"
+            : "# \(escapedTitle)\n\n\(body)"
     }
 
     private static func escapePlain(_ value: String) -> String {
@@ -131,80 +42,8 @@ struct MarkdownTranslationTemplate: Sendable {
     }
 }
 
-/// Extracts complete and active units from Gemini's cumulative stream snapshots.
-/// Parsing is deliberately delimiter-based: an incomplete Markdown AST is never
-/// trusted or rendered as formatted content.
+/// Produces display-safe text from Gemini's cumulative Markdown snapshots.
 enum MarkdownTranslationStream {
-    struct Snapshot: Equatable {
-        var completed: [String: String]
-        var activeID: String?
-        var activeText: String
-        var order: [String]
-        var hasDuplicate = false
-    }
-
-    static func parse(_ raw: String, expectedIDs: Set<String>) -> Snapshot {
-        let text = stripOuterFence(raw)
-        let beginPattern = #"<!--\s*NOOK\s*:\s*BEGIN\s*:\s*([a-zA-Z0-9-]+)\s*-->"#
-        guard let regex = try? NSRegularExpression(
-            pattern: beginPattern,
-            options: [.caseInsensitive]
-        ) else {
-            return Snapshot(completed: [:], activeID: nil, activeText: "", order: [])
-        }
-        let ns = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-        var result = Snapshot(completed: [:], activeID: nil, activeText: "", order: [])
-        var seen = Set<String>()
-
-        for (matchIndex, match) in matches.enumerated() {
-            guard let idRange = Range(match.range(at: 1), in: text) else { continue }
-            let capturedID = String(text[idRange])
-            guard let id = expectedIDs.first(where: {
-                $0.caseInsensitiveCompare(capturedID) == .orderedSame
-            }) else { continue }
-            if !seen.insert(id).inserted { result.hasDuplicate = true }
-            result.order.append(id)
-
-            let contentStart = match.range.location + match.range.length
-            // A later BEGIN is a hard transport boundary even if this unit's END
-            // was omitted. Never let one malformed unit absorb another block.
-            let nextBegin = matches.indices.contains(matchIndex + 1)
-                ? matches[matchIndex + 1].range.location
-                : ns.length
-            let searchRange = NSRange(
-                location: contentStart,
-                length: max(0, nextBegin - contentStart)
-            )
-            let escapedID = NSRegularExpression.escapedPattern(for: id)
-            let endPattern = #"<!--\s*NOOK\s*:\s*END\s*:\s*\#(escapedID)\s*-->"#
-            let endRange = (try? NSRegularExpression(
-                pattern: endPattern,
-                options: [.caseInsensitive]
-            ))?.firstMatch(in: text, range: searchRange)?.range
-                ?? NSRange(location: NSNotFound, length: 0)
-            let value: String
-            if endRange.location == NSNotFound {
-                // Once another block has begun, this unit is malformed rather
-                // than active. Keep its previous safe UI projection untouched;
-                // final validation will retry the batch with the stronger model.
-                guard nextBegin == ns.length else { continue }
-                value = ns.substring(
-                    with: NSRange(location: contentStart, length: nextBegin - contentStart)
-                )
-                result.activeID = id
-                result.activeText = cleaned(displaySafe(value))
-            } else {
-                value = ns.substring(with: NSRange(
-                    location: contentStart,
-                    length: endRange.location - contentStart
-                ))
-                result.completed[id] = cleaned(value)
-            }
-        }
-        return result
-    }
-
     static func plainProjection(_ markdown: String) -> String {
         displaySafe(markdown)
             .replacingOccurrences(of: #"!\[([^\]]*)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
@@ -235,15 +74,9 @@ enum MarkdownTranslationStream {
             ?? ""
     }
 
-    private static func cleaned(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Protocol comments are transport framing, never article content. A stream
-    /// snapshot can end at any byte of `<!--NOOK:END:…-->`, so removing only
-    /// complete comments still flashes partial markers in the reader. Strip every
-    /// complete HTML comment, truncate an unfinished one, and withhold the three
-    /// ambiguous trailing prefixes until the next snapshot resolves them.
+    /// A cumulative snapshot can end halfway through an HTML tag or comment.
+    /// Withhold that incomplete suffix until the next token resolves it so raw
+    /// syntax never flashes in the reader.
     private static func displaySafe(_ value: String) -> String {
         var safe = value.replacingOccurrences(
             of: #"(?s)<!--.*?-->"#,
@@ -260,17 +93,9 @@ enum MarkdownTranslationStream {
         return safe
     }
 
-    private static func stripOuterFence(_ value: String) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("```markdown") || trimmed.hasPrefix("```md") else { return value }
-        guard let firstNewline = trimmed.firstIndex(of: "\n") else { return value }
-        var body = String(trimmed[trimmed.index(after: firstNewline)...])
-        if body.hasSuffix("```") { body.removeLast(3) }
-        return body
-    }
 }
 
-/// Strict validation for one translated Markdown unit.
+/// Strict validation for translated Markdown.
 enum MarkdownTranslationValidator {
     static func accepts(source: String, output: String, language: String) -> Bool {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -365,39 +190,6 @@ enum MarkdownTranslationValidator {
                 .map { ns.substring(with: $0.range).lowercased() }
                 .joined()
         }
-    }
-}
-
-/// Separates trustworthy completed units from the part of a cumulative stream
-/// that still needs recovery. A malformed tail must not discard earlier blocks.
-enum MarkdownTranslationRecovery {
-    struct Partition: Equatable {
-        var translations: [String: String]
-        var unresolved: [MarkdownTranslationTemplate.Unit]
-    }
-
-    static func partition(
-        units: [MarkdownTranslationTemplate.Unit],
-        snapshot: MarkdownTranslationStream.Snapshot,
-        language: String
-    ) -> Partition {
-        var accepted: [String: String] = [:]
-        if !snapshot.hasDuplicate {
-            for unit in units {
-                guard let output = snapshot.completed[unit.id],
-                      MarkdownTranslationValidator.accepts(
-                        source: unit.source,
-                        output: output,
-                        language: language
-                      )
-                else { continue }
-                accepted[unit.id] = output
-            }
-        }
-        return Partition(
-            translations: accepted,
-            unresolved: units.filter { accepted[$0.id] == nil }
-        )
     }
 }
 

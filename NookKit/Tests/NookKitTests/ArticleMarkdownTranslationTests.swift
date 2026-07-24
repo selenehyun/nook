@@ -10,8 +10,8 @@ import AppKit
 struct ArticleMarkdownTranslationTests {
     private let baseURL = URL(string: "https://example.com/articles/story")!
 
-    @Test("Template protects non-translatable media and keeps block identity")
-    func templateProtection() {
+    @Test("Gemini receives one ordinary Markdown document without transport markers")
+    func markerlessDocument() {
         let image = HTMLMedia(
             url: URL(string: "https://example.com/diagram.png")!,
             title: "Diagram",
@@ -32,131 +32,13 @@ struct ArticleMarkdownTranslationTests {
             baseURL: baseURL
         )
 
-        #expect(template.units.map(\.id) == ["title", "block-0", "block-1"])
-        #expect(template.protectedBlocks[2] == blocks[2])
-        #expect(template.protectedBlocks[3] == blocks[3])
-        #expect(template.sourceMarkdown.contains("<!--NOOK:PROTECTED:2-->"))
-        #expect(template.sourceMarkdown.contains("<!--NOOK:PROTECTED:3-->"))
-        #expect(template.batches().first?.prompt.contains("<!--NOOK:BEGIN:title-->") == true)
-
-        let assembled = template.assembledMarkdown(translations: [
-            "block-0": "## 소개",
-            "block-1": "안녕하세요, [독자](https://example.com/guide)님.",
-        ])
-        let parsed = template.parsedBlocks(markdown: assembled)
-        #expect(parsed?.count == blocks.count)
-        #expect(parsed?[2] == blocks[2])
-        #expect(parsed?[3] == blocks[3])
-    }
-
-    @Test("Cumulative stream exposes complete blocks and the active typing block")
-    func streamProjection() {
-        let raw = """
-        <!--NOOK:BEGIN:title-->
-        번역 제목
-        <!--NOOK:END:title-->
-
-        <!--NOOK:BEGIN:block-0-->
-        ## 번역 중
-        """
-
-        let snapshot = MarkdownTranslationStream.parse(
-            raw,
-            expectedIDs: ["title", "block-0"]
-        )
-
-        #expect(snapshot.completed["title"] == "번역 제목")
-        #expect(snapshot.activeID == "block-0")
-        #expect(MarkdownTranslationStream.plainProjection(snapshot.activeText) == "번역 중")
-        #expect(snapshot.order == ["title", "block-0"])
-    }
-
-    @Test("Transport markers can never enter the visible streaming projection")
-    func markerFragmentsAreNeverVisible() {
-        let snapshots = [
-            "번역된 제목<",
-            "번역된 제목<!",
-            "번역된 제목<!-",
-            "번역된 제목<!--",
-            "번역된 제목<!--NOOK",
-            "번역된 제목<!--NOOK:END:title",
-            "번역된 제목<!-- NOOK : END : title -->",
-        ]
-
-        for snapshot in snapshots {
-            let visible = MarkdownTranslationStream.plainProjection(snapshot)
-            #expect(visible == "번역된 제목")
-            #expect(!visible.localizedCaseInsensitiveContains("NOOK"))
-            #expect(!visible.contains("<!--"))
-        }
-    }
-
-    @Test("Parser consumes harmless marker whitespace and case variations")
-    func flexibleMarkerParsing() {
-        let raw = """
-        <!-- nook : begin : TITLE -->
-        번역 제목
-        <!-- NOOK : END : title -->
-        """
-        let snapshot = MarkdownTranslationStream.parse(raw, expectedIDs: ["title"])
-
-        #expect(snapshot.activeID == nil)
-        #expect(snapshot.completed["title"] == "번역 제목")
-        #expect(snapshot.order == ["title"])
-    }
-
-    @Test("A missing END cannot merge the next content block into a heading")
-    func missingEndKeepsBlockBoundary() {
-        let raw = """
-        <!--NOOK:BEGIN:block-0-->
-        ## 번역 소제목
-        <!--NOOK:BEGIN:block-1-->
-        다음 본문입니다.
-        <!--NOOK:END:block-1-->
-        """
-        let snapshot = MarkdownTranslationStream.parse(
-            raw,
-            expectedIDs: ["block-0", "block-1"]
-        )
-
-        #expect(snapshot.activeID == nil)
-        #expect(snapshot.completed["block-0"] == nil)
-        #expect(snapshot.completed["block-1"] == "다음 본문입니다.")
-    }
-
-    @Test("A malformed stream tail preserves completed translations for recovery")
-    func recoveryKeepsCompletedPrefix() {
-        let units = [
-            MarkdownTranslationTemplate.Unit(
-                id: "block-0",
-                blockIndex: 0,
-                source: "First paragraph."
-            ),
-            MarkdownTranslationTemplate.Unit(
-                id: "block-1",
-                blockIndex: 1,
-                source: "Second paragraph."
-            ),
-        ]
-        let snapshot = MarkdownTranslationStream.parse(
-            """
-            <!--NOOK:BEGIN:block-0-->
-            첫 번째 문단입니다.
-            <!--NOOK:END:block-0-->
-            <!--NOOK:BEGIN:block-1-->
-            두 번째
-            """,
-            expectedIDs: Set(units.map(\.id))
-        )
-
-        let partition = MarkdownTranslationRecovery.partition(
-            units: units,
-            snapshot: snapshot,
-            language: "Korean"
-        )
-
-        #expect(partition.translations == ["block-0": "첫 번째 문단입니다."])
-        #expect(partition.unresolved.map(\.id) == ["block-1"])
+        let markdown = template.markerlessDocumentMarkdown
+        #expect(markdown.hasPrefix("# A story\n\n## Introduction"))
+        #expect(markdown.contains("[reader](<https://example.com/guide>)"))
+        #expect(markdown.contains("```swift\nlet value = 1\n```"))
+        #expect(markdown.contains("![Diagram](<https://example.com/diagram.png>)"))
+        #expect(!markdown.localizedCaseInsensitiveContains("NOOK:"))
+        #expect(!markdown.contains("<!--"))
     }
 
     @Test("A live heading projection is always bounded to one heading line")

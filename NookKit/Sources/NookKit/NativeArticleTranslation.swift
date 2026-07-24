@@ -379,6 +379,11 @@ public final class NativeArticleTranslator {
     /// Final Gemini Markdown parsed directly into native reader blocks. Until this
     /// is ready, `overrides` keeps the original-in-place typing presentation.
     private var markdownBlocks: [HTMLContentBlock]?
+    /// Markerless Gemini streaming state. Stable blocks never regress when the
+    /// router starts a Flash retry from the beginning of the document.
+    private var markerlessStableBlocks: [HTMLContentBlock] = []
+    private var markerlessLatestBlocks: [HTMLContentBlock] = []
+    private var markerlessSourceBlocks: [HTMLContentBlock] = []
     private var task: Task<Void, Never>?
     private var generation = 0
     /// The article's detected subject/field, passed to block translation so it
@@ -465,6 +470,9 @@ public final class NativeArticleTranslator {
         isTranslating = false
         overrides = [:]
         markdownBlocks = nil
+        markerlessStableBlocks = []
+        markerlessLatestBlocks = []
+        markerlessSourceBlocks = []
         translatedTitle = nil
         translatedMarkdown = nil
         conceptDomain = ""
@@ -475,14 +483,23 @@ public final class NativeArticleTranslator {
         useCoherentMode = false
     }
 
-    /// Gemini's preferred path: one Markdown stream for the article, with a
-    /// Flash-Lite → Flash quality fallback. Any pipeline failure returns to the
-    /// existing block translator so translation never becomes less available.
+    /// Gemini's preferred path: one ordinary Markdown stream for the article,
+    /// with no custom block markers. Flash may restart the stream, but the reader
+    /// keeps its already-stable prefix so completed prose never types twice.
     private func runMarkdown(
         template: MarkdownTranslationTemplate,
         language: String,
         token: Int
     ) async {
+        markerlessSourceBlocks = MarkdownNativeParser.blocks(
+            from: ArticleMarkdown.render(
+                template.originalBlocks,
+                baseURL: template.baseURL
+            ),
+            baseURL: template.baseURL,
+            protectedBlocks: [:]
+        ) ?? template.originalBlocks
+
         do {
             let result = try await GeminiMarkdownArticleTranslator.translate(
                 template: template,
@@ -491,30 +508,14 @@ public final class NativeArticleTranslator {
                     guard let self else { return false }
                     return token == generation && isActive && !Task.isCancelled
                 },
-                onTitlePartial: { [weak self] partial in
+                onDocumentPartial: { [weak self] title, bodyMarkdown, blocks in
                     guard let self, token == generation else { return }
-                    let cleaned = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !cleaned.isEmpty { translatedTitle = cleaned }
-                },
-                onBlockPartial: { [weak self] index, partial in
-                    guard let self, token == generation,
-                          template.originalBlocks.indices.contains(index)
-                    else { return }
-                    let original = blockPlainText(template.originalBlocks[index])
-                    let headingLevel: Int?
-                    if case .heading(let level, _) = template.originalBlocks[index] {
-                        headingLevel = level
-                    } else {
-                        headingLevel = nil
-                    }
-                    overrides[index] = .mixedText(
-                        parts: [.streamingMarkdown(original: original, markdown: partial)],
-                        headingLevel: headingLevel
+                    updateMarkerlessPartial(
+                        title: title,
+                        bodyMarkdown: bodyMarkdown,
+                        blocks: blocks,
+                        baseURL: template.baseURL
                     )
-                },
-                onBlockComplete: { [weak self] index, block in
-                    guard let self, token == generation else { return }
-                    overrides[index] = block
                 }
             )
             guard token == generation, isActive else { return }
@@ -522,16 +523,84 @@ public final class NativeArticleTranslator {
             translatedMarkdown = result.markdown
             markdownBlocks = result.blocks
             overrides = [:]
+            markerlessStableBlocks = []
+            markerlessLatestBlocks = []
+            markerlessSourceBlocks = []
             isTranslating = false
         } catch is CancellationError {
             return
         } catch {
             guard token == generation, isActive else { return }
-            // Gemini reader translation remains Markdown-only. Keep every
-            // successfully streamed block visible instead of falling back to
-            // per-cell/per-item requests that lose document context.
+            // Freeze the trustworthy visible prefix without a caret, then leave
+            // the untouched suffix in its source language. Never discard content
+            // that the reader has already shown as translated.
+            finalizeMarkerlessPartialAfterFailure()
             isTranslating = false
         }
+    }
+
+    private func updateMarkerlessPartial(
+        title: String,
+        bodyMarkdown: String,
+        blocks parsed: [HTMLContentBlock],
+        baseURL: URL?
+    ) {
+        let cleanedTitle = MarkdownTranslationStream.plainProjection(title)
+        if !cleanedTitle.isEmpty { translatedTitle = cleanedTitle }
+
+        guard !bodyMarkdown.isEmpty, !parsed.isEmpty else { return }
+
+        markerlessLatestBlocks = parsed
+        let stableCount = max(0, parsed.count - 1)
+        if stableCount > markerlessStableBlocks.count {
+            markerlessStableBlocks.append(
+                contentsOf: parsed[markerlessStableBlocks.count..<stableCount]
+            )
+        }
+
+        let activeIndex = parsed.count - 1
+        var display = markerlessStableBlocks
+        if activeIndex == markerlessStableBlocks.count,
+           let active = parsed.last {
+            let activeMarkdown = ArticleMarkdown.render([active], baseURL: baseURL)
+            let original = markerlessSourceBlocks.indices.contains(activeIndex)
+                ? blockPlainText(markerlessSourceBlocks[activeIndex])
+                : ""
+            let headingLevel: Int?
+            if case .heading(let level, _) = active {
+                headingLevel = level
+            } else {
+                headingLevel = nil
+            }
+            display.append(
+                .mixedText(
+                    parts: [
+                        .streamingMarkdown(
+                            original: original,
+                            markdown: activeMarkdown
+                        ),
+                    ],
+                    headingLevel: headingLevel
+                )
+            )
+            display.append(
+                contentsOf: markerlessSourceBlocks.dropFirst(activeIndex + 1)
+            )
+        } else {
+            display.append(
+                contentsOf: markerlessSourceBlocks.dropFirst(display.count)
+            )
+        }
+        markdownBlocks = display
+    }
+
+    private func finalizeMarkerlessPartialAfterFailure() {
+        var display = markerlessStableBlocks
+        if markerlessLatestBlocks.count > display.count {
+            display.append(markerlessLatestBlocks[display.count])
+        }
+        display.append(contentsOf: markerlessSourceBlocks.dropFirst(display.count))
+        if !display.isEmpty { markdownBlocks = display }
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {
