@@ -156,6 +156,13 @@ public struct OfflineDownloadPicker: View {
             }
             .coordinateSpace(name: coordinateSpace)
             .onPreferenceChange(RowFrameKey.self) { rowFrames = $0 }
+            #if os(iOS)
+            // While a checkbox drag is active, turn off list scrolling so the
+            // scroll gesture can't cancel our paint gesture — this is what keeps
+            // the drag tracking the finger the whole way down the list, instead
+            // of dying the moment it leaves the checkbox.
+            .scrollDisabled(isDragging)
+            #endif
         }
     }
 
@@ -197,12 +204,15 @@ public struct OfflineDownloadPicker: View {
         #if os(iOS)
         return image
             .contentShape(Rectangle())
-            // Press the checkbox and drag to paint a range (Photos-style). A pure
-            // tap (no movement past the threshold) falls through to the row button
-            // for a single toggle; only a deliberate drag claims the gesture, so
-            // the list still scrolls when dragging elsewhere.
+            // Press the checkbox and drag to paint a range (Photos-style). The
+            // gesture activates on touch-down (minimumDistance 0) so `isDragging`
+            // flips before any movement — that immediately disables list scrolling
+            // (see the List), so the scroll gesture can never steal the drag as
+            // the finger moves across rows. A touch with no movement just toggles
+            // this one row (a range of one). Dragging elsewhere on the row still
+            // scrolls, since only the checkbox carries this gesture.
             .highPriorityGesture(
-                DragGesture(minimumDistance: 8, coordinateSpace: .named(coordinateSpace))
+                DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpace))
                     .updating($isDragging) { _, state, _ in state = true }
                     .onChanged { value in dragChanged(startIndex: index, location: value.location) }
                     .onEnded { _ in dragEnded() }

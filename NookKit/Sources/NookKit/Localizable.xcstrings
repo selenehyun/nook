@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "'%@' is not a valid URL." : {
       "localizations" : {
         "en" : {
@@ -287,6 +290,34 @@
         }
       }
     },
+    "All" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部"
+          }
+        }
+      }
+    },
     "All Articles" : {
       "localizations" : {
         "en" : {
@@ -315,7 +346,9 @@
         }
       }
     },
-    "Apple Intelligence" : {},
+    "Apple Intelligence" : {
+
+    },
     "Article list titles" : {
       "localizations" : {
         "ja" : {
@@ -837,7 +870,9 @@
         }
       }
     },
-    "Done" : {},
+    "Done" : {
+
+    },
     "Download %lld" : {
       "localizations" : {
         "en" : {
@@ -1224,7 +1259,9 @@
         }
       }
     },
-    "Gemini" : {},
+    "Gemini" : {
+
+    },
     "Gemini API key" : {
       "localizations" : {
         "ja" : {
@@ -1689,6 +1726,34 @@
         }
       }
     },
+    "No article matches." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No article matches."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致する記事がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일치하는 글이 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的文章。"
+          }
+        }
+      }
+    },
     "No Gemini API key saved yet." : {
       "localizations" : {
         "ja" : {
@@ -1867,7 +1932,9 @@
         }
       }
     },
-    "OK" : {},
+    "OK" : {
+
+    },
     "Open Embedded Content" : {
       "localizations" : {
         "en" : {
@@ -2353,6 +2420,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存密钥"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "검색"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索"
           }
         }
       }
@@ -3169,90 +3264,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密钥仅存储在此设备上，绝不同步。选择 Gemini 时，文章文本会发送给 Google 进行翻译。"
-          }
-        }
-      }
-    },
-    "All" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "すべて"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "전체"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部"
-          }
-        }
-      }
-    },
-    "Search" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "검색"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索"
-          }
-        }
-      }
-    },
-    "No article matches." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No article matches."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一致する記事がありません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일치하는 글이 없습니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有匹配的文章。"
           }
         }
       }
