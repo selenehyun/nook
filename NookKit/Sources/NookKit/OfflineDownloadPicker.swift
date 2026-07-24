@@ -11,7 +11,11 @@ import AppKit
 /// - Filter with an Unread/All toggle and a search field to find articles fast.
 /// - Range-select: on macOS, Shift-click extends selection from the last-clicked
 ///   row to the clicked one; on iOS, press a checkbox and drag (Photos-style) to
-///   paint a range as your finger moves.
+///   paint a range that tracks your finger, row for row.
+///
+/// Everything is keyed by article id (not row index) so a cheap re-render during
+/// a drag never re-allocates an index array, and finger→row hit-testing uses
+/// global coordinates so the painted range stays exactly under the finger.
 ///
 /// Localised via `.module`.
 public struct OfflineDownloadPicker: View {
@@ -31,26 +35,23 @@ public struct OfflineDownloadPicker: View {
     /// inputs change — not several times per render / per keystroke.
     @State private var displayedCache: [Article] = []
 
-    // iOS drag-to-select state.
-    @State private var rowFrames: [Int: CGRect] = [:]
-    @State private var dragAnchor: Int?
+    // iOS drag-to-select state (a snapshot taken once when the drag begins).
+    @State private var rowFrames: [Article.ID: CGRect] = [:]
+    @State private var dragAnchorID: Article.ID?
     @State private var dragSnapshot: Set<Article.ID> = []
     @State private var dragTargetSelected = false
     @State private var dragIDs: [Article.ID] = []
+    @State private var dragIndexByID: [Article.ID: Int] = [:]
     /// Auto-resets to false when the drag gesture ends OR is cancelled (unlike
     /// `onEnded`, which a cancelled/interrupted gesture can skip), so drag state
-    /// is always cleared before the next drag.
+    /// is always cleared and list scrolling is re-enabled.
     @GestureState private var isDragging = false
-
-    private let coordinateSpace = "offlineDownloadPicker"
 
     public init(store: ReaderStore, onDone: @escaping () -> Void) {
         self.store = store
         self.onDone = onDone
     }
 
-    /// The current source's not-yet-saved articles, after the Unread/All filter
-    /// and the search query. Reads the cache (recomputed only on input changes).
     private var displayed: [Article] { displayedCache }
 
     private func computeDisplayed() -> [Article] {
@@ -80,7 +81,7 @@ public struct OfflineDownloadPicker: View {
         .onChange(of: searchText) { _, _ in displayedCache = computeDisplayed() }
         .onChange(of: store.visibleArticles) { _, _ in displayedCache = computeDisplayed() }
         // A cancelled/interrupted drag skips onEnded; the gesture-state flip
-        // guarantees the drag state is reset before the next one.
+        // guarantees drag state is reset (and scrolling re-enabled) afterwards.
         .onChange(of: isDragging) { _, active in if !active { dragEnded() } }
     }
 
@@ -90,11 +91,8 @@ public struct OfflineDownloadPicker: View {
         VStack(spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Download for Offline", bundle: .module)
-                        .font(.headline)
-                    Text(store.selectedSourceTitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Download for Offline", bundle: .module).font(.headline)
+                    Text(store.selectedSourceTitle).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if !displayed.isEmpty {
@@ -113,14 +111,12 @@ public struct OfflineDownloadPicker: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField(text: $searchText) {
-                    Text("Search", bundle: .module)
-                }
-                .textFieldStyle(.plain)
-                #if os(iOS)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                #endif
+                TextField(text: $searchText) { Text("Search", bundle: .module) }
+                    .textFieldStyle(.plain)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    #endif
                 if !searchText.isEmpty {
                     Button { searchText = "" } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
@@ -150,17 +146,15 @@ public struct OfflineDownloadPicker: View {
             Spacer()
         } else {
             List {
-                ForEach(Array(displayed.enumerated()), id: \.element.id) { index, article in
-                    row(article, index: index)
+                ForEach(displayed) { article in
+                    row(article)
                 }
             }
-            .coordinateSpace(name: coordinateSpace)
             .onPreferenceChange(RowFrameKey.self) { rowFrames = $0 }
             #if os(iOS)
             // While a checkbox drag is active, turn off list scrolling so the
-            // scroll gesture can't cancel our paint gesture — this is what keeps
-            // the drag tracking the finger the whole way down the list, instead
-            // of dying the moment it leaves the checkbox.
+            // scroll gesture can't cancel or fight our paint gesture — this keeps
+            // the drag glued to the finger the whole way down the list.
             .scrollDisabled(isDragging)
             #endif
         }
@@ -172,12 +166,12 @@ public struct OfflineDownloadPicker: View {
             : "No article matches."
     }
 
-    private func row(_ article: Article, index: Int) -> some View {
+    private func row(_ article: Article) -> some View {
         Button {
-            rowTapped(index)
+            rowTapped(article.id)
         } label: {
             HStack(spacing: 10) {
-                checkbox(for: article.id, index: index)
+                checkbox(for: article.id)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(article.title).lineLimit(2)
                     Text(store.feed(for: article.feedID)?.displayTitle ?? "")
@@ -191,30 +185,32 @@ public struct OfflineDownloadPicker: View {
         #if os(iOS)
         .background(
             GeometryReader { proxy in
-                Color.clear.preference(key: RowFrameKey.self, value: [index: proxy.frame(in: .named(coordinateSpace))])
+                Color.clear.preference(key: RowFrameKey.self, value: [article.id: proxy.frame(in: .global)])
             }
         )
         #endif
     }
 
-    private func checkbox(for id: Article.ID, index: Int) -> some View {
-        let image = Image(systemName: selection.contains(id) ? "checkmark.circle.fill" : "circle")
-            .foregroundStyle(selection.contains(id) ? Color.accentColor : .secondary)
+    private func checkbox(for id: Article.ID) -> some View {
+        let selected = selection.contains(id)
+        let image = Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+            .foregroundStyle(selected ? Color.accentColor : .secondary)
             .imageScale(.large)
         #if os(iOS)
         return image
             .contentShape(Rectangle())
-            // Press the checkbox and drag to paint a range (Photos-style). The
-            // gesture activates on touch-down (minimumDistance 0) so `isDragging`
-            // flips before any movement — that immediately disables list scrolling
-            // (see the List), so the scroll gesture can never steal the drag as
-            // the finger moves across rows. A touch with no movement just toggles
-            // this one row (a range of one). Dragging elsewhere on the row still
-            // scrolls, since only the checkbox carries this gesture.
+            // Touch the checkbox and drag to paint a range (Photos-style). It
+            // activates on touch-down (minimumDistance 0) so `isDragging` flips
+            // before any movement — disabling list scrolling immediately (see the
+            // List), so the scroll gesture can never steal the drag. A touch with
+            // no movement paints a range of one (a single toggle). Dragging
+            // elsewhere on a row still scrolls, since only the checkbox drags. All
+            // coordinates are global, so the painted row sits exactly under the
+            // finger.
             .highPriorityGesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpace))
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
                     .updating($isDragging) { _, state, _ in state = true }
-                    .onChanged { value in dragChanged(startIndex: index, location: value.location) }
+                    .onChanged { value in dragChanged(startID: id, location: value.location) }
                     .onEnded { _ in dragEnded() }
             )
         #else
@@ -226,24 +222,20 @@ public struct OfflineDownloadPicker: View {
 
     private var footer: some View {
         HStack {
-            Button(role: .cancel, action: onDone) {
-                Text("Cancel", bundle: .module)
-            }
+            Button(role: .cancel, action: onDone) { Text("Cancel", bundle: .module) }
             Spacer()
-            Button(action: download) {
-                Text("Download \(selection.count)", bundle: .module)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(selection.isEmpty)
+            Button(action: download) { Text("Download \(selection.count)", bundle: .module) }
+                .buttonStyle(.borderedProminent)
+                .disabled(selection.isEmpty)
         }
         .padding(16)
     }
 
-    // MARK: - Selection logic
+    // MARK: - Selection
 
     private var allDisplayedSelected: Bool {
-        let ids = displayed.map(\.id)
-        return !ids.isEmpty && ids.allSatisfy { selection.contains($0) }
+        let ids = displayed
+        return !ids.isEmpty && ids.allSatisfy { selection.contains($0.id) }
     }
 
     private func toggleAll() {
@@ -256,25 +248,18 @@ public struct OfflineDownloadPicker: View {
     }
 
     /// A row was clicked. On macOS a Shift-click paints the range from the anchor
-    /// to here; otherwise it's a single toggle that resets the anchor.
-    private func rowTapped(_ index: Int) {
-        let ids = displayed.map(\.id)
-        guard index < ids.count else { return }
-        let id = ids[index]
-
+    /// to here (by id, so it survives filtering); otherwise a single toggle.
+    private func rowTapped(_ id: Article.ID) {
         #if os(macOS)
         let shift = NSEvent.modifierFlags.contains(.shift)
         #else
         let shift = false
         #endif
 
-        // Resolve the anchor's CURRENT position (it may have moved as the list was
-        // filtered/searched); if it's no longer visible, fall back to a single
-        // toggle rather than painting a stale range.
-        if shift, let anchorID, let anchor = ids.firstIndex(of: anchorID) {
-            // The clicked row's NEW state is painted across the whole range.
+        let ids = displayed.map(\.id)
+        if shift, let anchorID, let ai = ids.firstIndex(of: anchorID), let ci = ids.firstIndex(of: id) {
             let target = !selection.contains(id)
-            for i in min(anchor, index)...max(anchor, index) where i < ids.count {
+            for i in min(ai, ci)...max(ai, ci) {
                 if target { selection.insert(ids[i]) } else { selection.remove(ids[i]) }
             }
         } else {
@@ -285,27 +270,28 @@ public struct OfflineDownloadPicker: View {
 
     // MARK: - iOS drag-to-select
 
-    private func dragChanged(startIndex: Int, location: CGPoint) {
-        if dragAnchor == nil {
-            // First movement: anchor on the pressed checkbox, snapshot the current
-            // selection, and decide whether we're selecting or deselecting based on
-            // the anchor's toggled state.
-            dragAnchor = startIndex
-            dragIDs = displayed.map(\.id)
+    private func dragChanged(startID: Article.ID, location: CGPoint) {
+        if dragAnchorID == nil {
+            // First event: snapshot the list and selection, and decide (from the
+            // pressed row's toggled state) whether this drag selects or deselects.
+            let ids = displayed.map(\.id)
+            dragIDs = ids
+            dragIndexByID = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
             dragSnapshot = selection
-            let pressedID = dragIDs.indices.contains(startIndex) ? dragIDs[startIndex] : nil
-            dragTargetSelected = pressedID.map { !selection.contains($0) } ?? true
-            anchorID = pressedID
+            dragAnchorID = startID
+            dragTargetSelected = !selection.contains(startID)
+            anchorID = startID
         }
-        guard let anchor = dragAnchor else { return }
-        let current = rowIndex(atY: location.y) ?? anchor
-        applyDragRange(anchor: anchor, current: current)
+        guard let anchorID = dragAnchorID,
+              let ai = dragIndexByID[anchorID] else { return }
+        let currentID = rowID(atY: location.y) ?? startID
+        guard let ci = dragIndexByID[currentID] else { return }
+        applyRange(lo: min(ai, ci), hi: max(ai, ci))
     }
 
-    private func applyDragRange(anchor: Int, current: Int) {
-        var next = dragSnapshot
-        let lo = min(anchor, current), hi = max(anchor, current)
+    private func applyRange(lo: Int, hi: Int) {
         guard lo >= 0, hi < dragIDs.count else { return }
+        var next = dragSnapshot
         for i in lo...hi {
             let id = dragIDs[i]
             if dragTargetSelected { next.insert(id) } else { next.remove(id) }
@@ -314,20 +300,20 @@ public struct OfflineDownloadPicker: View {
     }
 
     private func dragEnded() {
-        dragAnchor = nil
+        dragAnchorID = nil
         dragIDs = []
+        dragIndexByID = [:]
         dragSnapshot = []
     }
 
-    /// The displayed-row index whose frame contains `y`, clamped to the nearest
-    /// row when the finger is dragged above the first or below the last row.
-    private func rowIndex(atY y: CGFloat) -> Int? {
+    /// The id of the row whose (global) frame contains `y`, snapping to the
+    /// nearest row's center on a miss so the endpoint tracks the finger past the
+    /// first/last row or across any gap.
+    private func rowID(atY y: CGFloat) -> Article.ID? {
         guard !rowFrames.isEmpty else { return nil }
         if let hit = rowFrames.first(where: { $0.value.minY <= y && y <= $0.value.maxY })?.key {
             return hit
         }
-        // No exact hit (a gap between rows, or above/below the list): snap to the
-        // row whose center is nearest, so the range endpoint tracks the finger.
         return rowFrames.min(by: { abs($0.value.midY - y) < abs($1.value.midY - y) })?.key
     }
 
@@ -340,11 +326,11 @@ public struct OfflineDownloadPicker: View {
     }
 }
 
-/// Collects each displayed row's frame (in the picker's coordinate space) so the
-/// iOS drag-to-select can map a finger position to a row.
+/// Collects each row's global frame so the iOS drag-to-select can map a finger
+/// position to a row. Keyed by article id (stable across re-renders).
 private struct RowFrameKey: PreferenceKey {
-    static let defaultValue: [Int: CGRect] = [:]
-    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+    static let defaultValue: [Article.ID: CGRect] = [:]
+    static func reduce(value: inout [Article.ID: CGRect], nextValue: () -> [Article.ID: CGRect]) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
