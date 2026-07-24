@@ -9,6 +9,7 @@ public struct OfflineSettingsContent: View {
     private let store: ReaderStore
     @AppStorage(ReaderStore.offlineExpiryKey) private var expiryRaw = OfflineExpiry.twoWeeks.rawValue
     @State private var confirmingClear = false
+    @State private var showPicker = false
 
     public init(store: ReaderStore) {
         self.store = store
@@ -21,6 +22,18 @@ public struct OfflineSettingsContent: View {
     }
 
     public var body: some View {
+        Button {
+            showPicker = true
+        } label: {
+            Label { Text("Download Articles…", bundle: .module) } icon: { Image(systemName: "arrow.down.circle") }
+        }
+        .sheet(isPresented: $showPicker) {
+            OfflineDownloadPicker(store: store, onDone: { showPicker = false })
+            #if os(macOS)
+                .frame(width: 520, height: 560)
+            #endif
+        }
+
         Picker(selection: $expiryRaw) {
             ForEach(OfflineExpiry.allCases) { option in
                 Text(option.title).tag(option.rawValue)

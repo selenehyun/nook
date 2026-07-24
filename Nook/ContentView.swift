@@ -1174,6 +1174,7 @@ private struct ArticleListView: View {
     @AppStorage(TranslationSettings.titleProviderKey) private var titleProvider = TranslationProvider.appleIntelligence.rawValue
     @AppStorage(TranslationSettings.geminiKeyConfiguredKey) private var geminiKeyConfigured = false
     private let titleTranslator = ListTitleTranslator.shared
+    @State private var showDownloadPicker = false
 
     var body: some View {
         Group {
@@ -1271,13 +1272,17 @@ private struct ArticleListView: View {
                     }
                 } else if !store.visibleArticles.isEmpty {
                     Button {
-                        store.downloadOffline(store.visibleArticles)
+                        showDownloadPicker = true
                     } label: {
                         Label("Download for Offline", systemImage: "arrow.down.circle")
                     }
-                    .help("Save every article in this list for offline reading")
+                    .help("Choose articles in this list to save for offline reading")
                 }
             }
+        }
+        .sheet(isPresented: $showDownloadPicker) {
+            OfflineDownloadPicker(store: store, onDone: { showDownloadPicker = false })
+                .frame(width: 520, height: 560)
         }
         .safeAreaInset(edge: .bottom) {
             ArticleListStatusBar(store: store)

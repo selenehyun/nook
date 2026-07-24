@@ -1565,19 +1565,16 @@ private struct ArticleList: View {
                     }
                     .tint(.yellow)
 
-                    Button {
-                        if store.isOfflineSaved(article.id) {
+                    // Saving is done from Settings › Offline; the row only offers
+                    // removal of an already-saved article.
+                    if store.isOfflineSaved(article.id) {
+                        Button(role: .destructive) {
                             store.removeOffline(article.id)
-                        } else {
-                            store.saveOffline(article)
+                        } label: {
+                            Label("Remove Download", systemImage: "arrow.down.circle.fill")
                         }
-                    } label: {
-                        Label(
-                            store.isOfflineSaved(article.id) ? "Remove" : "Save",
-                            systemImage: store.isOfflineSaved(article.id) ? "arrow.down.circle.fill" : "arrow.down.circle"
-                        )
+                        .tint(.indigo)
                     }
-                    .tint(.indigo)
                 }
                 .contextMenu {
                     Button {
@@ -1592,15 +1589,12 @@ private struct ArticleList: View {
                         Label(article.isStarred ? "Unstar" : "Star",
                               systemImage: article.isStarred ? "star.slash" : "star")
                     }
-                    Button {
-                        if store.isOfflineSaved(article.id) {
+                    if store.isOfflineSaved(article.id) {
+                        Button {
                             store.removeOffline(article.id)
-                        } else {
-                            store.saveOffline(article)
+                        } label: {
+                            Label("Remove Download", systemImage: "arrow.down.circle.fill")
                         }
-                    } label: {
-                        Label(store.isOfflineSaved(article.id) ? "Remove Download" : "Save for Offline",
-                              systemImage: store.isOfflineSaved(article.id) ? "arrow.down.circle.fill" : "arrow.down.circle")
                     }
                     Button {
                         store.selectedArticleID = article.id
@@ -1625,17 +1619,13 @@ private struct ArticleList: View {
         .navigationTitle(store.selectedSourceTitle)
         .modifier(DrawerSearch(text: $store.searchText, enabled: managesSearch))
         .toolbar {
+            // Offline saving is done from Settings › Offline; the list only shows
+            // an in-progress download's status, never a save button.
             ToolbarItem(placement: .topBarTrailing) {
                 if let progress = store.offlineDownloadProgress {
                     HStack(spacing: 6) {
                         ProgressView()
                         Text("\(progress.completed)/\(progress.total)").font(.caption).monospacedDigit()
-                    }
-                } else if !store.visibleArticles.isEmpty {
-                    Button {
-                        store.downloadOffline(store.visibleArticles)
-                    } label: {
-                        Label("Download for Offline", systemImage: "arrow.down.circle")
                     }
                 }
             }
