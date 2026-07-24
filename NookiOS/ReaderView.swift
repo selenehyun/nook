@@ -79,12 +79,11 @@ struct ReaderDetailView: View {
     /// and tiny jitters can't flicker the bars.
     @State private var lastScrollY: CGFloat = 0
     @State private var scrollAccum: CGFloat = 0
-    /// Whether the chrome was showing when a next/prev pull began, so it can be
-    /// restored if the pull is released without navigating.
-    @State private var chromeShownBeforePull = false
-    /// Set when a pull actually commits to a navigation, so the pull-release
-    /// handler doesn't restore chrome that the new article should drive instead.
-    @State private var navigatedFromPull = false
+    /// A bottom-edge pull clears only the floating action bar so the next-article
+    /// indicator can own that space. It deliberately does not change `chromeHidden`:
+    /// toggling the navigation chrome during elastic overscroll can move the scroll
+    /// view's geometry, especially when a short article rests at both edges.
+    @State private var bottomPullEngaged = false
 
     /// The press must stay put this long before the haptic build-up begins, so a
     /// swipe or scroll (which moves past the gesture's maximumDistance well
@@ -317,24 +316,15 @@ struct ReaderDetailView: View {
             .readerSwipeNavigation(
                 nextTitle: store.article(after: article.id)?.title,
                 previousTitle: store.article(before: article.id)?.title,
-                onNext: { navigatedFromPull = true; navigateReader(forward: true) },
-                onPrevious: { navigatedFromPull = true; navigateReader(forward: false) },
+                onNext: { navigateReader(forward: true) },
+                onPrevious: { navigateReader(forward: false) },
                 onPullEngagedChange: { engaged in
-                    // While the next/prev affordance is on screen, get the (possibly
-                    // tap-shown) chrome out of its way so the bar and the indicator
-                    // don't overlap. Restore it if the pull is released without
-                    // navigating; if it navigates, the new article's scroll position
-                    // drives the chrome afresh.
-                    if engaged {
-                        navigatedFromPull = false
-                        chromeShownBeforePull = !chromeHidden
-                        if !chromeHidden {
-                            withAnimation(.easeInOut(duration: 0.2)) { chromeHidden = true }
+                    // The bottom bar is an overlay, so fading it cannot alter the
+                    // active scroll view's layout or interrupt this pull.
+                    if engaged != bottomPullEngaged {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            bottomPullEngaged = engaged
                         }
-                    } else if navigatedFromPull {
-                        navigatedFromPull = false
-                    } else if chromeShownBeforePull, chromeHidden {
-                        withAnimation(.easeInOut(duration: 0.2)) { chromeHidden = false }
                     }
                 }
             )
@@ -345,7 +335,11 @@ struct ReaderDetailView: View {
             // travelled — no bar-geometry math needed.
             .onScrollGeometryChange(for: ScrollSnapshot.self) { geo in
                 let maxY = max(0, geo.contentSize.height - geo.containerSize.height)
-                return ScrollSnapshot(y: geo.contentOffset.y, distanceToBottom: maxY - geo.contentOffset.y)
+                // Elastic overscroll is a gesture beyond an edge, not reading
+                // progress. Clamp it away so a one-screen article's bottom pull
+                // cannot masquerade as scrolling its title under the top bar.
+                let boundedY = min(max(0, geo.contentOffset.y), maxY)
+                return ScrollSnapshot(y: boundedY, distanceToBottom: maxY - boundedY)
             } action: { _, snap in
                 // Freeze the chrome while the coach marks are up, so the bottom bar
                 // (and its document button, spotlighted in one step) stays put.
@@ -545,6 +539,15 @@ struct ReaderDetailView: View {
         guard let currentID else { return }
         guard let next = forward ? store.article(after: currentID) : store.article(before: currentID) else { return }
         readerNavForward = forward
+        // The old pull modifier may leave the hierarchy as soon as selection
+        // changes, before it gets a chance to report its final disengaged state.
+        // Reset all per-article chrome bookkeeping explicitly so the new article
+        // always starts from a stable, visible top position.
+        bottomPullEngaged = false
+        chromeHidden = false
+        titleHidden = false
+        lastScrollY = 0
+        scrollAccum = 0
         withAnimation(.easeInOut(duration: 0.3)) {
             store.selectedArticleID = next.id
             articleOverride?.wrappedValue = next
@@ -694,9 +697,11 @@ struct ReaderDetailView: View {
     /// grouped on the leading side, open-original trailing), with content scrolling
     /// under them. It's a content overlay — so it never affects layout (no
     /// collapse/shift/bounce) and its buttons are ordinary SwiftUI views the coach
-    /// mark can measure. Fades with the chrome.
+    /// mark can measure. Fades with the reading chrome or while its bottom-edge
+    /// pull indicator owns the same space.
     private func readerBottomBar(_ article: Article) -> some View {
-        GlassBarContainer {
+        let isHidden = chromeHidden || bottomPullEngaged
+        return GlassBarContainer {
             HStack(spacing: 0) {
                 HStack(spacing: 2) {
                     ShareLink(item: article.url) {
@@ -760,9 +765,9 @@ struct ReaderDetailView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 6)
-        .opacity(chromeHidden ? 0 : 1)
-        .allowsHitTesting(!chromeHidden)
-        .animation(.easeInOut(duration: 0.25), value: chromeHidden)
+        .opacity(isHidden ? 0 : 1)
+        .allowsHitTesting(!isHidden)
+        .animation(.easeInOut(duration: 0.25), value: isHidden)
     }
 
     // MARK: - Translation

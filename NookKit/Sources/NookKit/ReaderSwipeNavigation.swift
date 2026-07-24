@@ -54,6 +54,22 @@ private struct EdgePull: Equatable {
 /// quick flick is still caught.
 private let readerCommitMinHold: TimeInterval = 0.25
 
+/// Keeps the bottom affordance stable around its reveal boundary. A pull must
+/// cross the full engagement distance before the reader clears its bottom bar,
+/// then retreat close to rest before the bar returns. This avoids flickering
+/// between the two surfaces when the elastic scroll settles around one value.
+enum ReaderPullEngagementPolicy {
+    static let engageThreshold: CGFloat = 24
+    static let disengageThreshold: CGFloat = 8
+
+    static func isEngaged(currentlyEngaged: Bool, bottomPull: CGFloat) -> Bool {
+        if currentlyEngaged {
+            return bottomPull > disengageThreshold
+        }
+        return bottomPull >= engageThreshold
+    }
+}
+
 private struct ReaderSwipeNavigation: ViewModifier {
     let nextTitle: String?
     let previousTitle: String?
@@ -63,9 +79,6 @@ private struct ReaderSwipeNavigation: ViewModifier {
     /// can get out of its way (e.g. hide reader chrome that would overlap it).
     var onPullEngagedChange: (Bool) -> Void = { _ in }
 
-    /// Distance past which the affordance is on screen; past this the pull is
-    /// "engaged" and the host is told, so it can hide overlapping chrome.
-    private static let engageThreshold: CGFloat = 24
     @State private var pullEngaged = false
 
     /// Pull distance past an edge needed to commit to a navigation. Deliberately
@@ -101,7 +114,10 @@ private struct ReaderSwipeNavigation: ViewModifier {
                 // screen, so it can hide chrome that would overlap the indicator.
                 // Only the bottom edge: hiding the top bar during a top (previous)
                 // pull shifts the nav-bar layout and makes the pull judder.
-                let visiblyEngaged = newValue.bottom > Self.engageThreshold
+                let visiblyEngaged = ReaderPullEngagementPolicy.isEngaged(
+                    currentlyEngaged: pullEngaged,
+                    bottomPull: newValue.bottom
+                )
                 if visiblyEngaged != pullEngaged {
                     pullEngaged = visiblyEngaged
                     onPullEngagedChange(visiblyEngaged)
@@ -126,7 +142,7 @@ private struct ReaderSwipeNavigation: ViewModifier {
             // top mirrors it to the previous one (no "close" stage here). `armed`
             // holds the reel in the hint stage until the min hold passes.
             .overlay(alignment: .bottom) {
-                BottomPullAffordance(pull: pull.bottom, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true, nextThreshold: Self.threshold, armed: armed)
+                BottomPullAffordance(pull: displayedBottomPull, nextTitle: nextTitle, edge: .bottom, includeClose: false, forward: true, nextThreshold: Self.threshold, armed: armed)
             }
             .overlay(alignment: .top) {
                 BottomPullAffordance(pull: pull.top, nextTitle: previousTitle, edge: .top, includeClose: false, forward: false, nextThreshold: Self.topThreshold, armed: armed)
@@ -139,6 +155,17 @@ private struct ReaderSwipeNavigation: ViewModifier {
         case .top: if previousTitle != nil { onPrevious() }
         }
         pull = EdgePull()
+    }
+
+    /// On iOS, reveal the bottom indicator at the same intentional-pull boundary
+    /// that clears the reader's bottom controls. Tiny elastic nudges therefore
+    /// leave the reading UI untouched. macOS keeps its existing immediate reveal.
+    private var displayedBottomPull: CGFloat {
+        #if os(iOS)
+        pullEngaged ? pull.bottom : 0
+        #else
+        pull.bottom
+        #endif
     }
 
     #if os(macOS)
