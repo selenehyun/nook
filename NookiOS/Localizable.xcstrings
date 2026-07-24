@@ -1,9 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
+    "" : {},
     "— Diagnostics (helps with troubleshooting; feel free to delete) —" : {
       "localizations" : {
         "en" : {
@@ -60,9 +58,7 @@
         }
       }
     },
-    "%lld" : {
-
-    },
+    "%lld" : {},
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -158,9 +154,7 @@
         }
       }
     },
-    "99+" : {
-
-    },
+    "99+" : {},
     "About" : {
       "localizations" : {
         "en" : {
@@ -430,9 +424,7 @@
         }
       }
     },
-    "Article Rules" : {
-
-    },
+    "Article Rules" : {},
     "At the end of a story, keep pulling up past the bottom to jump to the next one." : {
       "localizations" : {
         "ja" : {
@@ -990,9 +982,7 @@
         }
       }
     },
-    "Couldn't refresh this feed" : {
-
-    },
+    "Couldn't refresh this feed" : {},
     "Create" : {
       "localizations" : {
         "en" : {
@@ -1205,9 +1195,7 @@
         }
       }
     },
-    "Deletes all saved title translations on this device. Titles are translated again as you view them." : {
-
-    },
+    "Deletes all saved title translations on this device. Titles are translated again as you view them." : {},
     "Deselect All" : {
       "localizations" : {
         "en" : {
@@ -3398,9 +3386,7 @@
         }
       }
     },
-    "Open in Safari" : {
-
-    },
+    "Open in Safari" : {},
     "Open Original" : {
       "localizations" : {
         "en" : {
@@ -5715,6 +5701,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部看完啦"
+          }
+        }
+      }
+    },
+    "Untitled" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無題"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제목 없음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
           }
         }
       }

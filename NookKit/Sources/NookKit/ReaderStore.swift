@@ -26,13 +26,26 @@ public final class ReaderStore {
     // lookup instead of an O(articles) scan on every re-render (the sidebar
     // re-renders constantly while a refresh streams articles in).
     private(set) var unreadByFeed: [Feed.ID: Int] = [:]
+    /// Unread count per category id (excludes filtered/hidden articles), for the
+    /// sidebar Categories badges.
+    private(set) var unreadByCategory: [String: Int] = [:]
     private(set) var totalUnread = 0
     private(set) var todayCount = 0
     private(set) var starredCount = 0
-    // Library and Feeds are independent selection scopes: a single smart
-    // source acts as navigation, while feeds support multiple selection.
+    // Library, Feeds, and Categories are independent selection scopes: a single
+    // smart source acts as navigation, feeds support multiple selection, and a
+    // category browses everything tagged with it.
     public var smartSelection: SmartSource? = .all { didSet { scheduleArticleFilter() } }
-    public var feedSelection: Set<Feed.ID> = [] { didSet { scheduleArticleFilter() } }
+    public var feedSelection: Set<Feed.ID> = [] {
+        didSet {
+            // Selecting a feed leaves the Categories scope (they're exclusive).
+            if !feedSelection.isEmpty { categorySelection = nil }
+            scheduleArticleFilter()
+        }
+    }
+    /// The category id currently being browsed, or nil. Mutually exclusive with
+    /// feed/smart selection (set via `selectCategory`).
+    public var categorySelection: String? = nil { didSet { scheduleArticleFilter() } }
     /// Whether the window-wide in-app browser bottom sheet is showing.
     public var isBrowserPresented = false
     /// The in-app browser's current view mode (reader vs original). Toggled
@@ -355,6 +368,7 @@ public final class ReaderStore {
         let feedTitles = Dictionary(feeds.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
         let feedSelection = self.feedSelection
         let smartSelection = self.smartSelection
+        let categorySelection = self.categorySelection
         let retained = retainedArticleIDs
         let filteredIDs = filteredArticleIDs
         let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -377,7 +391,7 @@ public final class ReaderStore {
         if query.isEmpty && snapshot.count < Self.backgroundFilterThreshold {
             applyDisplayed(Self.computeVisibleArticles(
                 snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
-                smartSelection: smartSelection, retained: retained, filteredIDs: filteredIDs, query: query, order: order
+                smartSelection: smartSelection, categorySelection: categorySelection, retained: retained, filteredIDs: filteredIDs, query: query, order: order
             ), animated: animated)
             return
         }
@@ -386,7 +400,7 @@ public final class ReaderStore {
             let result = await Task.detached(priority: .userInitiated) {
                 Self.computeVisibleArticles(
                     snapshot, feedTitles: feedTitles, feedSelection: feedSelection,
-                    smartSelection: smartSelection, retained: retained, filteredIDs: filteredIDs, query: query, order: order
+                    smartSelection: smartSelection, categorySelection: categorySelection, retained: retained, filteredIDs: filteredIDs, query: query, order: order
                 )
             }.value
             guard !Task.isCancelled, let self else { return }
@@ -424,6 +438,7 @@ public final class ReaderStore {
         feedTitles: [Feed.ID: String],
         feedSelection: Set<Feed.ID>,
         smartSelection: SmartSource?,
+        categorySelection: String?,
         retained: Set<Article.ID>,
         filteredIDs: Set<Article.ID>,
         query: String,
@@ -457,6 +472,14 @@ public final class ReaderStore {
             return article.bodyParagraphs.contains { $0.localizedStandardContains(query) }
         }
 
+        // Browsing a category: everything tagged with it, regardless of read or
+        // hidden state (you can open a category you've also chosen to hide).
+        if feedSelection.isEmpty, let categoryID = categorySelection {
+            return articles
+                .filter { $0.categories.contains(categoryID) && matchesQuery($0) }
+                .sorted { Article.isOrdered($0, $1, by: order) }
+        }
+
         // The Filtered source shows exactly the hidden articles (regardless of
         // read state); every other source hides them.
         if feedSelection.isEmpty, smartSelection == .filtered {
@@ -486,6 +509,10 @@ public final class ReaderStore {
             }
             return String(localized: "\(feedSelection.count) selected", bundle: Bundle.module)
         }
+        if let categoryID = categorySelection,
+           let category = categories.first(where: { $0.id == categoryID }) {
+            return category.name.isEmpty ? String(localized: "Untitled", bundle: Bundle.module) : category.name
+        }
         return smartSelection?.title ?? String(localized: "Articles", bundle: Bundle.module)
     }
 
@@ -495,11 +522,28 @@ public final class ReaderStore {
     /// Selecting a smart source is single-select navigation and clears any
     /// feed selection, keeping the two scopes independent.
     public func selectSmartSource(_ source: SmartSource) {
+        categorySelection = nil
         smartSelection = source
         feedSelection = []
         clearRetainedArticles()
         pruneSelectionIfHidden()
     }
+
+    /// Browses everything tagged with a category. Mutually exclusive with the
+    /// smart-source and feed scopes.
+    public func selectCategory(_ id: String) {
+        smartSelection = nil
+        feedSelection = []
+        categorySelection = id
+        clearRetainedArticles()
+        pruneSelectionIfHidden()
+    }
+
+    /// Unread count for a category (for the sidebar badge).
+    public func count(forCategory id: String) -> Int { unreadByCategory[id] ?? 0 }
+
+    /// Whether any categories exist (drives the sidebar Categories section).
+    public var hasCategories: Bool { !categories.isEmpty }
 
     // MARK: - Sort order (per category, persisted)
 
@@ -1000,6 +1044,7 @@ public final class ReaderStore {
     /// re-scanning all articles per badge, per render.
     private func recomputeCounts() {
         var byFeed: [Feed.ID: Int] = [:]
+        var byCategory: [String: Int] = [:]
         var total = 0
         var today = 0
         var starred = 0
@@ -1016,6 +1061,7 @@ public final class ReaderStore {
             if !article.isRead {
                 byFeed[article.feedID, default: 0] += 1
                 total += 1
+                for categoryID in article.categories { byCategory[categoryID, default: 0] += 1 }
             }
             if article.isStarred { starred += 1 }
             if let startOfTomorrow {
@@ -1025,6 +1071,7 @@ public final class ReaderStore {
             }
         }
         unreadByFeed = byFeed
+        unreadByCategory = byCategory
         totalUnread = total
         todayCount = today
         starredCount = starred
@@ -1201,6 +1248,10 @@ public final class ReaderStore {
     private func applyCategoryChange() {
         recomputeFilteredIDs()
         if !hasFilters, feedSelection.isEmpty, smartSelection == .filtered {
+            selectSmartSource(.all)
+        }
+        // Don't strand the user browsing a category that was just deleted.
+        if let selected = categorySelection, !categories.contains(where: { $0.id == selected }) {
             selectSmartSource(.all)
         }
         recomputeCounts()
@@ -1476,6 +1527,9 @@ public final class ReaderStore {
     /// Selecting a folder selects all feeds inside it, so the article list
     /// shows the folder's combined articles.
     public func selectFolder(_ folder: String) {
+        // Leave the category scope even for an empty folder (feedSelection's didSet
+        // only clears it when non-empty).
+        categorySelection = nil
         feedSelection = Set(feeds.filter { $0.folderName == folder }.map(\.id))
         clearRetainedArticles()
         pruneSelectionIfHidden()

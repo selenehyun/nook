@@ -1,7 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {},
+    "" : {
+
+    },
     "'%@' is not a valid URL." : {
       "localizations" : {
         "en" : {
@@ -26,6 +28,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@”不是有效的网址。"
+          }
+        }
+      }
+    },
+    "%@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@%2$@"
           }
         }
       }
@@ -438,7 +450,9 @@
         }
       }
     },
-    "Apple Intelligence" : {},
+    "Apple Intelligence" : {
+
+    },
     "Article list titles" : {
       "localizations" : {
         "ja" : {
@@ -1682,7 +1696,9 @@
         }
       }
     },
-    "Gemini" : {},
+    "Gemini" : {
+
+    },
     "Gemini API key" : {
       "localizations" : {
         "ja" : {
@@ -2203,7 +2219,9 @@
         }
       }
     },
-    "Match in" : {},
+    "Match in" : {
+
+    },
     "matches a or b" : {
       "localizations" : {
         "en" : {
@@ -2634,7 +2652,9 @@
         }
       }
     },
-    "OK" : {},
+    "OK" : {
+
+    },
     "Only new articles are tagged automatically. Use this to catch up your existing articles." : {
       "localizations" : {
         "en" : {

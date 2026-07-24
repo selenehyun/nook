@@ -1109,6 +1109,7 @@
       }
     },
     "Choose how each feed's articles open in the web view. “Default” follows the reader setting in the Reader tab." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1130,6 +1131,7 @@
         }
       }
     },
+    "Choose how each feed's articles open in the web view. “Default” follows the reader typography settings." : {},
     "Choose iCloud Folder" : {
       "localizations" : {
         "en" : {
@@ -3897,6 +3899,34 @@
         }
       }
     },
+    "Organize" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organize"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分類"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분류"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分类"
+          }
+        }
+      }
+    },
     "Original Page" : {
       "localizations" : {
         "en" : {
@@ -4117,6 +4147,7 @@
       }
     },
     "Reader" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5162,6 +5193,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置 iCloud 同步"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
           }
         }
       }
@@ -6352,6 +6411,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消星标"
+          }
+        }
+      }
+    },
+    "Untitled" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無題"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제목 없음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
           }
         }
       }

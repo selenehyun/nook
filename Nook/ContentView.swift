@@ -436,6 +436,14 @@ private struct FeedSidebar: View {
                 }
             }
 
+            if store.hasCategories {
+                Section("Categories") {
+                    ForEach(store.categories) { category in
+                        categorySourceRow(category)
+                    }
+                }
+            }
+
             Section {
                 if store.feeds.isEmpty && store.feedFolders.isEmpty {
                     Text(store.isStorageConfigured ? "Add an RSS or Atom feed." : "Choose a sync folder first.")
@@ -808,6 +816,38 @@ private struct FeedSidebar: View {
                 Label(source.title, systemImage: source.systemImage)
                 Spacer(minLength: 8)
                 let count = store.count(for: source)
+                if count > 0 {
+                    Text(count, format: .number)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(isActive ? Color.white.opacity(0.85) : Color.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isActive ? Color.white : Color.primary)
+        .listRowBackground(
+            isActive
+                ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor).padding(.horizontal, 6)
+                : nil
+        )
+    }
+
+    @ViewBuilder
+    private func categorySourceRow(_ category: ArticleCategory) -> some View {
+        let isActive = store.feedSelection.isEmpty && store.categorySelection == category.id
+        Button {
+            store.selectCategory(category.id)
+        } label: {
+            HStack(spacing: 8) {
+                Label {
+                    Text(category.name.isEmpty ? String(localized: "Untitled") : category.name)
+                } icon: {
+                    Circle().fill(Color(nookHex: category.colorHex)).frame(width: 10, height: 10)
+                }
+                Spacer(minLength: 8)
+                let count = store.count(forCategory: category.id)
                 if count > 0 {
                     Text(count, format: .number)
                         .font(.caption)
@@ -2730,69 +2770,112 @@ private struct OPMLImportView: View {
 
 /// The app's preferences window, laid out as a standard macOS multi-tab
 /// Settings scene with grouped forms that match the main window's styling.
+/// The panes of the Settings window's sidebar. Related tabs are consolidated:
+/// Reading holds reading + reader typography, Organize holds Article Rules +
+/// Filters. Rendered as a native `NavigationSplitView` source list + detail Form.
+private enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, reading, feeds, organize, offline, experimental, about
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .general: String(localized: "General")
+        case .reading: String(localized: "Reading")
+        case .feeds: String(localized: "Feeds")
+        case .organize: String(localized: "Organize")
+        case .offline: String(localized: "Offline")
+        case .experimental: String(localized: "Experimental")
+        case .about: String(localized: "About")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general: "gearshape"
+        case .reading: "book"
+        case .feeds: "dot.radiowaves.up.forward"
+        case .organize: "tag"
+        case .offline: "arrow.down.circle"
+        case .experimental: "flask"
+        case .about: "info.circle"
+        }
+    }
+}
+
+/// The Settings window: a macOS System-Settings-style source list of panes + a
+/// detail Form, so many settings groups stay tidy without a crowded tab bar.
+///
+/// A fixed `List(.sidebar)` + `Divider` + detail — deliberately NOT a
+/// `NavigationSplitView`: inside the Settings scene the split view added a
+/// sidebar-collapse toggle (unwanted) and drew the sidebar up under the window's
+/// traffic lights. This layout keeps the source-list look while sitting cleanly
+/// below the title bar with no collapse control.
 struct ReaderSettingsView: View {
-    var body: some View {
-        TabView {
-            GeneralSettingsTab()
-                .tabItem { Label("General", systemImage: "gearshape") }
-            ReadingSettingsTab()
-                .tabItem { Label("Reading", systemImage: "book") }
-            ReaderSettingsTab()
-                .tabItem { Label("Reader", systemImage: "textformat") }
-            FeedsSettingsTab()
-                .tabItem { Label("Feeds", systemImage: "dot.radiowaves.up.forward") }
-            ArticleRulesSettingsTab()
-                .tabItem { Label("Article Rules", systemImage: "tag") }
-            FiltersSettingsTab()
-                .tabItem { Label("Filters", systemImage: "line.3.horizontal.decrease.circle") }
-            OfflineSettingsTab()
-                .tabItem { Label("Offline", systemImage: "arrow.down.circle") }
-            ExperimentalSettingsTab()
-                .tabItem { Label("Experimental", systemImage: "flask") }
-            AboutSettingsTab()
-                .tabItem { Label("About", systemImage: "info.circle") }
-        }
-        .frame(width: 540, height: 430)
-    }
-}
+    @State private var pane: SettingsPane? = .general
 
-private struct ArticleRulesSettingsTab: View {
     var body: some View {
-        Form {
-            Section("Article Rules") {
-                ArticleRulesSettingsContent(store: .shared)
+        HStack(spacing: 0) {
+            List(SettingsPane.allCases, selection: $pane) { pane in
+                Label(pane.title, systemImage: pane.systemImage)
             }
+            .listStyle(.sidebar)
+            .frame(width: 200)
+
+            Divider()
+
+            detail(for: pane ?? .general)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .formStyle(.grouped)
+        .frame(width: 760, height: 520)
+    }
+
+    @ViewBuilder
+    private func detail(for pane: SettingsPane) -> some View {
+        switch pane {
+        case .general: settingsForm { GeneralSettingsSections() }
+        case .reading: settingsForm { ReadingSettingsSections(); ReaderSettingsSections() }
+        case .feeds: settingsForm { FeedsSettingsSections() }
+        case .organize: settingsForm { ArticleRulesSettingsSections(); FiltersSettingsSections() }
+        case .offline: settingsForm { OfflineSettingsSections() }
+        case .experimental: settingsForm { ExperimentalSettingsSections() }
+        case .about: AboutSettingsPane()
+        }
+    }
+
+    @ViewBuilder
+    private func settingsForm<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        Form { content() }.formStyle(.grouped)
     }
 }
 
-private struct OfflineSettingsTab: View {
+private struct ArticleRulesSettingsSections: View {
     var body: some View {
-        Form {
-            Section("Offline Reading") {
-                OfflineSettingsContent(store: .shared)
-            }
+        Section("Article Rules") {
+            ArticleRulesSettingsContent(store: .shared)
         }
-        .formStyle(.grouped)
     }
 }
 
-private struct FiltersSettingsTab: View {
+private struct OfflineSettingsSections: View {
+    var body: some View {
+        Section("Offline Reading") {
+            OfflineSettingsContent(store: .shared)
+        }
+    }
+}
+
+private struct FiltersSettingsSections: View {
     @AppStorage(ReaderStore.filterGuideSeenKey) private var filterGuideSeen = false
     @State private var showGuide = false
 
     var body: some View {
-        Form {
-            Section("Filters") {
-                FilterSettingsContent(store: .shared, onShowGuide: { showGuide = true })
-            }
+        Section("Filters") {
+            FilterSettingsContent(store: .shared, onShowGuide: { showGuide = true })
         }
-        .formStyle(.grouped)
         .sheet(isPresented: $showGuide) {
             FilterGuideView(onDone: { showGuide = false })
         }
-        // Show the tutorial once, the first time the user opens Filters settings.
+        // Show the tutorial once, the first time the user opens the Organize pane.
         .onAppear {
             guard !filterGuideSeen else { return }
             filterGuideSeen = true
@@ -2801,44 +2884,43 @@ private struct FiltersSettingsTab: View {
     }
 }
 
-private struct ExperimentalSettingsTab: View {
+private struct ExperimentalSettingsSections: View {
     @AppStorage(ReaderStore.readerContentByDefaultKey) private var readerContentByDefault = true
     @AppStorage(ReaderStore.translateListTitlesKey) private var translateListTitles = false
     @AppStorage(ReaderStore.coherentArticleTranslationKey) private var coherentArticleTranslation = false
     @State private var confirmingClearTranslationCache = false
 
     var body: some View {
-        Form {
-            Section("Translation Engine") {
-                TranslationEngineSettingsContent()
-            }
+        Section("Translation Engine") {
+            TranslationEngineSettingsContent()
+        }
 
-            Section("Reader View") {
-                Toggle("Show reader view content by default", isOn: $readerContentByDefault)
-                Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Section("Reader View") {
+            Toggle("Show reader view content by default", isOn: $readerContentByDefault)
+            Text("Fetches the full article and shows its Reader-view content in the native reader instead of the feed's summary. Turn off to read the original feed content. If Reader view can't be loaded, the original content is shown with a notice.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-                Toggle("Coherent long-article translation", isOn: $coherentArticleTranslation)
-                Text("When translating a full article, keeps the previous paragraph in context so the translation reads more consistently across a long piece. Experimental — it falls back to the standard paragraph-by-paragraph translation whenever needed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Toggle("Coherent long-article translation", isOn: $coherentArticleTranslation)
+            Text("When translating a full article, keeps the previous paragraph in context so the translation reads more consistently across a long piece. Experimental — it falls back to the standard paragraph-by-paragraph translation whenever needed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
 
-            Section("Article List") {
-                Toggle("Translate titles in the list", isOn: $translateListTitles)
-                Text("Titles of the stories on screen are translated into your language with Apple Intelligence, shown beneath the original. Only titles that stay in view are translated, and results are cached. Titles already in your language are left as-is.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Section("Article List") {
+            Toggle("Translate titles in the list", isOn: $translateListTitles)
+            Text("Titles of the stories on screen are translated into your language with Apple Intelligence, shown beneath the original. Only titles that stay in view are translated, and results are cached. Titles already in your language are left as-is.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-                LabeledContent("Translation Cache") {
-                    Button("Clear Translation Cache", role: .destructive) {
-                        confirmingClearTranslationCache = true
-                    }
+            LabeledContent("Translation Cache") {
+                Button("Clear Translation Cache", role: .destructive) {
+                    confirmingClearTranslationCache = true
                 }
             }
         }
-        .formStyle(.grouped)
+        // Attach to a single concrete Section (not the whole group) so there's
+        // one presentation anchor, not one per section.
         .confirmationDialog(
             "Clear Translation Cache",
             isPresented: $confirmingClearTranslationCache
@@ -2853,81 +2935,75 @@ private struct ExperimentalSettingsTab: View {
     }
 }
 
-private struct GeneralSettingsTab: View {
+private struct GeneralSettingsSections: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage = AppLanguage.system
     @AppStorage("showUnreadBadge") private var showUnreadBadge = true
     @Bindable private var updateController = UpdateController.shared
 
     var body: some View {
-        Form {
-            Section("Language") {
-                Picker("Language", selection: $appLanguage) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.label).tag(language)
-                    }
-                }
-
-                if appLanguage != AppLanguage.launchLanguage {
-                    LabeledContent {
-                        Button("Relaunch") { AppLanguage.relaunch() }
-                    } label: {
-                        Text("Restart Nook to apply the language change.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+        Section("Language") {
+            Picker("Language", selection: $appLanguage) {
+                ForEach(AppLanguage.allCases) { language in
+                    Text(language.label).tag(language)
                 }
             }
-
-            Section("App Icon") {
-                Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
+            .onChange(of: appLanguage) { _, newValue in
+                AppLanguage.apply(newValue)
             }
 
-            Section("Software Update") {
-                Toggle("Automatically check for updates", isOn: $updateController.automaticallyChecksForUpdates)
+            if appLanguage != AppLanguage.launchLanguage {
                 LabeledContent {
-                    Button("Check Now") { updateController.checkForUpdates() }
+                    Button("Relaunch") { AppLanguage.relaunch() }
                 } label: {
-                    Text("Nook checks quietly in the background and shows a notice in the sidebar when an update is ready.")
+                    Text("Restart Nook to apply the language change.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .formStyle(.grouped)
-        .onChange(of: appLanguage) { _, newValue in
-            AppLanguage.apply(newValue)
+
+        Section("App Icon") {
+            Toggle("Show unread count on app icon", isOn: $showUnreadBadge)
+        }
+
+        Section("Software Update") {
+            Toggle("Automatically check for updates", isOn: $updateController.automaticallyChecksForUpdates)
+            LabeledContent {
+                Button("Check Now") { updateController.checkForUpdates() }
+            } label: {
+                Text("Nook checks quietly in the background and shows a notice in the sidebar when an update is ready.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
 
-private struct ReadingSettingsTab: View {
+private struct ReadingSettingsSections: View {
     @AppStorage("markReadOnOpen") private var markReadOnOpen = true
     @AppStorage("markReadDelaySeconds") private var markReadDelaySeconds = 3
     @AppStorage("readerViewMode") private var readerViewMode = ReaderViewMode.reader
     @AppStorage("readerLinkBehavior") private var readerLinkBehavior = ReaderLinkBehavior.inApp
 
     var body: some View {
-        Form {
-            Section("Reading") {
-                Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
-                Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
-                    .disabled(!markReadOnOpen)
-            }
+        Section("Reading") {
+            Toggle("Mark articles as read when opened", isOn: $markReadOnOpen)
+            Stepper("Mark as read after \(markReadDelaySeconds) seconds", value: $markReadDelaySeconds, in: 0...30)
+                .disabled(!markReadOnOpen)
+        }
 
-            Section("In-App Browser") {
-                Picker("In-App Browser", selection: $readerViewMode) {
-                    ForEach(ReaderViewMode.allCases) { Text($0.label).tag($0) }
-                }
-                Picker("Links Open", selection: $readerLinkBehavior) {
-                    ForEach(ReaderLinkBehavior.allCases) { Text($0.label).tag($0) }
-                }
+        Section("In-App Browser") {
+            Picker("In-App Browser", selection: $readerViewMode) {
+                ForEach(ReaderViewMode.allCases) { Text($0.label).tag($0) }
+            }
+            Picker("Links Open", selection: $readerLinkBehavior) {
+                ForEach(ReaderLinkBehavior.allCases) { Text($0.label).tag($0) }
             }
         }
-        .formStyle(.grouped)
     }
 }
 
-private struct ReaderSettingsTab: View {
+private struct ReaderSettingsSections: View {
     @AppStorage("readerFont") private var readerFont = ReaderFont.system
     @AppStorage("readerFontSize") private var readerFontSize = 18
     @AppStorage("readerLineHeight") private var readerLineHeight = 1.7
@@ -2945,42 +3021,39 @@ private struct ReaderSettingsTab: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Picker("Font", selection: $readerFont) {
-                    ForEach(ReaderFont.allCases) { Text($0.label).tag($0) }
-                }
-                Stepper("Font Size: \(readerFontSize)", value: $readerFontSize, in: 12...28)
-                Stepper("Line Spacing: \(String(format: "%.1f", readerLineHeight))", value: $readerLineHeight, in: 1.2...2.4, step: 0.1)
-                Stepper("Letter Spacing: \(String(format: "%.2f", readerLetterSpacing))", value: $readerLetterSpacing, in: -0.02...0.15, step: 0.01)
-            } header: {
-                Text("Typography")
-            } footer: {
-                Text("These options apply when reading in reader mode.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Section {
+            Picker("Font", selection: $readerFont) {
+                ForEach(ReaderFont.allCases) { Text($0.label).tag($0) }
             }
+            Stepper("Font Size: \(readerFontSize)", value: $readerFontSize, in: 12...28)
+            Stepper("Line Spacing: \(String(format: "%.1f", readerLineHeight))", value: $readerLineHeight, in: 1.2...2.4, step: 0.1)
+            Stepper("Letter Spacing: \(String(format: "%.2f", readerLetterSpacing))", value: $readerLetterSpacing, in: -0.02...0.15, step: 0.01)
+        } header: {
+            Text("Typography")
+        } footer: {
+            Text("These options apply when reading in reader mode.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
 
-            Section("Colors") {
-                Picker("Background", selection: $readerBackgroundOption) {
-                    ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
-                }
-                if readerBackgroundOption == .custom {
-                    ColorPicker("Background Color", selection: backgroundColor, supportsOpacity: false)
-                }
-                Picker("Text", selection: $readerTextOption) {
-                    ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
-                }
-                if readerTextOption == .custom {
-                    ColorPicker("Text Color", selection: textColor, supportsOpacity: false)
-                }
+        Section("Colors") {
+            Picker("Background", selection: $readerBackgroundOption) {
+                ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
+            }
+            if readerBackgroundOption == .custom {
+                ColorPicker("Background Color", selection: backgroundColor, supportsOpacity: false)
+            }
+            Picker("Text", selection: $readerTextOption) {
+                ForEach(ReaderColorOption.allCases) { Text($0.label).tag($0) }
+            }
+            if readerTextOption == .custom {
+                ColorPicker("Text Color", selection: textColor, supportsOpacity: false)
             }
         }
-        .formStyle(.grouped)
     }
 }
 
-private struct FeedsSettingsTab: View {
+private struct FeedsSettingsSections: View {
     @Bindable private var store = ReaderStore.shared
     @AppStorage("autoRefreshEnabled") private var autoRefreshEnabled = true
     @AppStorage("refreshIntervalMinutes") private var refreshIntervalMinutes = 30
@@ -2995,59 +3068,56 @@ private struct FeedsSettingsTab: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
-                Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
-                    .disabled(!autoRefreshEnabled)
-                Toggle("Notify me about new articles", isOn: $newArticleNotifications)
-                    .disabled(!autoRefreshEnabled)
-                    .onChange(of: newArticleNotifications) { _, enabled in
-                        if enabled {
-                            Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
-                        }
-                    }
-                Toggle("Fill in missing article dates", isOn: $resolveMissingDates)
-            } header: {
-                Text("Feeds")
-            } footer: {
-                Text("Some feeds omit each article's date. When enabled, Nook reads the real date from the article's page (once per article).")
-            }
-
-            Section {
-                if sortedFeeds.isEmpty {
-                    Text("No feeds yet. Add feeds from the main window.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(sortedFeeds) { feed in
-                        Picker(selection: viewModeBinding(for: feed)) {
-                            Text("Default").tag(ReaderViewMode?.none)
-                            Text(ReaderViewMode.reader.label).tag(ReaderViewMode?.some(.reader))
-                            Text(ReaderViewMode.original.label).tag(ReaderViewMode?.some(.original))
-                        } label: {
-                            Text(feed.displayTitle).lineLimit(1)
-                        }
+        Section {
+            Toggle("Refresh feeds automatically", isOn: $autoRefreshEnabled)
+            Stepper("Refresh every \(refreshIntervalMinutes) minutes", value: $refreshIntervalMinutes, in: 5...240, step: 5)
+                .disabled(!autoRefreshEnabled)
+            Toggle("Notify me about new articles", isOn: $newArticleNotifications)
+                .disabled(!autoRefreshEnabled)
+                .onChange(of: newArticleNotifications) { _, enabled in
+                    if enabled {
+                        Task { await NewArticleNotifier.requestAuthorizationIfNeeded() }
                     }
                 }
-            } header: {
-                Text("Reading View")
-            } footer: {
-                Text("Choose how each feed's articles open in the web view. “Default” follows the reader setting in the Reader tab.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? String(localized: "Not selected") : syncFolderDisplayPath)
-            } header: {
-                Text("Storage")
-            } footer: {
-                Text("Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Toggle("Fill in missing article dates", isOn: $resolveMissingDates)
+        } header: {
+            Text("Feeds")
+        } footer: {
+            Text("Some feeds omit each article's date. When enabled, Nook reads the real date from the article's page (once per article).")
         }
-        .formStyle(.grouped)
+
+        Section {
+            if sortedFeeds.isEmpty {
+                Text("No feeds yet. Add feeds from the main window.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(sortedFeeds) { feed in
+                    Picker(selection: viewModeBinding(for: feed)) {
+                        Text("Default").tag(ReaderViewMode?.none)
+                        Text(ReaderViewMode.reader.label).tag(ReaderViewMode?.some(.reader))
+                        Text(ReaderViewMode.original.label).tag(ReaderViewMode?.some(.original))
+                    } label: {
+                        Text(feed.displayTitle).lineLimit(1)
+                    }
+                }
+            }
+        } header: {
+            Text("Reading View")
+        } footer: {
+            Text("Choose how each feed's articles open in the web view. “Default” follows the reader typography settings.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
+        Section {
+            LabeledContent("Sync Folder", value: syncFolderDisplayPath.isEmpty ? String(localized: "Not selected") : syncFolderDisplayPath)
+        } header: {
+            Text("Storage")
+        } footer: {
+            Text("Nook keeps your feeds in a folder in iCloud Drive so they stay in sync across your devices.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func viewModeBinding(for feed: Feed) -> Binding<ReaderViewMode?> {
@@ -3058,7 +3128,7 @@ private struct FeedsSettingsTab: View {
     }
 }
 
-private struct AboutSettingsTab: View {
+private struct AboutSettingsPane: View {
     private var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
     private var build: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1" }
 

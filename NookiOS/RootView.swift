@@ -355,6 +355,7 @@ private enum FeedTarget: Hashable {
     case all
     case filtered
     case offline
+    case category(String)
     case folder(String)
     case feed(Feed.ID)
 }
@@ -531,6 +532,8 @@ private struct CompactShell: View {
             store.selectSmartSource(.filtered)
         case .offline:
             store.selectSmartSource(.offline)
+        case .category(let id):
+            store.selectCategory(id)
         case .folder(let name):
             store.selectFolder(name)
         case .feed(let id):
@@ -823,6 +826,28 @@ private struct FeedsTab: View {
                     }
                 }
                 .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+
+                if store.hasCategories {
+                    Section("Categories") {
+                        ForEach(store.categories) { category in
+                            NavigationLink(value: FeedTarget.category(category.id)) {
+                                HStack {
+                                    Label {
+                                        Text(category.name.isEmpty ? String(localized: "Untitled") : category.name)
+                                    } icon: {
+                                        Circle().fill(Color(nookHex: category.colorHex)).frame(width: 10, height: 10)
+                                    }
+                                    Spacer()
+                                    let count = store.count(forCategory: category.id)
+                                    if count > 0 {
+                                        Text(count, format: .number).foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+                }
 
                 if !store.feedFolders.isEmpty || !store.ungroupedFeeds.isEmpty {
                     Section("Feeds") {
@@ -1174,6 +1199,7 @@ struct SplashView: View {
 /// article-list column when a row is tapped on iPhone.
 enum SidebarItem: Hashable {
     case smart(SmartSource)
+    case category(String)
     case feed(Feed.ID)
 }
 
@@ -1210,6 +1236,27 @@ private struct Sidebar: View {
             // Frosted translucent cards (not the solid white/dark grouped fill)
             // so the warm background shows through with a glassy feel.
             .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+
+            if store.hasCategories {
+                Section("Categories") {
+                    ForEach(store.categories) { category in
+                        HStack {
+                            Label {
+                                Text(category.name.isEmpty ? String(localized: "Untitled") : category.name)
+                            } icon: {
+                                Circle().fill(Color(nookHex: category.colorHex)).frame(width: 10, height: 10)
+                            }
+                            Spacer()
+                            let count = store.count(forCategory: category.id)
+                            if count > 0 {
+                                Text(count, format: .number).foregroundStyle(.secondary)
+                            }
+                        }
+                        .tag(SidebarItem.category(category.id))
+                    }
+                }
+                .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+            }
 
             if !store.feedFolders.isEmpty || !store.ungroupedFeeds.isEmpty {
                 Section("Feeds") {
@@ -1275,6 +1322,8 @@ private struct Sidebar: View {
             switch item {
             case .smart(let source):
                 store.selectSmartSource(source)
+            case .category(let id):
+                store.selectCategory(id)
             case .feed(let id):
                 store.feedSelection = [id]
                 store.smartSelection = nil
