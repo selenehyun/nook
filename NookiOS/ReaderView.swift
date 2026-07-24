@@ -704,8 +704,12 @@ struct ReaderDetailView: View {
         return GlassBarContainer {
             HStack(spacing: 0) {
                 HStack(spacing: 2) {
-                    ShareLink(item: article.url) {
-                        Image(systemName: "square.and.arrow.up")
+                    ArticleShareMenu(
+                        articleURL: article.url,
+                        title: article.title,
+                        markdown: { store.nativeReaderMarkdown(for: article) }
+                    ) { copied in
+                        Image(systemName: copied ? "checkmark" : "square.and.arrow.up")
                             .font(.system(size: 20))
                             .frame(width: 52, height: 48)
                     }

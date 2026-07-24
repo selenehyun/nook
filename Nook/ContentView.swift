@@ -130,8 +130,12 @@ struct ContentView: View {
                 .help("Mark Selected Article as Read")
 
                 if let article = store.selectedArticle {
-                    ShareLink(item: article.url) {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                    ArticleShareMenu(
+                        articleURL: article.url,
+                        title: article.title,
+                        markdown: { store.nativeReaderMarkdown(for: article) }
+                    ) { copied in
+                        Label("Share", systemImage: copied ? "checkmark" : "square.and.arrow.up")
                     }
                     .help("Share Article")
                 }
@@ -2058,8 +2062,12 @@ private struct ReaderDetailView: View {
                         Label("Open Original", systemImage: "safari")
                     }
 
-                    ShareLink(item: article.url) {
-                        Label("Share", systemImage: "square.and.arrow.up")
+                    ArticleShareMenu(
+                        articleURL: article.url,
+                        title: article.title,
+                        markdown: { store.nativeReaderMarkdown(for: article) }
+                    ) { copied in
+                        Label("Share", systemImage: copied ? "checkmark" : "square.and.arrow.up")
                     }
 
                     Spacer()
