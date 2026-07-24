@@ -44,10 +44,13 @@ public struct FilterSettingsContent: View {
     }
 }
 
-/// One editable filter row. Edits mutate a local `draft` so typing stays smooth;
-/// the draft is committed to the store on a short debounce (`task(id:)`), which
-/// also refreshes the live "hides N stories" count. An external change to the
-/// same filter (e.g. a peer sync) is adopted back into the draft.
+/// One editable filter row. Edits mutate a local `draft` only — they're applied
+/// to the article list (and persisted/synced) exclusively when the user taps
+/// **Save**, so typing a pattern never re-filters a large library keystroke by
+/// keystroke. The live "hides N stories" count is still computed for the draft
+/// (off the main actor, and it never touches the list), so the effect previews
+/// before saving. An external change to the same filter (e.g. a peer sync) is
+/// adopted back into the draft when there's nothing unsaved.
 private struct FilterRow: View {
     let filter: ArticleFilter
     let onChange: (ArticleFilter) -> Void
@@ -75,6 +78,9 @@ private struct FilterRow: View {
             && !draft.pattern.isEmpty
             && (try? NSRegularExpression(pattern: draft.pattern)) == nil
     }
+
+    /// Whether the draft has edits not yet applied/saved.
+    private var isDirty: Bool { draft != filter }
 
     private var placeholder: Text {
         switch draft.kind {
@@ -120,23 +126,39 @@ private struct FilterRow: View {
             }
             .font(.callout)
 
-            status
+            footer
         }
         .padding(.vertical, 2)
+        // Adopt an external update (a peer sync) only when we have nothing
+        // unsaved, so it never discards edits the user is in the middle of.
         .onChange(of: filter) { _, new in
-            if new != draft { draft = new }
+            if !isDirty { draft = new }
         }
-        // Debounced commit + live-count refresh; restarts whenever the draft
-        // changes, so a burst of keystrokes settles once the user pauses.
+        // Live-count preview ONLY — never commits. Recomputes off the main actor
+        // when the draft settles, so it previews a rule's effect without ever
+        // re-filtering the list (that happens only on Save).
         .task(id: draft) {
-            if draft != filter {
-                try? await Task.sleep(for: .milliseconds(350))
-                guard !Task.isCancelled else { return }
-                onChange(draft)
-            }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
             let count = await matchCount(draft)
             guard !Task.isCancelled else { return }
             liveCount = count
+        }
+    }
+
+    /// The status text plus a Save button that appears only when there are
+    /// unsaved edits — tapping it is the sole thing that applies the filter.
+    private var footer: some View {
+        HStack(spacing: 8) {
+            status
+            Spacer(minLength: 8)
+            if isDirty {
+                Button { onChange(draft) } label: {
+                    Text("Save", bundle: .module)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
         }
     }
 
