@@ -58,20 +58,30 @@ struct HTMLBlockList: View {
     /// translation as it arrives; nested lists don't take a translator because a
     /// translated blockquote already carries its translated children.
     var translator: NativeArticleTranslator?
+    /// List-item children use the same semantic spacing rules at a denser scale.
+    /// Quotes retain normal article rhythm.
+    var compactSpacing = false
 
     var body: some View {
         if lazy {
-            LazyVStack(alignment: .leading, spacing: 18) { rows }
+            LazyVStack(alignment: .leading, spacing: 0) { rows }
         } else {
-            VStack(alignment: .leading, spacing: 18) { rows }
+            VStack(alignment: .leading, spacing: 0) { rows }
         }
     }
 
     @ViewBuilder
     private var rows: some View {
-        ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
-            blockView(translator?.translatedBlock(at: index) ?? block)
+        ForEach(blocks.indices, id: \.self) { index in
+            let block = displayedBlock(at: index)
+            let previous = index > blocks.startIndex ? displayedBlock(at: index - 1) : nil
+            blockView(block)
+                .padding(.top, HTMLBlockSpacing.gap(from: previous, to: block, compact: compactSpacing))
         }
+    }
+
+    private func displayedBlock(at index: Int) -> HTMLContentBlock {
+        translator?.translatedBlock(at: index) ?? blocks[index]
     }
 
     @ViewBuilder
@@ -133,6 +143,54 @@ indirect enum HTMLContentBlock: Equatable, Sendable {
     }
 }
 
+/// CSS-like collapsed margins for native article blocks. Each block describes
+/// the breathing room it wants before and after itself; adjacent margins collapse
+/// to the larger value instead of being added. This keeps the same visual rhythm
+/// whether a paragraph pair lives inside one imported fragment or is split by the
+/// parser around a heading, list, or media element.
+enum HTMLBlockSpacing {
+    static let paragraphGap: CGFloat = 10
+
+    private struct Margins {
+        let before: CGFloat
+        let after: CGFloat
+    }
+
+    static func gap(from previous: HTMLContentBlock?, to current: HTMLContentBlock, compact: Bool = false) -> CGFloat {
+        guard let previous else { return 0 }
+        let gap = max(margins(for: previous).after, margins(for: current).before)
+        return compact ? gap * 0.65 : gap
+    }
+
+    private static func margins(for block: HTMLContentBlock) -> Margins {
+        switch block {
+        case .text:
+            return Margins(before: 0, after: paragraphGap)
+        case .mixedText(_, let headingLevel):
+            if let headingLevel { return headingMargins(level: headingLevel) }
+            return Margins(before: 0, after: paragraphGap)
+        case .heading(let level, _):
+            return headingMargins(level: level)
+        case .list, .blockquote:
+            return Margins(before: 14, after: 14)
+        case .image, .video, .audio, .embed, .codeBlock, .table:
+            return Margins(before: 16, after: 16)
+        case .thematicBreak:
+            return Margins(before: 22, after: 22)
+        }
+    }
+
+    private static func headingMargins(level: Int) -> Margins {
+        let before: CGFloat
+        switch level {
+        case 1, 2: before = 26
+        case 3: before = 22
+        default: before = 18
+        }
+        return Margins(before: before, after: 8)
+    }
+}
+
 struct HTMLMedia: Equatable, Sendable {
     let url: URL
     let title: String?
@@ -188,6 +246,93 @@ final class HTMLBlockCache: @unchecked Sendable {
 
     func store(_ blocks: [HTMLContentBlock], html: String, baseURL: URL?) {
         cache.setObject(CacheBox(blocks), forKey: Self.key(html: html, baseURL: baseURL))
+    }
+}
+
+/// Normalizes the platform HTML importer's document-oriented whitespace into a
+/// reader-oriented text flow. AppKit/UIKit otherwise preserve source CSS and
+/// their own HTML defaults (for example 12pt after `<p>` plus a trailing newline),
+/// which then stack unpredictably with SwiftUI's outer block spacing.
+enum HTMLTextFlow {
+    private static let cacheVersion = "reader-flow-v2"
+    private static let paragraphBreakRegex = try! NSRegularExpression(
+        pattern: #"(?:\r\n?|\n)(?:[ \t]*(?:\r\n?|\n))+"#
+    )
+
+    static func preparedHTML(_ html: String) -> String {
+        // A Unicode line separator remains a soft line break through both HTML
+        // importers. Plain newlines are paragraph boundaries, so this lets us
+        // normalize paragraph margins without turning <br> into a full paragraph.
+        html.replacingOccurrences(
+            of: #"(?is)<br\b[^>]*>"#,
+            with: "\u{2028}",
+            options: .regularExpression
+        )
+    }
+
+    static func cacheKey(html: String, baseSize: CGFloat, bold: Bool) -> String {
+        "\(cacheVersion)-\(baseSize)-\(bold)-\(html)"
+    }
+
+    static func normalize(_ text: NSMutableAttributedString, baseSize: CGFloat) {
+        collapseEmptyParagraphs(in: text)
+        trimBoundaryBreaks(in: text)
+        guard text.length > 0 else { return }
+
+        let fullRange = NSRange(location: 0, length: text.length)
+        var updates: [(NSRange, NSMutableParagraphStyle)] = []
+        text.enumerateAttribute(.paragraphStyle, in: fullRange) { rawStyle, range, _ in
+            let style = (rawStyle as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle
+                ?? NSMutableParagraphStyle()
+            style.paragraphSpacingBefore = 0
+            style.paragraphSpacing = paragraphGap(for: baseSize)
+            // Source CSS and importer defaults vary wildly between sites. SwiftUI's
+            // lineSpacing below owns the reader's line rhythm instead.
+            style.lineSpacing = 0
+            style.minimumLineHeight = 0
+            style.maximumLineHeight = 0
+            style.lineHeightMultiple = 0
+            updates.append((range, style))
+        }
+        for (range, style) in updates {
+            text.addAttribute(.paragraphStyle, value: style, range: range)
+        }
+        removeTrailingParagraphMargin(in: text)
+    }
+
+    static func paragraphGap(for baseSize: CGFloat) -> CGFloat {
+        min(12, max(8, baseSize * 0.6))
+    }
+
+    private static func collapseEmptyParagraphs(in text: NSMutableAttributedString) {
+        let range = NSRange(location: 0, length: text.length)
+        paragraphBreakRegex.replaceMatches(in: text.mutableString, range: range, withTemplate: "\n")
+    }
+
+    private static func trimBoundaryBreaks(in text: NSMutableAttributedString) {
+        while text.length > 0, isBoundaryBreak(text.mutableString.character(at: 0)) {
+            text.deleteCharacters(in: NSRange(location: 0, length: 1))
+        }
+        while text.length > 0, isBoundaryBreak(text.mutableString.character(at: text.length - 1)) {
+            text.deleteCharacters(in: NSRange(location: text.length - 1, length: 1))
+        }
+    }
+
+    private static func removeTrailingParagraphMargin(in text: NSMutableAttributedString) {
+        guard text.length > 0 else { return }
+        let string = text.string as NSString
+        let finalParagraph = string.paragraphRange(
+            for: NSRange(location: text.length - 1, length: 0)
+        )
+        let rawStyle = text.attribute(.paragraphStyle, at: text.length - 1, effectiveRange: nil)
+        let style = (rawStyle as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle
+            ?? NSMutableParagraphStyle()
+        style.paragraphSpacing = 0
+        text.addAttribute(.paragraphStyle, value: style, range: finalParagraph)
+    }
+
+    private static func isBoundaryBreak(_ character: unichar) -> Bool {
+        character == 0x000A || character == 0x000D || character == 0x2028 || character == 0x2029
     }
 }
 
@@ -1263,7 +1408,7 @@ private struct NativeMixedText: View {
     private var bold: Bool { headingLevel != nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: HTMLBlockSpacing.paragraphGap) {
             ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
                 switch part {
                 case .html(let html):
@@ -1362,7 +1507,6 @@ private struct NativeArticleHeading: View {
 
     var body: some View {
         HTMLContentText(html: html, selectable: selectable, baseSize: HTMLContentText.headingSize(level), bold: true)
-            .padding(.top, level <= 2 ? 6 : 2)
     }
 }
 
@@ -1400,7 +1544,7 @@ private struct NativeArticleList: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                         .frame(minWidth: ordered ? 24 : 14, alignment: .trailing)
-                    HTMLBlockList(blocks: blocks, selectable: selectable)
+                    HTMLBlockList(blocks: blocks, selectable: selectable, compactSpacing: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -1824,7 +1968,7 @@ public struct HTMLContentText: View {
     }
 
     private var resolvedSize: CGFloat { baseSize ?? Self.platformBodySize }
-    private var renderKey: String { "\(resolvedSize)-\(bold)-\(html)" }
+    private var renderKey: String { HTMLTextFlow.cacheKey(html: html, baseSize: resolvedSize, bold: bold) }
 
     static var platformBodySize: CGFloat {
         #if canImport(AppKit)
@@ -1903,7 +2047,7 @@ public struct HTMLContentText: View {
     /// will request.
     @MainActor
     private static func warmAttributed(_ html: String, baseSize: CGFloat, bold: Bool) {
-        let key = "\(baseSize)-\(bold)-\(html)"
+        let key = HTMLTextFlow.cacheKey(html: html, baseSize: baseSize, bold: bold)
         guard HTMLAttributedCache.shared.value(forKey: key) == nil else { return }
         if let rendered = render(html, baseSize: baseSize, bold: bold) {
             HTMLAttributedCache.shared.store(rendered, forKey: key)
@@ -1911,12 +2055,14 @@ public struct HTMLContentText: View {
     }
 
     private static func render(_ html: String, baseSize: CGFloat, bold: Bool) -> AttributedString? {
-        guard let data = html.data(using: .utf8) else { return nil }
+        guard let data = HTMLTextFlow.preparedHTML(html).data(using: .utf8) else { return nil }
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
             .documentType: NSAttributedString.DocumentType.html,
             .characterEncoding: String.Encoding.utf8.rawValue
         ]
         guard let mutable = try? NSMutableAttributedString(data: data, options: options, documentAttributes: nil) else { return nil }
+        HTMLTextFlow.normalize(mutable, baseSize: baseSize)
+        guard mutable.length > 0 else { return nil }
         let fullRange = NSRange(location: 0, length: mutable.length)
         let codeSize = baseSize * 0.92
 
