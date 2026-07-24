@@ -1421,7 +1421,8 @@ private struct ArticleRow: View {
 
                     ListTitleTranslationBlock(
                         title: article.title,
-                        box: translationBox
+                        box: translationBox,
+                        surroundingLayoutRevision: article.categories.hashValue
                     )
                 }
 
