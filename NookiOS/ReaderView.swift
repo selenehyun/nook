@@ -563,7 +563,9 @@ struct ReaderDetailView: View {
     /// falling back to the original feed content (with a notice) on failure.
     @ViewBuilder
     private func readerBody(_ article: Article) -> some View {
-        if store.usesReaderContentByDefault {
+        // Show the extracted content when the experiment is on OR the user saved
+        // this article offline (their explicit choice to keep the full content).
+        if store.usesReaderContentByDefault || store.isOfflineSaved(article.id) {
             switch store.readerContentState(for: article) {
             case .ready(let html):
                 HTMLContentView(html: html, baseURL: article.url, selectable: false, translator: nativeTranslator)

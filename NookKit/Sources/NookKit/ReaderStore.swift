@@ -282,6 +282,9 @@ public final class ReaderStore {
         deviceID = DeviceIdentity.current()
         ownShard = DeviceStateDocument(deviceID: deviceID)
         await restoreStorageIfPossible()
+        // Drop offline copies past their expiry (device-local; independent of the
+        // sync folder), so stale downloads don't linger or inflate the count.
+        purgeExpiredOffline()
         scheduleArticleFilter()
     }
 
@@ -339,6 +342,16 @@ public final class ReaderStore {
         let filteredIDs = filteredArticleIDs
         let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let order = currentSortOrder
+
+        // The Downloaded source is driven by the offline store itself, not the
+        // in-memory library, so a saved article that was deleted from a feed or
+        // aged out of the baseline still lists (and can be removed) — the whole
+        // point of a durable download. Built on the main actor from the (small,
+        // capped) offline index; newest-saved first.
+        if feedSelection.isEmpty, smartSelection == .offline {
+            applyDisplayed(offlineDisplayArticles(query: query, filteredIDs: filteredIDs), animated: animated)
+            return
+        }
 
         // Only the empty-query, small-library path filters synchronously (cheap set
         // /enum checks + sort, and it should stay sync so it can still animate). Any
@@ -412,6 +425,9 @@ public final class ReaderStore {
             case .some(.today): return Calendar.current.isDateInToday(article.publishedAt)
             case .some(.starred): return article.isStarred
             case .some(.filtered): return false
+            // The Downloaded source is handled before this compute (from the
+            // offline store), so it's never the selection here.
+            case .some(.offline): return false
             }
         }
 
@@ -1225,8 +1241,16 @@ public final class ReaderStore {
         // `.all` excludes filtered articles (they live only under `.filtered`).
         case .all: articles.count - filteredArticleIDs.count
         case .filtered: filteredArticleIDs.count
+        case .offline: OfflineArticleStore.shared.totalCount
         }
     }
+
+    /// Whether the user has any articles saved offline (drives the sidebar entry).
+    public var hasOfflineArticles: Bool { OfflineArticleStore.shared.totalCount > 0 }
+
+    /// Whether a specific article is saved offline — the per-row icon signal.
+    /// Reads `OfflineArticleStore.shared`, so the row observes its saved set.
+    public func isOfflineSaved(_ id: Article.ID) -> Bool { OfflineArticleStore.shared.isSaved(id) }
 
     /// Whether any filter is actually active (enabled with a non-empty pattern).
     /// Drives whether the sidebar surfaces the "Filtered" entry — so a freshly
@@ -1456,6 +1480,16 @@ public final class ReaderStore {
     /// — seeing the guide is per-install UI state. Defaults false.
     public static let filterGuideSeenKey = "filterGuideSeen"
 
+    /// `UserDefaults` key for how long saved-offline articles are kept before
+    /// auto-removal (an `OfflineExpiry` raw value). Device-local. Defaults to two
+    /// weeks.
+    public static let offlineExpiryKey = "offlineExpiry"
+
+    /// The configured offline auto-expiry (defaults to two weeks).
+    public var offlineExpiry: OfflineExpiry {
+        (UserDefaults.standard.string(forKey: Self.offlineExpiryKey)).flatMap(OfflineExpiry.init(rawValue:)) ?? .twoWeeks
+    }
+
     /// How many currently-loaded articles a single filter would hide, for the live
     /// feedback shown next to it in settings. Computed off the main actor so a big
     /// library doesn't hitch typing; returns 0 for a disabled/empty/invalid filter.
@@ -1492,10 +1526,156 @@ public final class ReaderStore {
     /// Kicks off reader-mode extraction for an article when the experiment is on
     /// and we haven't already started (or finished) it this session. Idempotent.
     public func ensureReaderContent(for article: Article) {
-        guard usesReaderContentByDefault else { return }
         guard readerContentStates[article.id] == nil else { return }
+        // Saved offline → serve the stored copy instantly (a single small file
+        // read, no network) so it opens even with no connection — and regardless
+        // of the reader-content-by-default toggle, since the user explicitly saved
+        // this article's full content.
+        if let html = OfflineArticleStore.shared.content(for: article.id),
+           !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            readerContentStates[article.id] = .ready(html)
+            return
+        }
+        guard usesReaderContentByDefault else { return }
         readerContentStates[article.id] = .loading
         Task { await loadReaderContent(for: article, forceRefresh: false) }
+    }
+
+    // MARK: - Offline caching
+
+    /// Progress of an in-flight "download all" (completed, total), or nil when
+    /// idle. Observed so the UI can show a progress indicator.
+    public private(set) var offlineDownloadProgress: (completed: Int, total: Int)?
+    private var bulkDownloadTask: Task<Void, Never>?
+
+    /// Saved-offline articles, newest first (for the management list).
+    public func offlineInfos() -> [OfflineArticleInfo] { OfflineArticleStore.shared.infos() }
+
+    /// The Downloaded source's articles, built from the offline store (not the
+    /// library) so a saved article survives its feed being deleted or the article
+    /// aging out of the baseline. Uses the live library article when present (real
+    /// read/starred/feed), else a lightweight stand-in from the saved metadata so
+    /// it still lists, opens (served from the offline copy), and can be removed.
+    private func offlineDisplayArticles(query: String, filteredIDs: Set<Article.ID>) -> [Article] {
+        let byID = Dictionary(articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return OfflineArticleStore.shared.infos().compactMap { info in
+            if filteredIDs.contains(info.id) { return nil }
+            let article = byID[info.id] ?? Article(
+                id: info.id, feedID: "", title: info.title, summary: "", bodyParagraphs: [],
+                publishedAt: info.savedAt, url: info.url, estimatedReadMinutes: 0,
+                isRead: true, isStarred: false
+            )
+            if !query.isEmpty {
+                let haystack = "\(article.title) \(article.summary) \(info.feedTitle)"
+                guard haystack.localizedStandardContains(query) else { return nil }
+            }
+            return article
+        }
+    }
+    /// Total bytes of saved offline content (for the storage readout).
+    public var offlineTotalBytes: Int { OfflineArticleStore.shared.totalBytes }
+
+    /// Saves one article for offline reading (extract if needed; always stores
+    /// something readable). Fire-and-forget from the UI.
+    public func saveOffline(_ article: Article) {
+        Task { await performSaveOffline(article) }
+    }
+
+    /// Removes one article's offline copy.
+    public func removeOffline(_ id: Article.ID) {
+        OfflineArticleStore.shared.remove(id)
+        // Don't strand the user on an empty Downloaded source.
+        if smartSelection == .offline, feedSelection.isEmpty, !hasOfflineArticles {
+            selectSmartSource(.all)
+        } else {
+            scheduleArticleFilter()
+        }
+    }
+
+    /// Downloads a batch of articles for offline reading (the "Download all in
+    /// this view" action), with bounded concurrency so a big batch doesn't spawn
+    /// dozens of extraction WebViews at once. Skips already-saved articles.
+    public func downloadOffline(_ articles: [Article]) {
+        let pending = articles.filter { !OfflineArticleStore.shared.isSaved($0.id) }
+        guard !pending.isEmpty, offlineDownloadProgress == nil else { return }
+        bulkDownloadTask = Task { await performBulkDownload(pending) }
+    }
+
+    /// Deletes every saved offline article.
+    public func clearOfflineCache() {
+        // Stop an in-flight bulk download so it can't re-populate what we clear.
+        bulkDownloadTask?.cancel()
+        bulkDownloadTask = nil
+        offlineDownloadProgress = nil
+        OfflineArticleStore.shared.removeAll()
+        if smartSelection == .offline, feedSelection.isEmpty {
+            selectSmartSource(.all)
+        } else {
+            scheduleArticleFilter()
+        }
+    }
+
+    /// Removes offline copies older than the configured expiry. Run at launch.
+    public func purgeExpiredOffline() {
+        OfflineArticleStore.shared.loadIfNeeded()
+        guard let maxAge = offlineExpiry.maxAge else { return }
+        OfflineArticleStore.shared.purge(olderThan: maxAge, now: Date())
+    }
+
+    private func performSaveOffline(_ article: Article, refreshList: Bool = true) async {
+        let html = await offlineHTML(for: article)
+        let feedTitle = feed(for: article.feedID)?.displayTitle ?? ""
+        OfflineArticleStore.shared.save(
+            id: article.id, title: article.title, url: article.url,
+            feedTitle: feedTitle, html: html, now: Date()
+        )
+        if refreshList { scheduleArticleFilter() }
+    }
+
+    private func performBulkDownload(_ articles: [Article]) async {
+        let total = articles.count
+        offlineDownloadProgress = (0, total)
+        // Extract one at a time: each extraction spins an offscreen WKWebView, so
+        // going serial keeps a big batch from spawning dozens at once (memory) and
+        // from hammering the network. Progress updates after each.
+        for (offset, article) in articles.enumerated() {
+            if Task.isCancelled { break }
+            await performSaveOffline(article, refreshList: false)
+            offlineDownloadProgress = (offset + 1, total)
+        }
+        offlineDownloadProgress = nil
+        scheduleArticleFilter()
+    }
+
+    /// The HTML to store for offline: a synced/cached extraction if present, else
+    /// a fresh extraction, else the feed body wrapped as HTML — so a saved article
+    /// always has something readable, even for a summary-only feed we couldn't
+    /// extract.
+    private func offlineHTML(for article: Article) async -> String {
+        if readerContentStore == nil, let storage {
+            readerContentStore = ReaderContentStore(storage: storage, deviceID: deviceID)
+        }
+        if let cached = await readerContentStore?.value(for: article.id),
+           cached.status == .success, let html = cached.html,
+           !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return html
+        }
+        if readerModeExtractor == nil { readerModeExtractor = ReaderModeExtractor() }
+        if case .success(let html)? = await readerModeExtractor?.extract(url: article.url),
+           !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            await readerContentStore?.record(ReaderContentValue(status: .success, html: html), for: article.id)
+            return html
+        }
+        return Self.feedBodyHTML(for: article)
+    }
+
+    /// A last-resort offline body from the already-local feed content, so even an
+    /// unextractable article is readable offline.
+    private static func feedBodyHTML(for article: Article) -> String {
+        if let html = article.contentHTML, !html.isEmpty { return html }
+        let paragraphs = article.bodyParagraphs.filter { !$0.isEmpty }
+        if !paragraphs.isEmpty { return paragraphs.map { "<p>\($0)</p>" }.joined() }
+        return "<p>\(article.summary)</p>"
     }
 
     /// Re-runs extraction for an article, bypassing the cache (the "Try Again"

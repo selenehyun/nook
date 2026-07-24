@@ -490,6 +490,7 @@ private struct FeedSidebar: View {
         .navigationTitle("Feeds")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
+                downloadedSourceRow
                 filteredSourceRow
                 sidebarActionBar
                 SyncFolderFooter(store: store, onChoose: onChooseSyncFolder)
@@ -717,6 +718,42 @@ private struct FeedSidebar: View {
         .draggable(feed.id)
         .contextMenu {
             feedContextMenu(feed)
+        }
+    }
+
+    /// A "Downloaded" entry pinned in the bottom corner of the sidebar, shown only
+    /// when the user has saved articles offline. Opens the saved-offline articles.
+    @ViewBuilder
+    private var downloadedSourceRow: some View {
+        if store.hasOfflineArticles {
+            let isActive = store.feedSelection.isEmpty && store.smartSelection == .offline
+            Divider()
+            Button {
+                store.selectSmartSource(.offline)
+            } label: {
+                HStack(spacing: 8) {
+                    Label(SmartSource.offline.title, systemImage: SmartSource.offline.systemImage)
+                        .font(.callout)
+                    Spacer(minLength: 8)
+                    let count = store.count(for: .offline)
+                    if count > 0 {
+                        Text(count, format: .number)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(isActive ? Color.white.opacity(0.85) : Color.secondary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+                .foregroundStyle(isActive ? Color.white : Color.secondary)
+                .background(
+                    isActive
+                        ? RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor).padding(.horizontal, 8)
+                        : nil
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -1177,6 +1214,13 @@ private struct ArticleListView: View {
                                 Button(article.isStarred ? "Remove Star" : "Star") {
                                     store.toggleStarred(articleID: article.id)
                                 }
+                                Button(store.isOfflineSaved(article.id) ? "Remove Download" : "Save for Offline") {
+                                    if store.isOfflineSaved(article.id) {
+                                        store.removeOffline(article.id)
+                                    } else {
+                                        store.saveOffline(article)
+                                    }
+                                }
                                 Divider()
                                 Link("Open in Browser", destination: article.url)
                             }
@@ -1218,6 +1262,23 @@ private struct ArticleListView: View {
         // The source is shown by the toolbar breadcrumb instead, so no column
         // title here (avoids duplicating it in the toolbar).
         .searchable(text: $store.searchText, placement: .toolbar, prompt: "Search Articles")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if let progress = store.offlineDownloadProgress {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("\(progress.completed)/\(progress.total)").monospacedDigit()
+                    }
+                } else if !store.visibleArticles.isEmpty {
+                    Button {
+                        store.downloadOffline(store.visibleArticles)
+                    } label: {
+                        Label("Download for Offline", systemImage: "arrow.down.circle")
+                    }
+                    .help("Save every article in this list for offline reading")
+                }
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             ArticleListStatusBar(store: store)
         }
@@ -1298,6 +1359,13 @@ private struct ArticleRow: View {
                                 .font(.caption)
                                 .foregroundStyle(.yellow)
                                 .accessibilityLabel("Starred")
+                        }
+
+                        if OfflineArticleStore.shared.isSaved(article.id) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel("Saved offline")
                         }
                     }
 
@@ -2064,7 +2132,9 @@ private struct ReaderDetailView: View {
     /// falling back to the original feed content (with a notice) on failure.
     @ViewBuilder
     private func readerBody(_ article: Article) -> some View {
-        if store.usesReaderContentByDefault {
+        // Show the extracted content when the experiment is on OR the user saved
+        // this article offline (their explicit choice to keep the full content).
+        if store.usesReaderContentByDefault || store.isOfflineSaved(article.id) {
             switch store.readerContentState(for: article) {
             case .ready(let html):
                 HTMLContentView(html: html, baseURL: article.url, translator: nativeTranslator)
@@ -2645,12 +2715,25 @@ struct ReaderSettingsView: View {
                 .tabItem { Label("Feeds", systemImage: "dot.radiowaves.up.forward") }
             FiltersSettingsTab()
                 .tabItem { Label("Filters", systemImage: "line.3.horizontal.decrease.circle") }
+            OfflineSettingsTab()
+                .tabItem { Label("Offline", systemImage: "arrow.down.circle") }
             ExperimentalSettingsTab()
                 .tabItem { Label("Experimental", systemImage: "flask") }
             AboutSettingsTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 540, height: 430)
+    }
+}
+
+private struct OfflineSettingsTab: View {
+    var body: some View {
+        Form {
+            Section("Offline Reading") {
+                OfflineSettingsContent(store: .shared)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

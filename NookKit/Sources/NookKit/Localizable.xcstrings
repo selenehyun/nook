@@ -69,6 +69,34 @@
         }
       }
     },
+    "A filter hides any story that matches it — usually just a word or phrase. Turn on **Regex** on a filter for pattern matching. Matches ignore case unless you turn on **Aa**." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A filter hides any story that matches it — usually just a word or phrase. Turn on **Regex** on a filter for pattern matching. Matches ignore case unless you turn on **Aa**."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタは一致する記事を隠します — 通常は単語やフレーズで十分です。パターンマッチングが必要なときは、そのフィルタの **Regex** をオンにします。**Aa** をオンにしない限り、大文字と小文字は区別されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터는 일치하는 글을 숨깁니다 — 보통은 단어나 구절이면 됩니다. 패턴 매칭이 필요하면 그 필터의 **Regex**를 켜세요. **Aa**를 켜지 않으면 대소문자를 구분하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器会隐藏所有匹配的文章——通常一个单词或短语就够了。需要模式匹配时，为该过滤器开启 **Regex**。除非开启 **Aa**，否则匹配不区分大小写。"
+          }
+        }
+      }
+    },
     "A Gemini API key is saved on this device." : {
       "localizations" : {
         "ja" : {
@@ -301,6 +329,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加订阅源前，请先选择一个 iCloud 云盘文件夹。"
+          }
+        }
+      }
+    },
+    "Choose what it checks" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose what it checks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検査対象を選ぶ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "검사 대상 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择检查范围"
           }
         }
       }
@@ -559,6 +615,34 @@
         }
       }
     },
+    "Enter a word, phrase, or pattern to hide." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a word, phrase, or pattern to hide."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隠す単語・フレーズ・パターンを入力します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨길 단어, 구절 또는 패턴을 입력하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入要隐藏的单词、短语或模式。"
+          }
+        }
+      }
+    },
     "Feed" : {
       "localizations" : {
         "en" : {
@@ -587,6 +671,34 @@
         }
       }
     },
+    "Filter out stories you don't want" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter out stories you don't want"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不要な記事を除外"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원하지 않는 글 걸러내기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤掉你不想看的文章"
+          }
+        }
+      }
+    },
     "Filtered" : {
       "localizations" : {
         "en" : {
@@ -611,6 +723,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已过滤"
+          }
+        }
+      }
+    },
+    "Filtered stories leave every list and unread count — they're never treated as unread. Find them anytime under **Filtered** at the bottom of the sidebar. Nothing is deleted: turn a filter off and its stories come right back." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filtered stories leave every list and unread count — they're never treated as unread. Find them anytime under **Filtered** at the bottom of the sidebar. Nothing is deleted: turn a filter off and its stories come right back."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタされた記事はすべてのリストと未読数から外れ、未読として扱われません。サイドバー下部の **フィルタ済み** でいつでも確認できます。削除ではないので、フィルタをオフにすれば戻ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "걸러진 글은 모든 목록과 안 읽음 개수에서 빠지며, 안 읽음으로 취급되지 않습니다. 사이드바 맨 아래 **필터됨**에서 언제든 볼 수 있어요. 삭제되는 게 아니라서, 필터를 끄면 다시 나타납니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "被过滤的文章会从所有列表和未读计数中移除，且不会被视为未读。你可以随时在侧边栏底部的**已过滤**中找到它们。它们不会被删除——关闭过滤器就会重新出现。"
+          }
+        }
+      }
+    },
+    "Filters quietly hide stories that match rules you set — so your lists stay about what you actually want to read." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters quietly hide stories that match rules you set — so your lists stay about what you actually want to read."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定したルールに一致する記事をフィルタがそっと隠すので、リストは本当に読みたいものだけに保たれます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터는 설정한 규칙에 맞는 글을 조용히 숨겨, 목록이 정말 읽고 싶은 것들로 유지되게 합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器会悄悄隐藏符合你所设规则的文章，让列表只留下你真正想读的内容。"
+          }
+        }
+      }
+    },
+    "Filters sync through your folder, so the same stories stay hidden on every device." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filters sync through your folder, so the same stories stay hidden on every device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタはフォルダを通じて同期され、どのデバイスでも同じ記事が隠れます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터는 동기화 폴더를 통해 공유되어, 모든 기기에서 같은 글이 숨겨집니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器通过你的文件夹同步，因此同一批文章会在每台设备上都被隐藏。"
           }
         }
       }
@@ -656,6 +852,174 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gemini API 密钥"
+          }
+        }
+      }
+    },
+    "Got It" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Got It"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "知道了"
+          }
+        }
+      }
+    },
+    "Hides %lld stories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hides %lld stories"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件を非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 %lld개 숨김"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏 %lld 条"
+          }
+        }
+      }
+    },
+    "Hides 1 story" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hides 1 story"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1件を非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글 1개 숨김"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏 1 条"
+          }
+        }
+      }
+    },
+    "How filters work" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How filters work"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタの仕組み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터 사용법"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器如何工作"
+          }
+        }
+      }
+    },
+    "ignore case (prefix)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ignore case (prefix)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大文字小文字を無視（接頭辞）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대소문자 무시 (접두사)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略大小写（前缀）"
+          }
+        }
+      }
+    },
+    "In" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対象"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대상"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "范围"
           }
         }
       }
@@ -738,6 +1102,34 @@
         }
       }
     },
+    "Match against the story's **Title**, its **Summary**, or both — set per filter, so a noisy word can be caught only where it matters." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match against the story's **Title**, its **Summary**, or both — set per filter, so a noisy word can be caught only where it matters."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記事の **タイトル**、**要約**、またはその両方を対象にできます。フィルタごとに設定できるので、ありふれた語を必要な箇所だけで捕まえられます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글의 **제목**, **요약**, 또는 둘 다를 대상으로 지정하세요. 필터마다 따로 설정할 수 있어, 흔한 단어를 필요한 곳에서만 걸러낼 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可匹配文章的**标题**、**摘要**或两者，且每个过滤器单独设置，让常见词只在需要的地方被拦截。"
+          }
+        }
+      }
+    },
     "Match Appearance" : {
       "localizations" : {
         "en" : {
@@ -762,6 +1154,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跟随外观"
+          }
+        }
+      }
+    },
+    "matches a or b" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "matches a or b"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a または b に一致"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a 또는 b와 일치"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配 a 或 b"
+          }
+        }
+      }
+    },
+    "Matches are tidied away" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matches are tidied away"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致した記事はまとめられます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "걸러진 글은 따로 모입니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配的文章会被收起"
+          }
+        }
+      }
+    },
+    "Matching stories are hidden from every list and unread count, and collected under Filtered. Filters sync across your devices." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matching stories are hidden from every list and unread count, and collected under Filtered. Filters sync across your devices."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致する記事はすべてのリストと未読数から隠れ、「フィルタ済み」にまとまります。フィルタはデバイス間で同期されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일치하는 글은 모든 목록과 안 읽음 개수에서 숨겨지고 ‘필터됨’에 모입니다. 필터는 기기 간에 동기화됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配的文章会从所有列表和未读计数中隐藏，并归入“已过滤”。过滤器会在你的设备间同步。"
           }
         }
       }
@@ -912,6 +1388,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以后再说"
+          }
+        }
+      }
+    },
+    "Off — this filter isn't hiding anything." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off — this filter isn't hiding anything."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフ — このフィルタは何も隠していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "꺼짐 — 이 필터는 아무것도 숨기지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关闭 — 此过滤器未隐藏任何内容。"
           }
         }
       }
@@ -1187,6 +1691,62 @@
         }
       }
     },
+    "Regex tips" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regex tips"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規表現のヒント"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정규식 팁"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正则表达式提示"
+          }
+        }
+      }
+    },
+    "Regular expression" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regular expression"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規表現"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정규식"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正则表达式"
+          }
+        }
+      }
+    },
     "Release for next article" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1240,6 +1800,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "松开关闭"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
           }
         }
       }
@@ -1535,6 +2123,34 @@
         }
       }
     },
+    "The same everywhere" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same everywhere"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どのデバイスでも同じ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 기기에서 동일하게"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每台设备都一致"
+          }
+        }
+      }
+    },
     "The saved sync folder permission expired. Choose the folder again." : {
       "localizations" : {
         "en" : {
@@ -1714,6 +2330,7 @@
       }
     },
     "Type" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1825,6 +2442,118 @@
         }
       }
     },
+    "Use a regular expression" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use a regular expression"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規表現を使う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정규식 사용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用正则表达式"
+          }
+        }
+      }
+    },
+    "whole word only" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "whole word only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単語全体のみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단어 전체만"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅整词"
+          }
+        }
+      }
+    },
+    "Word or phrase to hide" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Word or phrase to hide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隠す単語やフレーズ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨길 단어나 구절"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要隐藏的单词或短语"
+          }
+        }
+      }
+    },
+    "Write a rule" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write a rule"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ルールを書く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "규칙 작성"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编写规则"
+          }
+        }
+      }
+    },
     "You can change this anytime in Settings › Experimental." : {
       "localizations" : {
         "ja" : {
@@ -1913,730 +2642,338 @@
         }
       }
     },
-    "Got It" : {
+    "Downloaded" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Got It"
+            "value" : "Downloaded"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "完了"
+            "value" : "ダウンロード済み"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "확인"
+            "value" : "다운로드됨"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "知道了"
+            "value" : "已下载"
           }
         }
       }
     },
-    "Filter out stories you don't want" : {
+    "Never" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filter out stories you don't want"
+            "value" : "Never"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不要な記事を除外"
+            "value" : "しない"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "원하지 않는 글 걸러내기"
+            "value" : "안 함"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "过滤掉你不想看的文章"
+            "value" : "从不"
           }
         }
       }
     },
-    "Filters quietly hide stories that match rules you set — so your lists stay about what you actually want to read." : {
+    "After 1 week" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filters quietly hide stories that match rules you set — so your lists stay about what you actually want to read."
+            "value" : "After 1 week"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "設定したルールに一致する記事をフィルタがそっと隠すので、リストは本当に読みたいものだけに保たれます。"
+            "value" : "1週間後"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "필터는 설정한 규칙에 맞는 글을 조용히 숨겨, 목록이 정말 읽고 싶은 것들로 유지되게 합니다."
+            "value" : "1주 후"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "过滤器会悄悄隐藏符合你所设规则的文章，让列表只留下你真正想读的内容。"
+            "value" : "1周后"
           }
         }
       }
     },
-    "Write a rule" : {
+    "After 2 weeks" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write a rule"
+            "value" : "After 2 weeks"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ルールを書く"
+            "value" : "2週間後"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "규칙 작성"
+            "value" : "2주 후"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "编写规则"
+            "value" : "2周后"
           }
         }
       }
     },
-    "Choose what it checks" : {
+    "After 1 month" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose what it checks"
+            "value" : "After 1 month"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "検査対象を選ぶ"
+            "value" : "1か月後"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "검사 대상 선택"
+            "value" : "1개월 후"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择检查范围"
+            "value" : "1个月后"
           }
         }
       }
     },
-    "Match against the story's **Title**, its **Summary**, or both — set per filter, so a noisy word can be caught only where it matters." : {
+    "Auto-remove downloads" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Match against the story's **Title**, its **Summary**, or both — set per filter, so a noisy word can be caught only where it matters."
+            "value" : "Auto-remove downloads"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "記事の **タイトル**、**要約**、またはその両方を対象にできます。フィルタごとに設定できるので、ありふれた語を必要な箇所だけで捕まえられます。"
+            "value" : "ダウンロードの自動削除"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "글의 **제목**, **요약**, 또는 둘 다를 대상으로 지정하세요. 필터마다 따로 설정할 수 있어, 흔한 단어를 필요한 곳에서만 걸러낼 수 있습니다."
+            "value" : "다운로드 자동 삭제"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可匹配文章的**标题**、**摘要**或两者，且每个过滤器单独设置，让常见词只在需要的地方被拦截。"
+            "value" : "自动移除下载"
           }
         }
       }
     },
-    "Matches are tidied away" : {
+    "None" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Matches are tidied away"
+            "value" : "None"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一致した記事はまとめられます"
+            "value" : "なし"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "걸러진 글은 따로 모입니다"
+            "value" : "없음"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "匹配的文章会被收起"
+            "value" : "无"
           }
         }
       }
     },
-    "Filtered stories leave every list and unread count — they're never treated as unread. Find them anytime under **Filtered** at the bottom of the sidebar. Nothing is deleted: turn a filter off and its stories come right back." : {
+    "1 article downloaded" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filtered stories leave every list and unread count — they're never treated as unread. Find them anytime under **Filtered** at the bottom of the sidebar. Nothing is deleted: turn a filter off and its stories come right back."
+            "value" : "1 article downloaded"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フィルタされた記事はすべてのリストと未読数から外れ、未読として扱われません。サイドバー下部の **フィルタ済み** でいつでも確認できます。削除ではないので、フィルタをオフにすれば戻ります。"
+            "value" : "1件をダウンロード済み"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "걸러진 글은 모든 목록과 안 읽음 개수에서 빠지며, 안 읽음으로 취급되지 않습니다. 사이드바 맨 아래 **필터됨**에서 언제든 볼 수 있어요. 삭제되는 게 아니라서, 필터를 끄면 다시 나타납니다."
+            "value" : "1개 글 다운로드됨"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "被过滤的文章会从所有列表和未读计数中移除，且不会被视为未读。你可以随时在侧边栏底部的**已过滤**中找到它们。它们不会被删除——关闭过滤器就会重新出现。"
+            "value" : "已下载 1 篇"
           }
         }
       }
     },
-    "The same everywhere" : {
+    "%lld articles downloaded" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The same everywhere"
+            "value" : "%lld articles downloaded"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "どのデバイスでも同じ"
+            "value" : "%lld件をダウンロード済み"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "모든 기기에서 동일하게"
+            "value" : "%lld개 글 다운로드됨"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每台设备都一致"
+            "value" : "已下载 %lld 篇"
           }
         }
       }
     },
-    "Filters sync through your folder, so the same stories stay hidden on every device." : {
+    "Remove All Downloads" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filters sync through your folder, so the same stories stay hidden on every device."
+            "value" : "Remove All Downloads"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フィルタはフォルダを通じて同期され、どのデバイスでも同じ記事が隠れます。"
+            "value" : "すべてのダウンロードを削除"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "필터는 동기화 폴더를 통해 공유되어, 모든 기기에서 같은 글이 숨겨집니다."
+            "value" : "모든 다운로드 삭제"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "过滤器通过你的文件夹同步，因此同一批文章会在每台设备上都被隐藏。"
+            "value" : "移除所有下载"
           }
         }
       }
     },
-    "Regex tips" : {
+    "Deletes every article saved for offline reading on this device." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Regex tips"
+            "value" : "Deletes every article saved for offline reading on this device."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正規表現のヒント"
+            "value" : "この端末にオフライン用に保存したすべての記事を削除します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "정규식 팁"
+            "value" : "이 기기에 오프라인용으로 저장된 모든 글을 삭제합니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正则表达式提示"
+            "value" : "删除此设备上为离线阅读保存的所有文章。"
           }
         }
       }
     },
-    "matches a or b" : {
+    "Save an article for offline from its context menu (or swipe), or use Download for Offline to save a whole list. Saved articles open instantly without a connection and are kept on this device only." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "matches a or b"
+            "value" : "Save an article for offline from its context menu (or swipe), or use Download for Offline to save a whole list. Saved articles open instantly without a connection and are kept on this device only."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "a または b に一致"
+            "value" : "記事のコンテキストメニュー（またはスワイプ）からオフライン保存するか、「オフライン用にダウンロード」でリスト全体を保存できます。保存した記事は接続なしで即座に開き、この端末にのみ保存されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "a 또는 b와 일치"
+            "value" : "글의 컨텍스트 메뉴(또는 스와이프)에서 오프라인 저장하거나, ‘오프라인 다운로드’로 목록 전체를 저장하세요. 저장된 글은 연결 없이도 즉시 열리며 이 기기에만 보관됩니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "匹配 a 或 b"
-          }
-        }
-      }
-    },
-    "whole word only" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "whole word only"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "単語全体のみ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "단어 전체만"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅整词"
-          }
-        }
-      }
-    },
-    "ignore case (prefix)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ignore case (prefix)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "大文字小文字を無視（接頭辞）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "대소문자 무시 (접두사)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "忽略大小写（前缀）"
-          }
-        }
-      }
-    },
-    "How filters work" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How filters work"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フィルタの仕組み"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "필터 사용법"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "过滤器如何工作"
-          }
-        }
-      }
-    },
-    "Matching stories are hidden from every list and unread count, and collected under Filtered. Filters sync across your devices." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Matching stories are hidden from every list and unread count, and collected under Filtered. Filters sync across your devices."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一致する記事はすべてのリストと未読数から隠れ、「フィルタ済み」にまとまります。フィルタはデバイス間で同期されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일치하는 글은 모든 목록과 안 읽음 개수에서 숨겨지고 ‘필터됨’에 모입니다. 필터는 기기 간에 동기화됩니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匹配的文章会从所有列表和未读计数中隐藏，并归入“已过滤”。过滤器会在你的设备间同步。"
-          }
-        }
-      }
-    },
-    "Word or phrase to hide" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Word or phrase to hide"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隠す単語やフレーズ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "숨길 단어나 구절"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要隐藏的单词或短语"
-          }
-        }
-      }
-    },
-    "Regular expression" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Regular expression"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正規表現"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "정규식"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正则表达式"
-          }
-        }
-      }
-    },
-    "In" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "対象"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "대상"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "范围"
-          }
-        }
-      }
-    },
-    "Enter a word, phrase, or pattern to hide." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter a word, phrase, or pattern to hide."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隠す単語・フレーズ・パターンを入力します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "숨길 단어, 구절 또는 패턴을 입력하세요."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "输入要隐藏的单词、短语或模式。"
-          }
-        }
-      }
-    },
-    "Off — this filter isn't hiding anything." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off — this filter isn't hiding anything."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オフ — このフィルタは何も隠していません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "꺼짐 — 이 필터는 아무것도 숨기지 않습니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已关闭 — 此过滤器未隐藏任何内容。"
-          }
-        }
-      }
-    },
-    "Hides 1 story" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hides 1 story"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1件を非表示"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 1개 숨김"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隐藏 1 条"
-          }
-        }
-      }
-    },
-    "Hides %lld stories" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hides %lld stories"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld件を非表示"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "글 %lld개 숨김"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隐藏 %lld 条"
-          }
-        }
-      }
-    },
-    "Save" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存"
-          }
-        }
-      }
-    },
-    "A filter hides any story that matches it — usually just a word or phrase. Turn on **Regex** on a filter for pattern matching. Matches ignore case unless you turn on **Aa**." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A filter hides any story that matches it — usually just a word or phrase. Turn on **Regex** on a filter for pattern matching. Matches ignore case unless you turn on **Aa**."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フィルタは一致する記事を隠します — 通常は単語やフレーズで十分です。パターンマッチングが必要なときは、そのフィルタの **Regex** をオンにします。**Aa** をオンにしない限り、大文字と小文字は区別されません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "필터는 일치하는 글을 숨깁니다 — 보통은 단어나 구절이면 됩니다. 패턴 매칭이 필요하면 그 필터의 **Regex**를 켜세요. **Aa**를 켜지 않으면 대소문자를 구분하지 않습니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "过滤器会隐藏所有匹配的文章——通常一个单词或短语就够了。需要模式匹配时，为该过滤器开启 **Regex**。除非开启 **Aa**，否则匹配不区分大小写。"
-          }
-        }
-      }
-    },
-    "Use a regular expression" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use a regular expression"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正規表現を使う"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "정규식 사용"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用正则表达式"
+            "value" : "从文章的上下文菜单（或滑动）保存以离线阅读，或用“下载以离线阅读”保存整个列表。已保存的文章无需联网即可立即打开，且仅保存在此设备上。"
           }
         }
       }

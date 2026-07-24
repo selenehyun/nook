@@ -60,6 +60,11 @@ struct SettingsView: View {
                         Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
                     }
                     NavigationLink {
+                        OfflineSettingsScreen(store: store)
+                    } label: {
+                        Label("Offline", systemImage: "arrow.down.circle")
+                    }
+                    NavigationLink {
                         ExperimentalSettingsScreen()
                     } label: {
                         Label("Experimental", systemImage: "flask")
@@ -509,6 +514,22 @@ private struct FeedsSettingsScreen: View {
 }
 
 // MARK: - Experimental
+
+private struct OfflineSettingsScreen: View {
+    let store: ReaderStore
+
+    var body: some View {
+        List {
+            Section("Offline Reading") {
+                OfflineSettingsContent(store: store)
+            }
+            .warmRows()
+        }
+        .warmListBackground()
+        .navigationTitle("Offline")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
 
 private struct FiltersSettingsScreen: View {
     let store: ReaderStore

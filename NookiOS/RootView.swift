@@ -354,6 +354,7 @@ private enum AppTab: Hashable { case home, feeds, starred, settings }
 private enum FeedTarget: Hashable {
     case all
     case filtered
+    case offline
     case folder(String)
     case feed(Feed.ID)
 }
@@ -528,6 +529,8 @@ private struct CompactShell: View {
             store.selectSmartSource(.all)
         case .filtered:
             store.selectSmartSource(.filtered)
+        case .offline:
+            store.selectSmartSource(.offline)
         case .folder(let name):
             store.selectFolder(name)
         case .feed(let id):
@@ -854,17 +857,30 @@ private struct FeedsTab: View {
                     .listRowBackground(Rectangle().fill(.ultraThinMaterial))
                 }
 
-                // Tucked at the bottom, only once filters exist: the articles
-                // hidden by the user's filters.
-                if store.hasFilters {
+                // Tucked at the bottom: saved-offline articles, then filtered.
+                if store.hasOfflineArticles || store.hasFilters {
                     Section {
-                        NavigationLink(value: FeedTarget.filtered) {
-                            HStack {
-                                Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
-                                Spacer()
-                                let count = store.count(for: .filtered)
-                                if count > 0 {
-                                    Text(count, format: .number).foregroundStyle(.secondary)
+                        if store.hasOfflineArticles {
+                            NavigationLink(value: FeedTarget.offline) {
+                                HStack {
+                                    Label(SmartSource.offline.title, systemImage: SmartSource.offline.systemImage)
+                                    Spacer()
+                                    let count = store.count(for: .offline)
+                                    if count > 0 {
+                                        Text(count, format: .number).foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        if store.hasFilters {
+                            NavigationLink(value: FeedTarget.filtered) {
+                                HStack {
+                                    Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
+                                    Spacer()
+                                    let count = store.count(for: .filtered)
+                                    if count > 0 {
+                                        Text(count, format: .number).foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
@@ -1224,19 +1240,31 @@ private struct Sidebar: View {
                 .listRowBackground(Rectangle().fill(.ultraThinMaterial))
             }
 
-            // Tucked at the bottom, only once filters exist: the articles hidden
-            // by the user's filters.
-            if store.hasFilters {
+            // Tucked at the bottom: saved-offline articles, then filtered.
+            if store.hasOfflineArticles || store.hasFilters {
                 Section {
-                    HStack {
-                        Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
-                        Spacer()
-                        let count = store.count(for: .filtered)
-                        if count > 0 {
-                            Text(count, format: .number).foregroundStyle(.secondary)
+                    if store.hasOfflineArticles {
+                        HStack {
+                            Label(SmartSource.offline.title, systemImage: SmartSource.offline.systemImage)
+                            Spacer()
+                            let count = store.count(for: .offline)
+                            if count > 0 {
+                                Text(count, format: .number).foregroundStyle(.secondary)
+                            }
                         }
+                        .tag(SidebarItem.smart(.offline))
                     }
-                    .tag(SidebarItem.smart(.filtered))
+                    if store.hasFilters {
+                        HStack {
+                            Label(SmartSource.filtered.title, systemImage: SmartSource.filtered.systemImage)
+                            Spacer()
+                            let count = store.count(for: .filtered)
+                            if count > 0 {
+                                Text(count, format: .number).foregroundStyle(.secondary)
+                            }
+                        }
+                        .tag(SidebarItem.smart(.filtered))
+                    }
                 }
                 .listRowBackground(Rectangle().fill(.ultraThinMaterial))
             }
@@ -1536,6 +1564,20 @@ private struct ArticleList: View {
                         Label("Star", systemImage: article.isStarred ? "star.slash" : "star")
                     }
                     .tint(.yellow)
+
+                    Button {
+                        if store.isOfflineSaved(article.id) {
+                            store.removeOffline(article.id)
+                        } else {
+                            store.saveOffline(article)
+                        }
+                    } label: {
+                        Label(
+                            store.isOfflineSaved(article.id) ? "Remove" : "Save",
+                            systemImage: store.isOfflineSaved(article.id) ? "arrow.down.circle.fill" : "arrow.down.circle"
+                        )
+                    }
+                    .tint(.indigo)
                 }
                 .contextMenu {
                     Button {
@@ -1549,6 +1591,16 @@ private struct ArticleList: View {
                     } label: {
                         Label(article.isStarred ? "Unstar" : "Star",
                               systemImage: article.isStarred ? "star.slash" : "star")
+                    }
+                    Button {
+                        if store.isOfflineSaved(article.id) {
+                            store.removeOffline(article.id)
+                        } else {
+                            store.saveOffline(article)
+                        }
+                    } label: {
+                        Label(store.isOfflineSaved(article.id) ? "Remove Download" : "Save for Offline",
+                              systemImage: store.isOfflineSaved(article.id) ? "arrow.down.circle.fill" : "arrow.down.circle")
                     }
                     Button {
                         store.selectedArticleID = article.id
@@ -1572,6 +1624,22 @@ private struct ArticleList: View {
         .background(Color("ListBackground").ignoresSafeArea())
         .navigationTitle(store.selectedSourceTitle)
         .modifier(DrawerSearch(text: $store.searchText, enabled: managesSearch))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let progress = store.offlineDownloadProgress {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                        Text("\(progress.completed)/\(progress.total)").font(.caption).monospacedDigit()
+                    }
+                } else if !store.visibleArticles.isEmpty {
+                    Button {
+                        store.downloadOffline(store.visibleArticles)
+                    } label: {
+                        Label("Download for Offline", systemImage: "arrow.down.circle")
+                    }
+                }
+            }
+        }
         .onChange(of: store.searchText) { _, _ in store.debounceSearch() }
         .refreshable { await refreshCurrent() }
         .overlay {
@@ -1661,6 +1729,12 @@ private struct ArticleList: View {
                         .foregroundStyle(article.isRead ? .secondary : .primary)
                     if article.isStarred {
                         Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow)
+                    }
+                    if OfflineArticleStore.shared.isSaved(article.id) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(Text("Saved offline"))
                     }
                 }
                 // Own child view so it observes ONLY its own state box — a title

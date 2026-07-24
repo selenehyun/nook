@@ -380,9 +380,11 @@ extension Article {
         case .smart(.unread): !isRead
         case .smart(.today): Calendar.current.isDateInToday(publishedAt)
         case .smart(.starred): isStarred
-        // Filtered membership depends on the user's live filter rules, not the
-        // article alone, so the store computes it; a static test never matches.
+        // Filtered/offline membership depends on store state (filter rules, the
+        // offline cache), not the article alone, so the store computes them; a
+        // static test never matches.
         case .smart(.filtered): false
+        case .smart(.offline): false
         case .feed(let feedID): self.feedID == feedID
         }
     }
@@ -430,10 +432,13 @@ public enum SmartSource: String, CaseIterable, Identifiable, Sendable {
     /// Articles hidden by the user's filters. Kept out of `library` so it doesn't
     /// sit in the main list; the sidebar pins it separately at the bottom.
     case filtered
+    /// Articles the user saved for offline reading. Like `filtered`, kept out of
+    /// `library` and pinned at the bottom of the sidebar.
+    case offline
 
-    /// The sources shown in the main Library list. `filtered` is deliberately
-    /// excluded — it's pinned at the very bottom of the sidebar, out of the way,
-    /// and only surfaced when the user actually has filters configured.
+    /// The sources shown in the main Library list. `filtered` and `offline` are
+    /// deliberately excluded — they're pinned at the very bottom of the sidebar,
+    /// out of the way, and only surfaced when relevant.
     public static let library: [SmartSource] = [.unread, .today, .starred, .all]
 
     public var id: Self { self }
@@ -445,6 +450,7 @@ public enum SmartSource: String, CaseIterable, Identifiable, Sendable {
         case .starred: String(localized: "Starred", bundle: Bundle.module)
         case .all: String(localized: "All Articles", bundle: Bundle.module)
         case .filtered: String(localized: "Filtered", bundle: Bundle.module)
+        case .offline: String(localized: "Downloaded", bundle: Bundle.module)
         }
     }
 
@@ -455,6 +461,37 @@ public enum SmartSource: String, CaseIterable, Identifiable, Sendable {
         case .starred: "star"
         case .all: "tray.full"
         case .filtered: "line.3.horizontal.decrease.circle"
+        case .offline: "arrow.down.circle"
+        }
+    }
+}
+
+/// How long a saved-offline article is kept before it's auto-removed. A
+/// device-local reading preference; the user picks it in Offline settings.
+public enum OfflineExpiry: String, CaseIterable, Sendable, Identifiable {
+    case never
+    case oneWeek
+    case twoWeeks
+    case oneMonth
+
+    public var id: Self { self }
+
+    /// The max age in seconds, or nil for "never expire".
+    public var maxAge: TimeInterval? {
+        switch self {
+        case .never: nil
+        case .oneWeek: 7 * 24 * 3600
+        case .twoWeeks: 14 * 24 * 3600
+        case .oneMonth: 30 * 24 * 3600
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .never: String(localized: "Never", bundle: Bundle.module)
+        case .oneWeek: String(localized: "After 1 week", bundle: Bundle.module)
+        case .twoWeeks: String(localized: "After 2 weeks", bundle: Bundle.module)
+        case .oneMonth: String(localized: "After 1 month", bundle: Bundle.module)
         }
     }
 }
