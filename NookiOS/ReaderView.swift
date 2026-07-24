@@ -712,7 +712,10 @@ struct ReaderDetailView: View {
                     ArticleShareMenu(
                         articleURL: article.url,
                         title: article.title,
-                        markdown: { store.nativeReaderMarkdown(for: article) }
+                        markdown: {
+                            nativeTranslator.translatedMarkdown
+                                ?? store.nativeReaderMarkdown(for: article)
+                        }
                     ) { copied in
                         Image(systemName: copied ? "checkmark" : "square.and.arrow.up")
                             .font(.system(size: 20))

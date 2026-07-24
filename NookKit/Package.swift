@@ -11,9 +11,15 @@ let package = Package(
     products: [
         .library(name: "NookKit", targets: ["NookKit"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", exact: "0.8.0"),
+    ],
     targets: [
         .target(
             name: "NookKit",
+            dependencies: [
+                .product(name: "Markdown", package: "swift-markdown"),
+            ],
             resources: [
                 .process("Localizable.xcstrings"),
                 .copy("Readability.js"),

@@ -5,31 +5,47 @@ import Foundation
 /// so callers get token-by-token output like the on-device path. The API key is
 /// read from the Keychain per request and never persisted elsewhere.
 public enum GeminiTranslator {
-    public struct Failure: Error { public let message: String }
+    public enum Model: String, Sendable, Codable {
+        /// Fast, inexpensive default for ordinary article translation.
+        case flashLite = "gemini-3.5-flash-lite"
+        /// Stronger instruction following, used only when Lite produces an
+        /// invalid translation. It has the same context/output limits as Lite.
+        case flash = "gemini-3.6-flash"
 
-    /// The `-latest` alias tracks the newest GA Flash-Lite model automatically, so
-    /// the app follows Google's current latest Flash-Lite without a code change.
-    /// Lite is the faster, cheaper tier — a good fit for short translation calls.
-    public static let model = "gemini-flash-lite-latest"
-    private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
-
-    /// How to keep "thinking" (which adds seconds of first-token latency and is not
-    /// needed for translation) to a minimum. The correct field differs by model
-    /// generation — Gemini 3.x uses `thinkingLevel`, 2.5 uses `thinkingBudget` — so
-    /// we try them in order and latch onto whichever the model accepts, retrying on
-    /// a 400 so translation never breaks regardless of which model the alias maps to.
-    private static let thinkingStrategyCount = 3
-    nonisolated(unsafe) private static var thinkingStrategyIndex = 0
-
-    /// The `thinkingConfig` for a strategy: 0 = Gemini 3.x `thinkingLevel: low`,
-    /// 1 = Gemini 2.5 `thinkingBudget: 0`, else the model default (no field).
-    private static func thinkingConfig(forStrategy index: Int) -> [String: Any]? {
-        switch index {
-        case 0: return ["thinkingLevel": "low"]
-        case 1: return ["thinkingBudget": 0]
-        default: return nil
+        fileprivate var thinkingLevel: String {
+            switch self {
+            case .flashLite: "minimal"
+            case .flash: "medium"
+            }
         }
     }
+
+    public struct Failure: Error {
+        public enum Kind: Sendable {
+            case missingCredential
+            case blocked
+            case incomplete
+            case http
+            case transport
+        }
+
+        public let kind: Kind
+        public let message: String
+        public let finishReason: String?
+
+        init(_ kind: Kind, message: String, finishReason: String? = nil) {
+            self.kind = kind
+            self.message = message
+            self.finishReason = finishReason
+        }
+
+        public var isLengthRelated: Bool {
+            finishReason == "MAX_TOKENS" || finishReason == "LENGTH"
+        }
+    }
+
+    public static let model = Model.flashLite.rawValue
+    private static let endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
 
     public static var isConfigured: Bool { GeminiCredential.hasKey }
 
@@ -40,11 +56,18 @@ public enum GeminiTranslator {
     /// quick per-snapshot UI update — the previous @MainActor version did all that
     /// parsing on main and stuttered scrolling. A blocked or non-STOP (truncated)
     /// response finishes the stream with a thrown error so the caller falls back.
-    public static func stream(system: String, prompt: String) -> AsyncThrowingStream<String, Error> {
+    public static func stream(
+        system: String,
+        prompt: String,
+        model: Model = .flashLite,
+        timeout: TimeInterval = 60
+    ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task.detached {
                 do {
-                    let bytes = try await openStream(path: "\(model):streamGenerateContent?alt=sse", system: system, prompt: prompt)
+                    let bytes = try await openStream(
+                        model: model, system: system, prompt: prompt, timeout: timeout
+                    )
                     var full = ""
                     var finishReason: String?
                     var blockReason: String?
@@ -61,8 +84,16 @@ public enum GeminiTranslator {
                             continuation.yield(full)
                         }
                     }
-                    if let blockReason { throw Failure(message: "blocked: \(blockReason)") }
-                    guard finishReason == "STOP" else { throw Failure(message: "incomplete: \(finishReason ?? "no finishReason")") }
+                    if let blockReason {
+                        throw Failure(.blocked, message: "blocked: \(blockReason)")
+                    }
+                    guard finishReason == "STOP" else {
+                        throw Failure(
+                            .incomplete,
+                            message: "incomplete: \(finishReason ?? "no finishReason")",
+                            finishReason: finishReason
+                        )
+                    }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -74,56 +105,112 @@ public enum GeminiTranslator {
 
     /// One-shot (non-streaming) generation — for the short helper calls (language
     /// detection, glossary) where streaming buys nothing.
-    public static func complete(system: String, prompt: String) async throws -> String {
-        let data = try await postForData(path: "\(model):generateContent", system: system, prompt: prompt)
+    public static func complete(
+        system: String,
+        prompt: String,
+        model: Model = .flashLite
+    ) async throws -> String {
+        let data = try await postForData(model: model, system: system, prompt: prompt)
         let result = parse(data)
-        if let blockReason = result.blockReason { throw Failure(message: "blocked: \(blockReason)") }
-        guard result.finishReason == "STOP" else { throw Failure(message: "incomplete: \(result.finishReason ?? "no finishReason")") }
+        if let blockReason = result.blockReason {
+            throw Failure(.blocked, message: "blocked: \(blockReason)")
+        }
+        guard result.finishReason == "STOP" else {
+            throw Failure(
+                .incomplete,
+                message: "incomplete: \(result.finishReason ?? "no finishReason")",
+                finishReason: result.finishReason
+            )
+        }
         return result.text ?? ""
     }
 
-    // MARK: - Transport (with thinking-config self-healing retry)
+    // MARK: - Transport
 
-    /// Opens an SSE byte stream, validating the status. On a 400 (e.g. the model
-    /// doesn't accept the current thinking field) it advances to the next thinking
-    /// strategy and retries, latching onto whichever the model accepts.
-    private static func openStream(path: String, system: String, prompt: String) async throws -> URLSession.AsyncBytes {
-        for index in thinkingStrategyIndex..<thinkingStrategyCount {
-            let request = try makeRequest(path: path, system: system, prompt: prompt, thinkingConfig: thinkingConfig(forStrategy: index))
+    private static func openStream(
+        model: Model,
+        system: String,
+        prompt: String,
+        timeout: TimeInterval
+    ) async throws -> URLSession.AsyncBytes {
+        let request = try makeRequest(
+            path: "\(model.rawValue):streamGenerateContent?alt=sse",
+            system: system,
+            prompt: prompt,
+            model: model,
+            timeout: timeout
+        )
+        do {
             let (bytes, response) = try await URLSession.shared.bytes(for: request)
-            guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
-            if http.statusCode == 200 { thinkingStrategyIndex = index; return bytes }
-            if http.statusCode == 400 { thinkingStrategyIndex = index + 1; continue }
-            var body = ""
-            for try await line in bytes.lines { body += line }
-            throw Failure(message: "HTTP \(http.statusCode): \(String(body.prefix(300)))")
+            guard let http = response as? HTTPURLResponse else {
+                throw Failure(.transport, message: "No HTTP response")
+            }
+            guard http.statusCode == 200 else {
+                var body = ""
+                for try await line in bytes.lines { body += line }
+                throw Failure(
+                    .http,
+                    message: "HTTP \(http.statusCode): \(String(body.prefix(300)))"
+                )
+            }
+            return bytes
+        } catch let failure as Failure {
+            throw failure
+        } catch {
+            throw Failure(.transport, message: error.localizedDescription)
         }
-        throw Failure(message: "Request failed")
     }
 
-    private static func postForData(path: String, system: String, prompt: String) async throws -> Data {
-        for index in thinkingStrategyIndex..<thinkingStrategyCount {
-            let request = try makeRequest(path: path, system: system, prompt: prompt, thinkingConfig: thinkingConfig(forStrategy: index))
+    private static func postForData(model: Model, system: String, prompt: String) async throws -> Data {
+        let request = try makeRequest(
+            path: "\(model.rawValue):generateContent",
+            system: system,
+            prompt: prompt,
+            model: model,
+            timeout: 60
+        )
+        do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { throw Failure(message: "No HTTP response") }
-            if http.statusCode == 200 { thinkingStrategyIndex = index; return data }
-            if http.statusCode == 400 { thinkingStrategyIndex = index + 1; continue }
-            throw Failure(message: "HTTP \(http.statusCode): \(String(String(data: data, encoding: .utf8)?.prefix(300) ?? ""))")
+            guard let http = response as? HTTPURLResponse else {
+                throw Failure(.transport, message: "No HTTP response")
+            }
+            guard http.statusCode == 200 else {
+                throw Failure(
+                    .http,
+                    message: "HTTP \(http.statusCode): \(String(String(data: data, encoding: .utf8)?.prefix(300) ?? ""))"
+                )
+            }
+            return data
+        } catch let failure as Failure {
+            throw failure
+        } catch {
+            throw Failure(.transport, message: error.localizedDescription)
         }
-        throw Failure(message: "Request failed")
     }
 
-    private static func makeRequest(path: String, system: String, prompt: String, thinkingConfig: [String: Any]?) throws -> URLRequest {
-        guard let key = GeminiCredential.apiKey else { throw Failure(message: "Missing Gemini API key") }
-        guard let url = URL(string: "\(endpoint)/\(path)") else { throw Failure(message: "Bad URL") }
+    private static func makeRequest(
+        path: String,
+        system: String,
+        prompt: String,
+        model: Model,
+        timeout: TimeInterval
+    ) throws -> URLRequest {
+        guard let key = GeminiCredential.apiKey else {
+            throw Failure(.missingCredential, message: "Missing Gemini API key")
+        }
+        guard let url = URL(string: "\(endpoint)/\(path)") else {
+            throw Failure(.transport, message: "Bad URL")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
-        request.timeoutInterval = 60
-        // temperature 0 → deterministic/faithful, matching the on-device greedy choice.
-        var generationConfig: [String: Any] = ["temperature": 0, "candidateCount": 1]
-        if let thinkingConfig { generationConfig["thinkingConfig"] = thinkingConfig }
+        request.timeoutInterval = timeout
+        // Gemini 3.x rejects the legacy candidateCount and is deprecating sampling
+        // parameters. Translation determinism comes from the strict instructions.
+        let generationConfig: [String: Any] = [
+            "thinkingConfig": ["thinkingLevel": model.thinkingLevel],
+        ]
         var payload: [String: Any] = [
             "contents": [["role": "user", "parts": [["text": prompt]]]],
             "generationConfig": generationConfig,
@@ -147,7 +234,10 @@ public enum GeminiTranslator {
         }
         let finishReason = candidate["finishReason"] as? String
         let parts = (candidate["content"] as? [String: Any])?["parts"] as? [[String: Any]]
-        let text = parts?.compactMap { $0["text"] as? String }.joined()
+        let text = parts?.compactMap { part -> String? in
+            guard part["thought"] as? Bool != true else { return nil }
+            return part["text"] as? String
+        }.joined()
         return ((text?.isEmpty ?? true) ? nil : text, finishReason, blockReason)
     }
 }

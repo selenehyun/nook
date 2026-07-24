@@ -341,6 +341,9 @@ public final class ListTitleTranslator {
     /// the next time their rows are viewed. Device-local; affects only this app.
     public func clearCache() {
         cancelAll()
+        Task {
+            await ArticleTranslationCache.shared.clear()
+        }
         // Also forget which rows are on screen, so cancelled tasks don't reschedule
         // and immediately rebuild the cache we just cleared.
         visibleTitles.removeAll()

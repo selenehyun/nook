@@ -371,8 +371,14 @@ public final class NativeArticleTranslator {
     public private(set) var isActive = false
     public private(set) var isTranslating = false
     public private(set) var translatedTitle: String?
+    /// The validated Markdown currently displayed by the native reader. Exposed
+    /// so Copy/Save as Markdown follows what the user is actually reading.
+    public private(set) var translatedMarkdown: String?
 
     private var overrides: [Int: HTMLContentBlock] = [:]
+    /// Final Gemini Markdown parsed directly into native reader blocks. Until this
+    /// is ready, `overrides` keeps the original-in-place typing presentation.
+    private var markdownBlocks: [HTMLContentBlock]?
     private var task: Task<Void, Never>?
     private var generation = 0
     /// The article's detected subject/field, passed to block translation so it
@@ -408,6 +414,10 @@ public final class NativeArticleTranslator {
         isActive ? overrides[index] : nil
     }
 
+    func completedMarkdownBlocks() -> [HTMLContentBlock]? {
+        isActive ? markdownBlocks : nil
+    }
+
     /// Begins (or restarts) translation of `html` into `languageName`. `title`
     /// is translated first to seed context and exposed via `translatedTitle`.
     public func start(html: String, baseURL: URL?, title: String, into languageName: String) {
@@ -424,7 +434,21 @@ public final class NativeArticleTranslator {
         useCoherentMode = UserDefaults.standard.bool(forKey: ReaderStore.coherentArticleTranslationKey)
         let blocks = HTMLContentParser.parse(html, baseURL: baseURL)
         task = Task { [weak self] in
-            await self?.run(title: title, blocks: blocks, language: languageName, token: token)
+            guard let self else { return }
+            if provider == .gemini {
+                let template = MarkdownTranslationTemplate(
+                    title: title,
+                    blocks: blocks,
+                    baseURL: baseURL
+                )
+                await runMarkdown(
+                    template: template,
+                    language: languageName,
+                    token: token
+                )
+            } else {
+                await run(title: title, blocks: blocks, language: languageName, token: token)
+            }
         }
     }
 
@@ -440,13 +464,82 @@ public final class NativeArticleTranslator {
         isActive = false
         isTranslating = false
         overrides = [:]
+        markdownBlocks = nil
         translatedTitle = nil
+        translatedMarkdown = nil
         conceptDomain = ""
         keepTerms = []
         keepTermsSeen = []
         glossary = [:]
         articleSession = nil
         useCoherentMode = false
+    }
+
+    /// Gemini's preferred path: one Markdown stream for the article, with a
+    /// Flash-Lite → Flash quality fallback. Any pipeline failure returns to the
+    /// existing block translator so translation never becomes less available.
+    private func runMarkdown(
+        template: MarkdownTranslationTemplate,
+        language: String,
+        token: Int
+    ) async {
+        do {
+            let result = try await GeminiMarkdownArticleTranslator.translate(
+                template: template,
+                language: language,
+                isCurrent: { [weak self] in
+                    guard let self else { return false }
+                    return token == generation && isActive && !Task.isCancelled
+                },
+                onTitlePartial: { [weak self] partial in
+                    guard let self, token == generation else { return }
+                    let cleaned = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !cleaned.isEmpty { translatedTitle = cleaned }
+                },
+                onBlockPartial: { [weak self] index, partial in
+                    guard let self, token == generation,
+                          template.originalBlocks.indices.contains(index)
+                    else { return }
+                    let original = blockPlainText(template.originalBlocks[index])
+                    let headingLevel: Int?
+                    if case .heading(let level, _) = template.originalBlocks[index] {
+                        headingLevel = level
+                    } else {
+                        headingLevel = nil
+                    }
+                    overrides[index] = .mixedText(
+                        parts: [.streaming(original: original, text: partial)],
+                        headingLevel: headingLevel
+                    )
+                },
+                onBlockComplete: { [weak self] index, block in
+                    guard let self, token == generation else { return }
+                    overrides[index] = block
+                }
+            )
+            guard token == generation, isActive else { return }
+            translatedTitle = result.title
+            translatedMarkdown = result.markdown
+            markdownBlocks = result.blocks
+            overrides = [:]
+            isTranslating = false
+        } catch is CancellationError {
+            return
+        } catch {
+            guard token == generation, isActive else { return }
+            // The direct Markdown path is an optimization. Clear its transient
+            // projection, then use the battle-tested per-block Gemini translator.
+            overrides = [:]
+            markdownBlocks = nil
+            translatedMarkdown = nil
+            translatedTitle = nil
+            await run(
+                title: template.title,
+                blocks: template.originalBlocks,
+                language: language,
+                token: token
+            )
+        }
     }
 
     private func run(title: String, blocks: [HTMLContentBlock], language: String, token: Int) async {

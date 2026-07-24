@@ -40,7 +40,13 @@ public struct HTMLContentView: View {
     public var body: some View {
         // Lazy at the top level so off-screen blocks defer their HTML import /
         // syntax highlight / image load instead of all firing at once on entry.
-        HTMLBlockList(blocks: blocks, selectable: selectable, lazy: true, translator: translator)
+        HTMLBlockList(
+            blocks: translator?.completedMarkdownBlocks() ?? blocks,
+            selectable: selectable,
+            lazy: true,
+            // A completed Markdown document already contains every replacement.
+            translator: translator?.completedMarkdownBlocks() == nil ? translator : nil
+        )
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
