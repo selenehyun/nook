@@ -47,9 +47,9 @@ Because your library is just a folder, there's **no lock-in**:
 
 Not better or worse than the other good native readers out there — just a different set of choices, in case they're the ones you're after:
 
-- **No backend, no account.** There's no Nook server and nothing to sign up for. Your whole library is a plain folder you point at, so your data never leaves storage you already trust.
+- **No Nook backend, no account.** There's no Nook server and nothing to sign up for. Your whole library is a plain folder you point at. Optional Gemini features send article text directly to Google only when you select Gemini and provide your own API key.
 - **Sync without a sync service.** Most readers reach multi-device sync through iCloud, Feedbin, Feedly, and the like. Nook syncs by merging plain files in that folder — conflict-free, so two devices never clobber each other — with no service in between.
-- **On-device translation.** When an article isn't in your language, it's translated in place with Apple Intelligence right on your device — no cloud translation call.
+- **Private by default, cloud only by choice.** Translate on-device with Apple Intelligence, or explicitly opt into Gemini with your own API key for fast, document-aware Markdown translation.
 - **Free and offline-first.** It's free, and built to be fully usable without a connection; a refresh just tops things up when you're online.
 
 ## Features
@@ -60,14 +60,16 @@ Not better or worse than the other good native readers out there — just a diff
 - 📥 **Painless migration, no lock-in.** Bring subscriptions in from any reader with **OPML import**, and **export** them whenever you want to move on.
 - 📰 **Real feeds.** Add an RSS/Atom URL, or just paste a website — Nook auto-discovers the feed from the page's `<link rel="alternate">`.
 - 📲 **Add from anywhere (iOS).** Share a page from Safari with **“Add Feed to Nook”** and it finds and subscribes to that site's feed.
-- 🌏 **Natural translation (iOS & macOS).** When an article isn't in your language, translate it in place — powered by **Apple Intelligence** on-device for fluent, idiomatic results (with the system Translation engine as a fallback). Text types in top to bottom, each block streaming over the original like a live rewrite, while the page's own layout, links, and formatting stay intact. Nook reads the article's subject first, keeps names, brands, and technical terms verbatim, and holds one consistent tone throughout — in both the native reader and the in-app web view.
+- 🌏 **Natural translation (iOS & macOS).** Translate on-device with **Apple Intelligence** (with the system Translation engine as a fallback), or opt into **Gemini** with an API key stored only on that device. In the native reader, Gemini translates one ordinary Markdown document so headings, lists, tables, links, and code keep their context together; an incomplete or structurally invalid Flash Lite result is retried with Flash. Translation appears progressively with a typewriter reveal, applying usable Markdown formatting while the response is still streaming instead of flashing in as a finished replacement.
 - 📚 **Smart sources & folders.** Jump between **Unread**, **Today**, **Starred**, and **All Articles**, or organize feeds into your own folders (create, rename, delete).
+- 🏷️ **Article rules & categories.** Create color-coded categories, tag articles manually or by keyword, browse a category from the sidebar, and hide categories from normal lists and unread counts. Optional Apple Intelligence or Gemini classification adds conservative, meaning-based tags to new or existing articles without treating incidental mentions as separate subjects.
 - 📖 **Two ways to read.** A clean, fast native reader by default; opt into a full-page reader (a `WKWebView` with an injected readability script) or pop the original page open in an in-app browser — per feed, if you like.
+- 📝 **Portable Markdown.** From the native reader's share menu, copy the body as Markdown or save it as a `.md` file. Headings, inline styling, links, images, quotes, code blocks, nested lists, tables, and media destinations are preserved; when a translated article is visible, the exported Markdown follows what you're reading.
 - ✋ **Gesture-friendly (iOS).** Swipe to read/star, pull to refresh (all feeds or just the one you're viewing), and use the article body itself — double-tap to star, press-and-hold (with a haptic build-up) to open the web view.
 - 🔎 **Instant search** across titles, summaries, and feed names, with keyboard-first navigation on the Mac.
 - 🔄 **Quiet auto-sync.** Refreshes on a schedule and whenever the app launches or returns to the foreground — throttled so it never hammers your feeds. Automatic refreshes run quietly at low priority and slip new articles in without jolting the list, while an explicit refresh fetches fast; you can even add a feed mid-refresh.
-- 🔴 **Unread badges.** A Dock badge on the Mac and an app-icon badge on iOS (showing your total unread), plus a home-screen widget with smart-source shortcuts.
-- 🔔 **Smart new-article alerts.** A local notification when genuinely new articles arrive — never for ones you've already seen in the list. That "seen" state syncs across devices, so catching up on your Mac won't re-ping your iPhone. Each device still keeps its own at-most-once receipts, and iOS Settings has a test notification plus background-refresh diagnostics (and a nudge to turn on Background App Refresh if it's off).
+- 🔴 **Optional unread badges.** A toggleable Dock badge on the Mac and app-icon badge on iOS (showing your total unread), plus a home-screen widget with smart-source shortcuts.
+- 🔔 **Smart new-article alerts.** A local notification when genuinely new articles arrive — never for ones you've already seen in the list. That "seen" state syncs across devices, so catching up on your Mac won't re-ping your iPhone. A Mac actively being read owns its alerts, but a hidden, minimized, locked, sleeping, or ten-minutes-idle Mac yields notification ownership so iOS background refresh can alert you even if the Mac app was left open. Each device still keeps its own at-most-once receipts, and iOS Settings has a test notification plus background-refresh diagnostics.
 - 🌓 **Adaptive icon** (light/dark) and a **localized UI** — English, 한국어, 日本語, 简体中文.
 - ⬆️ **Auto-updates** on macOS via [Sparkle](https://sparkle-project.org) — quiet, never a modal.
 
@@ -87,7 +89,7 @@ Not better or worse than the other good native readers out there — just a diff
   <tr>
     <td valign="top">
       <h3>A clean, native reader</h3>
-      <p>Articles render as real native text — typography, images, code blocks, quotes, and tables — not a webview. Translate in place with on-device Apple Intelligence, or jump to the full-page reader or the original site when you want.</p>
+      <p>Articles render as real native text — typography, images, code blocks, quotes, lists, and tables — not a webview. Translate in place with on-device Apple Intelligence or optional Gemini, copy or save the body as Markdown, or jump to the full-page reader or original site when you want.</p>
     </td>
     <td width="240" align="center"><img src="docs/screenshots/ios-reader.png" width="230" alt="Native article reader"></td>
   </tr>
@@ -161,7 +163,7 @@ Updates thereafter come through the app itself (Sparkle).
      ```
 4. Point Nook at a **sync folder** — any folder your cloud of choice keeps in sync. That's where your library lives.
 
-> Requires **macOS 26 (Tahoe)** or later. Universal binary (Apple Silicon + Intel). On-device Apple Intelligence translation needs an Apple Silicon Mac with Apple Intelligence enabled; elsewhere translation falls back to the system Translation overlay.
+> Requires **macOS 26 (Tahoe)** or later. Universal binary (Apple Silicon + Intel). On-device Apple Intelligence translation needs an Apple Silicon Mac with Apple Intelligence enabled; elsewhere translation falls back to the system Translation overlay. Gemini translation is optional and requires your own API key and a network connection.
 
 ### iOS / iPadOS
 
@@ -171,7 +173,7 @@ There's no App Store build yet (that needs a paid Apple Developer account). To r
 2. Set your team under **Signing & Capabilities**, then press **⌘R**.
 3. Point it at the **same sync folder** as your Mac (via the Files app — iCloud Drive works well) to share one library.
 
-> Requires **iOS/iPadOS 18** or later. On-device Apple Intelligence translation needs a supported device running **iOS 26**.
+> Requires **iOS/iPadOS 18** or later. On-device Apple Intelligence translation needs a supported device running **iOS 26**. Gemini translation is optional and requires your own API key and a network connection.
 
 ## Moving in (and out)
 
@@ -195,7 +197,7 @@ YourSyncFolder/
 │   ├── bodies/
 │   │   └── <deviceID>.json # bounded, regenerable article-body cache
 │   └── state/
-│       └── <deviceID>.json # read/starred/folder/feed tombstone CRDT
+│       └── <deviceID>.json # read/starred/folder/filter/category state CRDT
 └── Icons/                  # cached feed favicons
 ```
 
@@ -247,7 +249,7 @@ xcodebuild -project Nook.xcodeproj -scheme NookiOS \
 - **UI:** SwiftUI + AppKit on macOS, SwiftUI on iOS/iPadOS (native split view, toolbars, menus, commands, widget, share extension).
 - **Networking & parsing:** `URLSession` + `XMLParser` for RSS/Atom and OPML.
 - **Reader mode:** `WKWebView` with a self-contained injected readability script.
-- **Translation (iOS & macOS):** Apple's on-device **Foundation Models** (Apple Intelligence) — a marker-based engine translates each block in place preserving inline markup (links, emphasis), streaming token by token. It detects the article's subject, grows a keep-verbatim glossary of names and terms, pins one target-language register, splits long paragraphs at sentence boundaries, and validates every result — rejecting untranslated echoes, repetition loops, and mangled markup, and re-translating as needed. A **Translation** framework fallback covers devices without Apple Intelligence; language detection via **NaturalLanguage**.
+- **Translation (iOS & macOS):** Apple's on-device **Foundation Models** path translates and validates native blocks while preserving inline markup. The opt-in **Gemini** native-reader path converts the article to ordinary Markdown and streams one marker-free document, parsing complete structure into native blocks off the main actor and progressively revealing safe partial formatting on the UI. Flash Lite is attempted first; interrupted, incomplete, or structurally invalid output falls back to Flash as a whole document. Both paths reject echoes, repetition, leaked instructions, and damaged structure. A **Translation** framework fallback covers devices without Apple Intelligence; language detection uses **NaturalLanguage**.
 - **Sync:** per-device content/body/state shards; state-based last-writer-wins CRDTs with hybrid logical clocks; a system SQLite3 replica/outbox cache; `NSFileCoordinator` + `NSFilePresenter` as coordinated I/O and rescan hints.
 - **Widget:** WidgetKit. **Updates (macOS):** Sparkle (EdDSA-signed appcast, built and published by GitHub Actions).
 - No third-party UI frameworks. No Electron.
