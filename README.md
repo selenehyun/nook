@@ -29,111 +29,34 @@
   </table>
 </div>
 
-> **New to RSS?** RSS lets you follow sites, blogs, and newsletters in one place — no algorithm, no ads, no account, and nothing tracking what you read. You decide what you subscribe to and see everything, in order. [Why use RSS feeds →](https://openrss.org/guides/what-are-rss-feeds#why-use-rss-feeds)
+> **New to RSS?** RSS lets you follow sites, blogs, and newsletters in one place — no algorithm, no ads, and nothing deciding what you should read. [Why use RSS feeds →](https://openrss.org/guides/what-are-rss-feeds#why-use-rss-feeds)
 
 ## Why Nook
 
-A bird builds its nest one twig at a time — a small place that's entirely its own. Nook is that idea for reading: gather the writing you care about, one feed at a time, into a space that fits you, and settle in with it comfortably whenever you like.
+A bird builds its nest one twig at a time — a small place that's entirely its own. Nook brings that idea to reading: gather the writing you care about into a space that fits you, and keep it somewhere you control.
 
-Nook isn't trying to be special. It's a small, native RSS reader built around a few plain ideas: it works **offline first**, it's **free** and stays out of your way, and it runs **entirely on infrastructure you already have** — your own folder, synced by whatever cloud you already use. There's no server to sign in to and no account to create, and nothing of yours passes through anything the author runs.
+There is no Nook account or Nook sync server. Pick a folder in iCloud Drive, Dropbox, Google Drive, OneDrive, Syncthing, or any other folder-sync service. That service carries Nook's files between devices; Nook then merges the per-device files with CRDTs so concurrent reads, stars, categories, and feed changes do not overwrite each other.
 
-Because your library is just a folder, there's **no lock-in**:
+Apple Intelligence features stay on-device. Gemini is available only when you explicitly select it and save your own API key; in that case, the article text is sent directly to Google for the requested operation.
 
-- **Any cloud you like.** It's just a folder, so sync it however you already do — iCloud Drive, Dropbox, Google Drive, OneDrive, Syncthing, even a Git repo. Nook doesn't run a server or ask for an account.
-- **One library, every device.** Point the Mac and iOS apps at the same folder and your feeds, read state, and stars stay in step — Nook watches the folder and merges another device's changes the moment they arrive, so a read on one device is never overwritten by another.
-- **Come and go via OPML.** Import your subscriptions from Reeder, NetNewsWire, Feedly, or anywhere else in seconds — and export them back out any time. Your feed list is always yours to take with you.
+## Highlights
 
-## A few things that set it apart
+- **Native Mac, iPhone, and iPad apps.** SwiftUI and AppKit surfaces, native navigation, menus, gestures, widgets, sharing, and accessibility.
+- **A folder is the sync service.** Your library remains portable, inspectable JSON in storage you choose, with OPML import and export for subscriptions.
+- **A real native reader.** Typography, images, links, code, quotes, nested lists, and tables render without making the default reader a web view. Full-page and original-site modes remain available.
+- **Translation that keeps its shape.** Use Apple Intelligence on-device or opt into Gemini. Gemini translates the native reader as coherent Markdown, preserving the context of headings, lists, tables, links, and code while it streams.
+- **Markdown in and out.** Copy the article body as Markdown or save it as a `.md` file. When a Gemini-translated Markdown article is visible, that translated version is exported.
+- **Rules you control.** Create categories, keyword filters, hidden sources, and optional AI classification. Automatic list-title translation and new-article notifications are opt-in.
+- **Offline-first reading.** Feed content is local, selected full articles can be downloaded, and automatic expiry is configurable.
+- **Quiet cross-device alerts.** Seen state suppresses duplicate alerts. A Mac left open but hidden, minimized, locked, asleep, or idle yields notification ownership to iOS.
 
-Not better or worse than the other good native readers out there — just a different set of choices, in case they're the ones you're after:
+See [all features and their defaults](docs/features.md), including which options are opt-in, opt-out, device-local, or network-backed.
 
-- **No Nook backend, no account.** There's no Nook server and nothing to sign up for. Your whole library is a plain folder you point at. Optional Gemini features send article text directly to Google only when you select Gemini and provide your own API key.
-- **Sync without a sync service.** Most readers reach multi-device sync through iCloud, Feedbin, Feedly, and the like. Nook syncs by merging plain files in that folder — conflict-free, so two devices never clobber each other — with no service in between.
-- **Private by default, cloud only by choice.** Translate on-device with Apple Intelligence, or explicitly opt into Gemini with your own API key for fast, document-aware Markdown translation.
-- **Free and offline-first.** It's free, and built to be fully usable without a connection; a refresh just tops things up when you're online.
+## Is Nook the right reader for you?
 
-## Features
+Nook is strongest when you want a native Apple-platform reader, no service account, control of the sync folder, and optional translation without making AI mandatory. A hosted reader may fit better if you need a web or Android client, server-side feed collection while all your devices are offline, team features, or a large annotation and knowledge-management system.
 
-- 🪶 **Native on every device.** One shared Swift core (`NookKit`) under a SwiftUI + AppKit Mac app and a SwiftUI iPhone/iPad app — `NavigationSplitView`, native toolbars, menus, commands, swipe actions, and share sheets.
-- 🗂️ **Your data, your folder — any cloud.** Feeds, articles, bodies, and user state live as plain per-device JSON shards in a folder you pick, Obsidian-vault style. Point it at iCloud Drive, Dropbox, Google Drive, OneDrive — whatever syncs folders for you. No account, no telemetry.
-- 🔁 **Conflict-free cross-device sync.** Every device writes only its own content and state files, so two devices can't clobber the same authoritative file. Nook accumulates last-writer-wins CRDT registers in a rebuildable local SQLite cache and republishes learned peer state; delayed, duplicated, missing, or out-of-order cloud files cannot make an observed article disappear.
-- 📥 **Painless migration, no lock-in.** Bring subscriptions in from any reader with **OPML import**, and **export** them whenever you want to move on.
-- 📰 **Real feeds.** Add an RSS/Atom URL, or just paste a website — Nook auto-discovers the feed from the page's `<link rel="alternate">`.
-- 📲 **Add from anywhere (iOS).** Share a page from Safari with **“Add Feed to Nook”** and it finds and subscribes to that site's feed.
-- 🌏 **Natural translation (iOS & macOS).** Translate on-device with **Apple Intelligence** (with the system Translation engine as a fallback), or opt into **Gemini** with an API key stored only on that device. In the native reader, Gemini translates one ordinary Markdown document so headings, lists, tables, links, and code keep their context together; an incomplete or structurally invalid Flash Lite result is retried with Flash. Translation appears progressively with a typewriter reveal, applying usable Markdown formatting while the response is still streaming instead of flashing in as a finished replacement.
-- 📚 **Smart sources & folders.** Jump between **Unread**, **Today**, **Starred**, and **All Articles**, or organize feeds into your own folders (create, rename, delete).
-- 🏷️ **Article rules & categories.** Create color-coded categories, tag articles manually or by keyword, browse a category from the sidebar, and hide categories from normal lists and unread counts. Optional Apple Intelligence or Gemini classification adds conservative, meaning-based tags to new or existing articles without treating incidental mentions as separate subjects.
-- 📖 **Two ways to read.** A clean, fast native reader by default; opt into a full-page reader (a `WKWebView` with an injected readability script) or pop the original page open in an in-app browser — per feed, if you like.
-- 📝 **Portable Markdown.** From the native reader's share menu, copy the body as Markdown or save it as a `.md` file. Headings, inline styling, links, images, quotes, code blocks, nested lists, tables, and media destinations are preserved; when a translated article is visible, the exported Markdown follows what you're reading.
-- ✋ **Gesture-friendly (iOS).** Swipe to read/star, pull to refresh (all feeds or just the one you're viewing), and use the article body itself — double-tap to star, press-and-hold (with a haptic build-up) to open the web view.
-- 🔎 **Instant search** across titles, summaries, and feed names, with keyboard-first navigation on the Mac.
-- 🔄 **Quiet auto-sync.** Refreshes on a schedule and whenever the app launches or returns to the foreground — throttled so it never hammers your feeds. Automatic refreshes run quietly at low priority and slip new articles in without jolting the list, while an explicit refresh fetches fast; you can even add a feed mid-refresh.
-- 🔴 **Optional unread badges.** A toggleable Dock badge on the Mac and app-icon badge on iOS (showing your total unread), plus a home-screen widget with smart-source shortcuts.
-- 🔔 **Smart new-article alerts.** A local notification when genuinely new articles arrive — never for ones you've already seen in the list. That "seen" state syncs across devices, so catching up on your Mac won't re-ping your iPhone. A Mac actively being read owns its alerts, but a hidden, minimized, locked, sleeping, or ten-minutes-idle Mac yields notification ownership so iOS background refresh can alert you even if the Mac app was left open. Each device still keeps its own at-most-once receipts, and iOS Settings has a test notification plus background-refresh diagnostics.
-- 🌓 **Adaptive icon** (light/dark) and a **localized UI** — English, 한국어, 日本語, 简体中文.
-- ⬆️ **Auto-updates** on macOS via [Sparkle](https://sparkle-project.org) — quiet, never a modal.
-
-## On iPhone & iPad
-
-<table>
-  <tr>
-    <td width="240" align="center"><img src="docs/screenshots/ios-articles.png" width="230" alt="Article list with Unread / Today / All"></td>
-    <td valign="top">
-      <h3>Everything to read, in one place</h3>
-      <p>Open straight to the article list. Switch <strong>Unread</strong>, <strong>Today</strong>, or <strong>All</strong> from the segmented control in the navigation bar, and swipe a row to mark it read or star it.</p>
-    </td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td valign="top">
-      <h3>A clean, native reader</h3>
-      <p>Articles render as real native text — typography, images, code blocks, quotes, lists, and tables — not a webview. Translate in place with on-device Apple Intelligence or optional Gemini, copy or save the body as Markdown, or jump to the full-page reader or original site when you want.</p>
-    </td>
-    <td width="240" align="center"><img src="docs/screenshots/ios-reader.png" width="230" alt="Native article reader"></td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td width="240" align="center"><img src="docs/screenshots/ios-reader-swipe.png" width="230" alt="Pull past the edge to change article"></td>
-    <td valign="top">
-      <h3>Flip between articles with a pull</h3>
-      <p>Pull past the top or bottom of an article to jump to the previous or next one. It takes a firm, deliberate pull held for a moment, so a stray scroll never flips the article by accident.</p>
-    </td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td valign="top">
-      <h3>Feeds and folders</h3>
-      <p>Add an RSS/Atom URL or just paste a website — Nook finds the feed from the page. Group your subscriptions into folders, rename and reorganize, right from the phone.</p>
-    </td>
-    <td width="240" align="center"><img src="docs/screenshots/ios-library.png" width="230" alt="Feeds and folders"></td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td width="240" align="center"><img src="docs/screenshots/ios-starred.png" width="230" alt="Starred articles"></td>
-    <td valign="top">
-      <h3>Keep the good ones</h3>
-      <p>Star an article from a swipe or a double-tap on its body, and find everything you saved under the Starred tab.</p>
-    </td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td valign="top">
-      <h3>Make it yours</h3>
-      <p>Appearance, reader font and spacing, per-feed reading mode, OPML import/export, and an Experimental section — all as native iOS settings.</p>
-    </td>
-    <td width="240" align="center"><img src="docs/screenshots/ios-settings.png" width="230" alt="Settings"></td>
-  </tr>
-</table>
+See the neutral [RSS reader comparison](docs/reader-comparison.md) for Nook, NetNewsWire, Reeder, Feedly, and Readwise Reader, with official sources and tradeoffs rather than a checklist score.
 
 ## Install
 
@@ -143,127 +66,48 @@ Not better or worse than the other good native readers out there — just a diff
 brew install --cask selenehyun/tap/nook
 ```
 
-Nook is ad-hoc signed (not notarized), so on first launch either right-click **Nook** in Applications → **Open**, or install without quarantine so it opens straight away:
+Nook is ad-hoc signed rather than notarized. On first launch, right-click **Nook** in Applications and choose **Open**, or install without quarantine:
 
 ```sh
 HOMEBREW_CASK_OPTS="--no-quarantine" brew install --cask selenehyun/tap/nook
 ```
 
-Updates thereafter come through the app itself (Sparkle).
-
 ### macOS (DMG)
 
-1. Download the latest **[Nook DMG](https://github.com/selenehyun/nook/releases/latest)**.
-2. Open it and drag **Nook** into **Applications**.
-3. On first launch, macOS Gatekeeper will warn that the app is from an unidentified developer — Nook is ad-hoc signed (not notarized). To open it:
-   - **Right-click** `Nook.app` → **Open** → **Open**, or
-   - run once in Terminal:
-     ```sh
-     xattr -dr com.apple.quarantine /Applications/Nook.app
-     ```
-4. Point Nook at a **sync folder** — any folder your cloud of choice keeps in sync. That's where your library lives.
+1. Download the latest [Nook DMG](https://github.com/selenehyun/nook/releases/latest).
+2. Drag **Nook** into **Applications**.
+3. Right-click `Nook.app` and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/Nook.app` once.
+4. Choose the folder where Nook should keep and sync your library.
 
-> Requires **macOS 26 (Tahoe)** or later. Universal binary (Apple Silicon + Intel). On-device Apple Intelligence translation needs an Apple Silicon Mac with Apple Intelligence enabled; elsewhere translation falls back to the system Translation overlay. Gemini translation is optional and requires your own API key and a network connection.
+Requires **macOS 26 (Tahoe)** or later. The universal build supports Apple Silicon and Intel. Apple Intelligence translation requires a supported Apple Silicon Mac; Gemini is optional and requires your own API key and a network connection.
 
 ### iOS / iPadOS
 
-There's no App Store build yet (that needs a paid Apple Developer account). To run it on your own device, build from source in Xcode:
+There is no App Store build yet. To install it on your own device:
 
-1. Open `Nook.xcodeproj`, select the **NookiOS** scheme and your device.
-2. Set your team under **Signing & Capabilities**, then press **⌘R**.
-3. Point it at the **same sync folder** as your Mac (via the Files app — iCloud Drive works well) to share one library.
+1. Open `Nook.xcodeproj` and select the **NookiOS** scheme and your device.
+2. Choose your team under **Signing & Capabilities**, then press **⌘R**.
+3. Through the Files picker, select the same synced folder used by your Mac.
 
-> Requires **iOS/iPadOS 18** or later. On-device Apple Intelligence translation needs a supported device running **iOS 26**. Gemini translation is optional and requires your own API key and a network connection.
+Requires **iOS/iPadOS 18** or later. Apple Intelligence translation requires a supported device running **iOS 26**.
 
-## Moving in (and out)
+## Learn more
 
-Nook is built so you're never trapped:
-
-- **Switching to Nook?** Export an OPML from your current reader, then **Import OPML** in Nook. Your feeds and folders come across in one step.
-- **Switching away?** **Export OPML** and take your list anywhere.
-- **Moving devices or clouds?** Move the sync folder. The per-device JSON shards are authoritative; Nook rebuilds its local SQLite cache from them. Legacy `NookLibrary.json` files can stay in place for read-only migration compatibility.
-
-## How your data is stored
-
-Nook is folder-first. Pick any folder — on any cloud, or none — and Nook keeps everything there:
-
-```
-YourSyncFolder/
-├── NookLibrary.json        # legacy v1 input; current Nook never writes it
-├── NookContent.json        # legacy v1 body input; current Nook never writes it
-├── .nook/
-│   ├── content/
-│   │   └── <deviceID>.json # feed/article metadata CRDT
-│   ├── bodies/
-│   │   └── <deviceID>.json # bounded, regenerable article-body cache
-│   └── state/
-│       └── <deviceID>.json # read/starred/folder/filter/category state CRDT
-└── Icons/                  # cached feed favicons
-```
-
-Since it's just files in a folder you control, "sync" is whatever your folder already does: iCloud Drive across your Apple devices, Dropbox/Google Drive/OneDrive across platforms, or your own backup.
-
-The split is deliberate. Content metadata and mutable user state are separate CRDTs, and **each device writes only its own shard in each directory**. Incoming registers merge by hybrid logical clock, while article membership is grow-only; only an explicit feed tombstone can remove a feed and its articles. Nook's Application Support database transactionally accumulates observed registers, notification receipts, and a publish outbox. It is a disposable cache, not another source of truth.
-
-`NookLibrary.json` and `NookContent.json` are now legacy inputs. Current Nook versions continuously add-import unseen v1 feed/article IDs (including unresolved conflict copies), never let an old payload overwrite v2 content, never interpret a shrinking file as deletion, and never write or resolve those files. This lets a v1 device coexist while upgraded devices remain stable. A v1 app can still have its old shared-file race until it is upgraded; once every device runs v2, no Nook process writes a shared content file.
-
-On the first v2 run, legacy folders, feed placement, read flags, and stars are copied into missing state registers before the new content snapshot is shown. Existing shard edits are never overwritten, and the migration is marked complete only after the state shard is durably written.
-
-File presentation and modification dates are wake-up hints only. Every wake performs an idempotent scan, and a missing, corrupt, partially downloaded, or older-generation peer file means “no new information,” never “delete local information.”
-
-## Auto-updates (macOS)
-
-Nook updates itself with [Sparkle](https://sparkle-project.org), tuned to stay out of your way: background checks **never** pop a modal — not even at launch. When a new version is ready, a small blue chip appears at the bottom of the sidebar. Click it to see what's new and install; keep reading if you don't. Updates are EdDSA-signed and published automatically from GitHub Releases. (On iOS, updates come from rebuilding in Xcode or, in future, the App Store.)
-
-## Keyboard shortcuts (macOS)
-
-| Shortcut | Action |
-| --- | --- |
-| `↑` / `↓` | Move through the article list |
-| `Return` | Open the selected article in the web view |
-| `⌘ ↓` / `⌘ ↑` | Next / previous article |
-| `⌘ R` | Refresh all feeds |
-| `⌘ ⇧ M` | Mark selected as read |
-| `⌘ ⇧ S` | Star selected |
-| `⌘ ⇧ F` | Toggle reader / original page |
-| `⌘ F` | Search articles |
-| `⌘ ,` | Settings |
+- [Features, controls, and platform details](docs/features.md)
+- [Comparison with other RSS readers](docs/reader-comparison.md)
+- [Data ownership, cloud sync, and conflict handling](docs/data-and-sync.md)
+- [Building, architecture, and releasing](docs/development.md)
+- [Homebrew tap setup](docs/homebrew-tap.md)
 
 ## Build from source
 
 ```sh
 git clone https://github.com/selenehyun/nook
 cd nook
-make build          # macOS — or open Nook.xcodeproj and press ⌘R
-
-# iOS (simulator)
-xcodebuild -project Nook.xcodeproj -scheme NookiOS \
-  -destination 'generic/platform=iOS Simulator' build
+make build
 ```
 
-**Toolchain:** Xcode 26.5+, Swift 6, deployment targets macOS 26 / iOS 18. A macOS build you compile locally isn't quarantined, so it launches without the Gatekeeper prompt.
-
-## Tech
-
-- **Shared core:** `NookKit`, a local Swift package with the store, models, RSS/Atom + OPML parsing, storage, and the reader — used by both apps.
-- **UI:** SwiftUI + AppKit on macOS, SwiftUI on iOS/iPadOS (native split view, toolbars, menus, commands, widget, share extension).
-- **Networking & parsing:** `URLSession` + `XMLParser` for RSS/Atom and OPML.
-- **Reader mode:** `WKWebView` with a self-contained injected readability script.
-- **Translation (iOS & macOS):** Apple's on-device **Foundation Models** path translates and validates native blocks while preserving inline markup. The opt-in **Gemini** native-reader path converts the article to ordinary Markdown and streams one marker-free document, parsing complete structure into native blocks off the main actor and progressively revealing safe partial formatting on the UI. Flash Lite is attempted first; interrupted, incomplete, or structurally invalid output falls back to Flash as a whole document. Both paths reject echoes, repetition, leaked instructions, and damaged structure. A **Translation** framework fallback covers devices without Apple Intelligence; language detection uses **NaturalLanguage**.
-- **Sync:** per-device content/body/state shards; state-based last-writer-wins CRDTs with hybrid logical clocks; a system SQLite3 replica/outbox cache; `NSFileCoordinator` + `NSFilePresenter` as coordinated I/O and rescan hints.
-- **Widget:** WidgetKit. **Updates (macOS):** Sparkle (EdDSA-signed appcast, built and published by GitHub Actions).
-- No third-party UI frameworks. No Electron.
-
-## Releasing (maintainers)
-
-Pushing a version tag builds, signs, and publishes the macOS app via `.github/workflows/release.yml`:
-
-```sh
-git tag v0.1.8
-git push origin v0.1.8
-```
-
-The macOS runner archives a universal ad-hoc build, packages a styled DMG, publishes a GitHub Release with the DMG, then EdDSA-signs the update and updates the Sparkle appcast on the `gh-pages` branch.
+See [development notes](docs/development.md) for the iOS build command, architecture, toolchain, and release process.
 
 ## License
 
