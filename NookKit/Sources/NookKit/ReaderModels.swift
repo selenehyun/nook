@@ -132,6 +132,78 @@ public extension ArticleFilter.MatchTarget {
         case .titleAndSummary: String(localized: "Title & Summary", bundle: Bundle.module)
         }
     }
+
+    /// The article text this target selects.
+    func text(title: String, summary: String) -> String {
+        switch self {
+        case .title: return title
+        case .summary: return summary
+        case .titleAndSummary: return title + "\n" + summary
+        }
+    }
+}
+
+/// A user-defined category articles can be tagged with — shown as a badge in the
+/// list and usable to hide articles you don't care about. Categories sync across
+/// devices (per-item in the state shard, mirroring `ArticleFilter`). Each carries
+/// its own keyword rules: an article whose title/summary contains one of the
+/// keywords is tagged with this category automatically (the keyword path, which
+/// takes priority over AI classification).
+public struct ArticleCategory: Codable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var name: String
+    /// Badge color as a hex string (e.g. "#FF9500"). A palette default is chosen
+    /// at creation; the user can change it.
+    public var colorHex: String
+    /// Display order across the unordered per-item CRDT map (sorted by (order,id)
+    /// so the list stays stable and converges across devices).
+    public var order: Int
+    /// When true, articles tagged with this category are hidden from the normal
+    /// lists (collected under "Filtered") — the category-based filtering path.
+    public var hidden: Bool
+    /// Keywords that auto-assign this category (empty = no keyword rule).
+    public var keywords: [String]
+    /// Which text the keywords are tested against.
+    public var keywordMatchTarget: ArticleFilter.MatchTarget
+    public var keywordCaseSensitive: Bool
+
+    public init(
+        id: String = UUID().uuidString,
+        name: String = "",
+        colorHex: String = ArticleCategory.defaultPalette[0],
+        order: Int = 0,
+        hidden: Bool = false,
+        keywords: [String] = [],
+        keywordMatchTarget: ArticleFilter.MatchTarget = .titleAndSummary,
+        keywordCaseSensitive: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.colorHex = colorHex
+        self.order = order
+        self.hidden = hidden
+        self.keywords = keywords
+        self.keywordMatchTarget = keywordMatchTarget
+        self.keywordCaseSensitive = keywordCaseSensitive
+    }
+
+    /// Whether any of this category's keywords appear in the article — a plain,
+    /// case-optional substring test (never a regex, so a stray keyword can't
+    /// error), used for keyword-based auto-classification.
+    public func matchesKeywords(title: String, summary: String) -> Bool {
+        let active = keywords.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !active.isEmpty else { return false }
+        let text = keywordMatchTarget.text(title: title, summary: summary)
+        let options: String.CompareOptions = keywordCaseSensitive ? [] : [.caseInsensitive]
+        return active.contains { text.range(of: $0, options: options) != nil }
+    }
+
+    /// A small default palette so new categories look distinct without forcing a
+    /// color choice up front.
+    public static let defaultPalette = [
+        "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#00C7BE",
+        "#007AFF", "#5856D6", "#AF52DE", "#FF2D55", "#8E8E93",
+    ]
 }
 
 public struct ReaderLibrary: Codable, Sendable {
@@ -145,17 +217,21 @@ public struct ReaderLibrary: Codable, Sendable {
     /// `CodingKeys`): filters live only in the per-device state shard and are
     /// carried here in-memory by `materialize` for the store to read.
     public var filters: [ArticleFilter]
+    /// User categories (definitions). Like `filters`, shard-only and carried
+    /// in-memory by `materialize` — never persisted in the content baseline.
+    public var categories: [ArticleCategory]
 
     enum CodingKeys: String, CodingKey {
         case feeds, articles, lastRefreshedAt, folders
     }
 
-    public init(feeds: [Feed], articles: [Article], lastRefreshedAt: Date?, folders: [String], filters: [ArticleFilter] = []) {
+    public init(feeds: [Feed], articles: [Article], lastRefreshedAt: Date?, folders: [String], filters: [ArticleFilter] = [], categories: [ArticleCategory] = []) {
         self.feeds = feeds
         self.articles = articles
         self.lastRefreshedAt = lastRefreshedAt
         self.folders = folders
         self.filters = filters
+        self.categories = categories
     }
 
     public init(from decoder: Decoder) throws {
@@ -165,6 +241,7 @@ public struct ReaderLibrary: Codable, Sendable {
         lastRefreshedAt = try container.decodeIfPresent(Date.self, forKey: .lastRefreshedAt)
         folders = try container.decodeIfPresent([String].self, forKey: .folders) ?? []
         filters = []
+        categories = []
     }
 }
 
@@ -271,6 +348,12 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
     /// to keep the fresh authoritative date for dated feeds — self-correcting a
     /// previously wrong value — while preserving the stamp for dateless ones.
     public var hasExplicitPublishDate: Bool = true
+    /// Category ids assigned to this article (keyword / AI / manual). Lives in the
+    /// per-device state shard and is overlaid by `materialize` — NOT persisted in
+    /// the content baseline (absent from `CodingKeys`), mirroring how read/starred
+    /// and offline state work. Participates in `Hashable`/`Equatable`, so a synced
+    /// change is picked up by `reloadMerged`'s `merged.articles != articles` check.
+    public var categories: [String] = []
 
     public init(
         id: String,
@@ -284,7 +367,8 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
         isRead: Bool,
         isStarred: Bool,
         contentHTML: String? = nil,
-        hasExplicitPublishDate: Bool = true
+        hasExplicitPublishDate: Bool = true,
+        categories: [String] = []
     ) {
         self.id = id
         self.feedID = feedID
@@ -298,6 +382,7 @@ public struct Article: Identifiable, Codable, Hashable, Sendable {
         self.isStarred = isStarred
         self.contentHTML = contentHTML
         self.hasExplicitPublishDate = hasExplicitPublishDate
+        self.categories = categories
     }
 
     enum CodingKeys: String, CodingKey {

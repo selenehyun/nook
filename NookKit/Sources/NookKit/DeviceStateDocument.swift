@@ -28,27 +28,33 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         /// baseline that still carries the article can't resurrect it). Used when
         /// the original is gone (e.g. a 404) but the local copy lingers in the list.
         public var tombstone: LWWRegister<Bool>?
+        /// Category ids assigned to this article (keyword / AI / manual). Whole-
+        /// list LWW: an assignment change replaces the set, resolved by HLC.
+        public var categories: LWWRegister<[String]>?
 
         public init(
             isRead: LWWRegister<Bool>? = nil,
             isStarred: LWWRegister<Bool>? = nil,
             seen: LWWRegister<Bool>? = nil,
-            tombstone: LWWRegister<Bool>? = nil
+            tombstone: LWWRegister<Bool>? = nil,
+            categories: LWWRegister<[String]>? = nil
         ) {
             self.isRead = isRead
             self.isStarred = isStarred
             self.seen = seen
             self.tombstone = tombstone
+            self.categories = categories
         }
 
-        var isEmpty: Bool { isRead == nil && isStarred == nil && seen == nil && tombstone == nil }
+        var isEmpty: Bool { isRead == nil && isStarred == nil && seen == nil && tombstone == nil && categories == nil }
 
         func merged(with other: ArticleState) -> ArticleState {
             ArticleState(
                 isRead: mergeRegisters(isRead, other.isRead),
                 isStarred: mergeRegisters(isStarred, other.isStarred),
                 seen: mergeRegisters(seen, other.seen),
-                tombstone: mergeRegisters(tombstone, other.tombstone)
+                tombstone: mergeRegisters(tombstone, other.tombstone),
+                categories: mergeRegisters(categories, other.categories)
             )
         }
     }
@@ -116,6 +122,26 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         }
     }
 
+    /// Per-category definition state, keyed by category id — the same per-item
+    /// CRDT as `FilterState`, so two devices adding/editing different categories
+    /// concurrently both survive and a deletion (`tombstone`) propagates.
+    public struct CategoryState: Codable, Sendable, Equatable {
+        public var value: LWWRegister<ArticleCategory>?
+        public var tombstone: LWWRegister<Bool>?
+
+        public init(value: LWWRegister<ArticleCategory>? = nil, tombstone: LWWRegister<Bool>? = nil) {
+            self.value = value
+            self.tombstone = tombstone
+        }
+
+        func merged(with other: CategoryState) -> CategoryState {
+            CategoryState(
+                value: mergeRegisters(value, other.value),
+                tombstone: mergeRegisters(tombstone, other.tombstone)
+            )
+        }
+    }
+
     public static let currentSchema = 1
 
     public var schema: Int
@@ -137,6 +163,9 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
     /// written by the earlier whole-list version decode cleanly: their stale
     /// `filters` key is simply ignored, and no real filter data predates this.
     public var filterStates: [String: FilterState]
+    /// User category definitions, keyed by category id (per-item CRDT, see
+    /// `CategoryState`). Optional-decoded so older shards without it load cleanly.
+    public var categoryStates: [String: CategoryState]
 
     public init(
         deviceID: String,
@@ -145,7 +174,8 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         articleState: [Article.ID: ArticleState] = [:],
         feedState: [Feed.ID: FeedState] = [:],
         folders: [String: LWWRegister<Bool>] = [:],
-        filterStates: [String: FilterState] = [:]
+        filterStates: [String: FilterState] = [:],
+        categoryStates: [String: CategoryState] = [:]
     ) {
         self.schema = Self.currentSchema
         self.deviceID = deviceID
@@ -156,10 +186,11 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         self.feedState = feedState
         self.folders = folders
         self.filterStates = filterStates
+        self.categoryStates = categoryStates
     }
 
     enum CodingKeys: String, CodingKey {
-        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders, filterStates
+        case schema, deviceID, generation, clock, updatedAt, articleState, feedState, folders, filterStates, categoryStates
     }
 
     public init(from decoder: Decoder) throws {
@@ -173,6 +204,7 @@ public struct DeviceStateDocument: Codable, Sendable, Equatable {
         feedState = try container.decodeIfPresent([Feed.ID: FeedState].self, forKey: .feedState) ?? [:]
         folders = try container.decodeIfPresent([String: LWWRegister<Bool>].self, forKey: .folders) ?? [:]
         filterStates = try container.decodeIfPresent([String: FilterState].self, forKey: .filterStates) ?? [:]
+        categoryStates = try container.decodeIfPresent([String: CategoryState].self, forKey: .categoryStates) ?? [:]
     }
 }
 
@@ -240,6 +272,12 @@ extension DeviceStateDocument {
         articleState[id] = state
     }
 
+    public mutating func setArticleCategories(_ id: Article.ID, _ value: [String], hlc: HLC) {
+        var state = articleState[id] ?? ArticleState()
+        state.categories = LWWRegister(value: value, hlc: hlc)
+        articleState[id] = state
+    }
+
     public mutating func setFeedCategory(_ id: Feed.ID, _ value: String, hlc: HLC) {
         var state = feedState[id] ?? FeedState()
         state.category = LWWRegister(value: value, hlc: hlc)
@@ -286,6 +324,18 @@ extension DeviceStateDocument {
         filterStates[id] = state
     }
 
+    public mutating func setCategory(_ id: String, _ value: ArticleCategory, hlc: HLC) {
+        var state = categoryStates[id] ?? CategoryState()
+        state.value = LWWRegister(value: value, hlc: hlc)
+        categoryStates[id] = state
+    }
+
+    public mutating func setCategoryTombstone(_ id: String, _ deleted: Bool, hlc: HLC) {
+        var state = categoryStates[id] ?? CategoryState()
+        state.tombstone = LWWRegister(value: deleted, hlc: hlc)
+        categoryStates[id] = state
+    }
+
     /// The greatest clock anywhere in this shard, so a device loading peers'
     /// shards can advance its own clock past everything it has observed.
     public var maxObservedHLC: HLC {
@@ -295,6 +345,7 @@ extension DeviceStateDocument {
             fold(state.isRead?.hlc)
             fold(state.isStarred?.hlc)
             fold(state.seen?.hlc)
+            fold(state.categories?.hlc)
         }
         for state in feedState.values {
             fold(state.category?.hlc)
@@ -305,6 +356,10 @@ extension DeviceStateDocument {
         }
         for register in folders.values { fold(register.hlc) }
         for state in filterStates.values {
+            fold(state.value?.hlc)
+            fold(state.tombstone?.hlc)
+        }
+        for state in categoryStates.values {
             fold(state.value?.hlc)
             fold(state.tombstone?.hlc)
         }
@@ -319,11 +374,12 @@ extension DeviceStateDocument {
     /// by highest HLC. Pure and order-independent.
     static func mergedState(
         from shards: [DeviceStateDocument]
-    ) -> (articles: [Article.ID: ArticleState], feeds: [Feed.ID: FeedState], folders: [String: LWWRegister<Bool>], filters: [String: FilterState]) {
+    ) -> (articles: [Article.ID: ArticleState], feeds: [Feed.ID: FeedState], folders: [String: LWWRegister<Bool>], filters: [String: FilterState], categories: [String: CategoryState]) {
         var articles: [Article.ID: ArticleState] = [:]
         var feeds: [Feed.ID: FeedState] = [:]
         var folders: [String: LWWRegister<Bool>] = [:]
         var filters: [String: FilterState] = [:]
+        var categories: [String: CategoryState] = [:]
         for shard in shards {
             for (id, state) in shard.articleState {
                 articles[id] = articles[id].map { $0.merged(with: state) } ?? state
@@ -337,8 +393,11 @@ extension DeviceStateDocument {
             for (id, state) in shard.filterStates {
                 filters[id] = filters[id].map { $0.merged(with: state) } ?? state
             }
+            for (id, state) in shard.categoryStates {
+                categories[id] = categories[id].map { $0.merged(with: state) } ?? state
+            }
         }
-        return (articles, feeds, folders, filters)
+        return (articles, feeds, folders, filters, categories)
     }
 
     /// Produces the effective library the app should show: the regenerable
@@ -459,6 +518,7 @@ extension DeviceStateDocument {
             if state?.tombstone?.value == true { continue }
             if let isRead = state?.isRead?.value { article.isRead = isRead }
             if let isStarred = state?.isStarred?.value { article.isStarred = isStarred }
+            if let categories = state?.categories?.value { article.categories = categories }
             let idx = articles.count
             articles.append(article)
             liveIndexByURL[article.url.feedIdentityKey, default: []].append(idx)
@@ -482,11 +542,13 @@ extension DeviceStateDocument {
                 if mergedState.tombstone?.value == true { removedIndices.insert(idx); continue }
                 if let isRead = mergedState.isRead?.value { articles[idx].isRead = isRead }
                 if let isStarred = mergedState.isStarred?.value { articles[idx].isStarred = isStarred }
+                if let categories = mergedState.categories?.value { articles[idx].categories = categories }
             } else if matches.isEmpty {
                 if state?.tombstone?.value == true { continue }
                 var kept = article
                 if let isRead = state?.isRead?.value { kept.isRead = isRead }
                 if let isStarred = state?.isStarred?.value { kept.isStarred = isStarred }
+                if let categories = state?.categories?.value { kept.categories = categories }
                 articles.append(kept)
             }
         }
@@ -510,12 +572,21 @@ extension DeviceStateDocument {
             }
             .sorted { ($0.order, $0.id) < ($1.order, $1.id) }
 
+        // Categories: same per-item build as filters.
+        let categories = merged.categories
+            .compactMap { _, state -> ArticleCategory? in
+                guard state.tombstone?.value != true else { return nil }
+                return state.value?.value
+            }
+            .sorted { ($0.order, $0.id) < ($1.order, $1.id) }
+
         return ReaderLibrary(
             feeds: feeds,
             articles: articles,
             lastRefreshedAt: base.lastRefreshedAt,
             folders: Array(folders),
-            filters: filters
+            filters: filters,
+            categories: categories
         )
     }
 }

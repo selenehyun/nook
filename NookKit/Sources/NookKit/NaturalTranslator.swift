@@ -181,6 +181,56 @@ public enum NaturalTranslator {
         return nil
     }
 
+    /// Classifies an article into zero or more of the user's categories, returning
+    /// the matching category NAMES (a subset of `categories`, in input order).
+    /// Apple Intelligence on device by default, Gemini over the network when the
+    /// caller passes `.gemini`. Returns an empty array when nothing clearly
+    /// applies or the model is unavailable — so "no category" stays no category.
+    public static func classify(title: String, summary: String, into categories: [String], provider: TranslationProvider) async -> [String] {
+        let names = categories
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !names.isEmpty else { return [] }
+
+        let numbered = names.enumerated().map { "- \($0.element)" }.joined(separator: "\n")
+        let instructions = """
+        You assign a news article to categories from a FIXED list:
+        \(numbered)
+        Reply with ONLY the category names that clearly apply, each on its own line, \
+        copied EXACTLY as written above (a name may itself contain commas). If none \
+        clearly apply, reply with nothing at all. Never invent a category that is \
+        not in the list.
+        """
+        let sample = String((title + "\n\n" + summary).prefix(1500))
+        let prompt = "Which of the listed categories apply to this article?\n\n\(sample)"
+
+        let raw: String?
+        if provider == .gemini {
+            raw = try? await GeminiTranslator.complete(system: instructions, prompt: prompt)
+        } else {
+            #if canImport(FoundationModels)
+            if #available(iOS 26, macOS 26, *), case .available = SystemLanguageModel.default.availability {
+                let session = LanguageModelSession(instructions: instructions)
+                raw = (try? await session.respond(to: prompt, options: translationOptions))?.content
+            } else {
+                raw = nil
+            }
+            #else
+            raw = nil
+            #endif
+        }
+        guard let raw else { return [] }
+
+        // Match whole lines (case-insensitive, leading bullets stripped) to the
+        // provided names, so a hallucinated/paraphrased label is dropped and a name
+        // that itself contains a comma still matches. Preserve the input order.
+        let lines = Set(
+            raw.split(separator: "\n")
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t-•*")).lowercased() }
+        )
+        return names.filter { lines.contains($0.lowercased()) }
+    }
+
     /// Extracts the article-wide glossary of terms that must stay untranslated —
     /// people's names, brand/product/publication names, and specialized technical
     /// terms — so every block preserves them identically. Combines a precise

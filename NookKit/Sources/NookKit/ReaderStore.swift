@@ -99,11 +99,28 @@ public final class ReaderStore {
     /// Read-only to the UI; mutate through `addFilter`/`updateFilter`/etc., which
     /// re-classify hidden articles and record the change to the shard.
     public private(set) var filters: [ArticleFilter] = []
+    /// User-defined categories (definitions), synced across devices via the state
+    /// shard. Read-only to the UI; mutate through `addCategory`/`updateCategory`/
+    /// etc. Per-article assignments live on `Article.categories`.
+    public private(set) var categories: [ArticleCategory] = []
+    /// Progress of an in-flight "classify existing articles" migration (completed,
+    /// total), or nil when idle. Observed for the settings progress indicator.
+    public private(set) var categorizeAllProgress: (completed: Int, total: Int)?
+    private var bulkCategorizeTask: Task<Void, Never>?
+    /// Background FIFO queue of new article ids awaiting AI categorization, drained
+    /// serially so a refresh's new articles are classified without a burst of model
+    /// calls. Only used when AI categorization is enabled.
+    private var aiCategorizeQueue: [Article.ID] = []
+    private var aiCategorizeRunning = false
     /// Ids of articles hidden by the enabled filters. Excluded from every normal
     /// list and from all unread/badge counts (a filtered article is never treated
     /// as unread); surfaced only under the `.filtered` source. Recomputed whenever
     /// `articles` or `filters` change.
     private var filteredArticleIDs: Set<Article.ID> = []
+    /// The text-filter-only subset of `filteredArticleIDs` (excludes articles
+    /// hidden purely by category). Kept as the incremental cache's reuse basis, so
+    /// un-hiding a category doesn't leave an article wrongly text-filtered.
+    private var textFilteredArticleIDs: Set<Article.ID> = []
     /// One entry per active filter, with its regex compiled once. Rebuilt only
     /// when `filters` change (not per article mutation), so a refresh that streams
     /// articles in doesn't recompile regexes on every merge.
@@ -735,7 +752,7 @@ public final class ReaderStore {
         // Compare against the same folder normalization `apply` produces.
         let impliedFolders = merged.feeds.map(\.folderName).filter { !$0.isEmpty }
         let mergedFolders = Set(merged.folders).union(impliedFolders)
-        if merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) || merged.filters != filters {
+        if merged.feeds != feeds || merged.articles != articles || mergedFolders != Set(folders) || merged.filters != filters || merged.categories != categories {
             apply(merged)
             pruneSelectionIfHidden()
         }
@@ -1038,33 +1055,52 @@ public final class ReaderStore {
     /// (same engine) reuses its prior verdict instead of re-running the match, so
     /// a multi-feed refresh only tests genuinely new/changed articles.
     private func recomputeFilteredIDs() {
-        guard !activeCompiledFilters.isEmpty else {
+        let hiddenCategoryIDs = Set(categories.filter { $0.hidden }.map(\.id))
+        guard !activeCompiledFilters.isEmpty || !hiddenCategoryIDs.isEmpty else {
             if !filteredArticleIDs.isEmpty { filteredArticleIDs = [] }
+            if !textFilteredArticleIDs.isEmpty { textFilteredArticleIDs = [] }
             if !filterClassifyCache.isEmpty { filterClassifyCache.removeAll(keepingCapacity: true) }
             return
         }
-        var ids = Set<Article.ID>()
-        ids.reserveCapacity(filteredArticleIDs.count)
+
+        // 1) Text filters (incremental, possibly regex), cached against the
+        //    text-only basis so a category-hide change never corrupts the reuse.
+        var textIDs = Set<Article.ID>()
         var cache = Dictionary<Article.ID, Int>(minimumCapacity: articles.count)
-        for article in articles {
-            let hash = Self.filterContentHash(article)
-            let isFiltered: Bool
-            if filterClassifyCache[article.id] == hash {
-                isFiltered = filteredArticleIDs.contains(article.id)
-            } else {
-                isFiltered = activeCompiledFilters.contains { compiled in
-                    Self.filterMatches(
-                        compiled.filter,
-                        regex: compiled.regex,
-                        in: compiled.filter.candidateText(title: article.title, summary: article.summary)
-                    )
+        if !activeCompiledFilters.isEmpty {
+            textIDs.reserveCapacity(textFilteredArticleIDs.count)
+            for article in articles {
+                let hash = Self.filterContentHash(article)
+                let isFiltered: Bool
+                if filterClassifyCache[article.id] == hash {
+                    isFiltered = textFilteredArticleIDs.contains(article.id)
+                } else {
+                    isFiltered = activeCompiledFilters.contains { compiled in
+                        Self.filterMatches(
+                            compiled.filter,
+                            regex: compiled.regex,
+                            in: compiled.filter.candidateText(title: article.title, summary: article.summary)
+                        )
+                    }
                 }
+                if isFiltered { textIDs.insert(article.id) }
+                cache[article.id] = hash
             }
-            if isFiltered { ids.insert(article.id) }
-            cache[article.id] = hash
         }
-        filteredArticleIDs = ids
+        textFilteredArticleIDs = textIDs
         filterClassifyCache = cache
+
+        // 2) Category hiding: cheap set-intersection, recomputed fresh (no cache),
+        //    unioned onto the text result.
+        if hiddenCategoryIDs.isEmpty {
+            filteredArticleIDs = textIDs
+        } else {
+            var combined = textIDs
+            for article in articles where article.categories.contains(where: { hiddenCategoryIDs.contains($0) }) {
+                combined.insert(article.id)
+            }
+            filteredArticleIDs = combined
+        }
     }
 
     /// A cheap content fingerprint of the fields filters match against, to detect
@@ -1156,6 +1192,223 @@ public final class ReaderStore {
         }
         scheduleShardSave()
         scheduleArticleFilter()
+    }
+
+    // MARK: - Categories (public API)
+
+    /// Re-classify (a hidden category changes the filtered set) and refresh
+    /// counts/badge/list after a category definition change.
+    private func applyCategoryChange() {
+        recomputeFilteredIDs()
+        if !hasFilters, feedSelection.isEmpty, smartSelection == .filtered {
+            selectSmartSource(.all)
+        }
+        recomputeCounts()
+        updateUnreadBadge()
+        scheduleArticleFilter()
+    }
+
+    @discardableResult
+    public func addCategory(name: String = "") -> ArticleCategory {
+        let order = (categories.map(\.order).max() ?? -1) + 1
+        let color = ArticleCategory.defaultPalette[categories.count % ArticleCategory.defaultPalette.count]
+        let category = ArticleCategory(name: name, colorHex: color, order: order)
+        categories.append(category)
+        recordCategoryDefinition(category)
+        scheduleShardSave()
+        applyCategoryChange()
+        return category
+    }
+
+    public func updateCategory(_ category: ArticleCategory) {
+        guard let index = categories.firstIndex(where: { $0.id == category.id }) else { return }
+        guard categories[index] != category else { return }
+        categories[index] = category
+        recordCategoryDefinition(category)
+        scheduleShardSave()
+        applyCategoryChange()
+    }
+
+    /// Deletes a category (tombstone syncs it) and strips its id from every
+    /// article that had it, so no article keeps a dangling assignment.
+    public func removeCategory(id: String) {
+        guard categories.contains(where: { $0.id == id }) else { return }
+        categories.removeAll { $0.id == id }
+        recordCategoryRemoval(id)
+        var updated = articles
+        var changed = false
+        for index in updated.indices where updated[index].categories.contains(id) {
+            updated[index].categories.removeAll { $0 == id }
+            recordArticleCategories(updated[index].id, updated[index].categories)
+            changed = true
+        }
+        if changed { articles = updated }   // single didSet → one recompute
+        scheduleShardSave()
+        applyCategoryChange()
+    }
+
+    public func moveCategories(fromOffsets: IndexSet, toOffset: Int) {
+        categories.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        for index in categories.indices where categories[index].order != index {
+            categories[index].order = index
+            recordCategoryDefinition(categories[index])
+        }
+        scheduleShardSave()
+    }
+
+    /// The category definitions assigned to an article, in the stored order — for
+    /// the list badges. Reads `categories`, so a row calling this observes it.
+    public func categories(forArticle article: Article) -> [ArticleCategory] {
+        guard !article.categories.isEmpty, !categories.isEmpty else { return [] }
+        let byID = Dictionary(categories.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return article.categories.compactMap { byID[$0] }
+    }
+
+    /// Toggles one category on/off for an article (from a menu). No-op if the id
+    /// isn't a real category or the article isn't loaded.
+    public func toggleCategory(_ id: String, forArticle articleID: Article.ID) {
+        guard categories.contains(where: { $0.id == id }),
+              let article = articles.first(where: { $0.id == articleID }) else { return }
+        var next = article.categories
+        if let index = next.firstIndex(of: id) { next.remove(at: index) } else { next.append(id) }
+        setArticleCategories(articleID: articleID, next)
+    }
+
+    /// Sets the categories assigned to one article (manual add/remove from the UI).
+    public func setArticleCategories(articleID: Article.ID, _ ids: [String]) {
+        guard let index = articles.firstIndex(where: { $0.id == articleID }) else { return }
+        // Keep only ids that are real categories, de-duplicated, order preserved.
+        let valid = Set(categories.map(\.id))
+        var seen = Set<String>()
+        let cleaned = ids.filter { valid.contains($0) && seen.insert($0).inserted }
+        guard articles[index].categories != cleaned else { return }
+        articles[index].categories = cleaned
+        recordArticleCategories(articleID, cleaned)
+        scheduleShardSave()
+    }
+
+    // MARK: - Classification
+
+    /// Category ids whose keywords match the article, in category order.
+    private func keywordCategoryIDs(title: String, summary: String) -> [String] {
+        categories
+            .filter { $0.matchesKeywords(title: title, summary: summary) }
+            .sorted { ($0.order, $0.id) < ($1.order, $1.id) }
+            .map(\.id)
+    }
+
+    /// Keyword-only auto categories for a new article, capped at 3.
+    private func keywordAutoCategories(for article: Article) -> [String] {
+        Array(keywordCategoryIDs(title: article.title, summary: article.summary).prefix(3))
+    }
+
+    /// Enqueues an article for background AI categorization (no-op unless AI is
+    /// enabled and usable). Keyword categories are applied separately, up front.
+    private func enqueueAICategorization(_ id: Article.ID) {
+        guard isAICategorizationActive else { return }
+        if !aiCategorizeQueue.contains(id) { aiCategorizeQueue.append(id) }
+        guard !aiCategorizeRunning else { return }
+        aiCategorizeRunning = true
+        Task { await drainAICategorizeQueue() }
+    }
+
+    private func drainAICategorizeQueue() async {
+        defer { aiCategorizeRunning = false }
+        let provider = TranslationSettings.categoryProvider()
+        while !aiCategorizeQueue.isEmpty {
+            let id = aiCategorizeQueue.removeFirst()
+            guard let article = articles.first(where: { $0.id == id }) else { continue }
+            await classifyAndAssign(article, provider: provider)
+        }
+    }
+
+    /// Classifies one article with AI and merges the result onto its existing
+    /// (keyword) categories, capped at 3. AI never removes; if it finds none,
+    /// nothing is added.
+    private func classifyAndAssign(_ article: Article, provider: TranslationProvider) async {
+        guard article.categories.count < 3, !categories.isEmpty else { return }
+        let names = await NaturalTranslator.classify(
+            title: article.title, summary: article.summary,
+            into: categories.map(\.name), provider: provider
+        )
+        guard !names.isEmpty else { return }
+        let idByName = Dictionary(categories.map { ($0.name.lowercased(), $0.id) }, uniquingKeysWith: { first, _ in first })
+        // Re-read the current assignment (it may have changed while awaiting).
+        guard let current = articles.first(where: { $0.id == article.id })?.categories else { return }
+        var combined = current
+        for cid in names.compactMap({ idByName[$0.lowercased()] }) where !combined.contains(cid) && combined.count < 3 {
+            combined.append(cid)
+        }
+        if combined != current { setArticleCategories(articleID: article.id, combined) }
+    }
+
+    // MARK: - Migration (classify existing articles)
+
+    /// Classifies existing articles in a background pass (settings migration).
+    /// `provider` lets a Gemini user run this once on Apple Intelligence.
+    public func classifyAllExisting(provider: TranslationProvider, onlyUncategorized: Bool = true) {
+        // Guard on the task AND set progress synchronously, so a rapid second tap
+        // can't slip past (progress is otherwise only set inside the async body).
+        guard categorizeAllProgress == nil, bulkCategorizeTask == nil, !categories.isEmpty else { return }
+        let targets = articles
+            .filter { onlyUncategorized ? $0.categories.isEmpty : true }
+            .map(\.id)
+        guard !targets.isEmpty else { return }
+        categorizeAllProgress = (0, targets.count)
+        bulkCategorizeTask = Task { await performBulkCategorize(targets, provider: provider) }
+    }
+
+    public func cancelClassifyAll() {
+        bulkCategorizeTask?.cancel()
+        bulkCategorizeTask = nil
+        categorizeAllProgress = nil
+    }
+
+    private func performBulkCategorize(_ ids: [Article.ID], provider: TranslationProvider) async {
+        defer {
+            categorizeAllProgress = nil
+            bulkCategorizeTask = nil
+        }
+        let idByName = Dictionary(categories.map { ($0.name.lowercased(), $0.id) }, uniquingKeysWith: { first, _ in first })
+        // Accumulate results and flush them onto `articles` in batches, so a large
+        // migration triggers one recompute per batch instead of one per article
+        // (the O(N²) main-actor cost the review flagged). Each flush re-reads the
+        // current `articles` by id, so a refresh landing mid-migration isn't lost.
+        var pending: [Article.ID: [String]] = [:]
+        let flushEvery = 25
+
+        func flush() {
+            guard !pending.isEmpty else { return }
+            var updated = articles
+            let indexByID = Dictionary(updated.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+            for (id, cats) in pending {
+                if let index = indexByID[id] { updated[index].categories = cats }
+                recordArticleCategories(id, cats)
+            }
+            articles = updated          // one didSet → one recompute for the batch
+            scheduleShardSave()
+            pending.removeAll(keepingCapacity: true)
+        }
+
+        for (offset, id) in ids.enumerated() {
+            if Task.isCancelled { break }
+            if let article = articles.first(where: { $0.id == id }) {
+                var combined = keywordAutoCategories(for: article)   // keyword first (priority)
+                if combined.count < 3 {
+                    let names = await NaturalTranslator.classify(
+                        title: article.title, summary: article.summary,
+                        into: categories.map(\.name), provider: provider
+                    )
+                    for cid in names.compactMap({ idByName[$0.lowercased()] }) where !combined.contains(cid) && combined.count < 3 {
+                        combined.append(cid)
+                    }
+                }
+                if combined != article.categories { pending[id] = combined }
+            }
+            if pending.count >= flushEvery { flush() }
+            categorizeAllProgress = (offset + 1, ids.count)
+        }
+        flush()
     }
 
     /// Installed by the platform app to reflect the unread badge (macOS Dock,
@@ -1255,7 +1508,9 @@ public final class ReaderStore {
     /// Whether any filter is actually active (enabled with a non-empty pattern).
     /// Drives whether the sidebar surfaces the "Filtered" entry — so a freshly
     /// added blank filter or an only-disabled filter doesn't show an empty row.
-    public var hasFilters: Bool { filters.contains { $0.enabled && !$0.pattern.isEmpty } }
+    public var hasFilters: Bool {
+        filters.contains { $0.enabled && !$0.pattern.isEmpty } || categories.contains { $0.hidden }
+    }
 
     public func addFeed(urlString: String, toFolder folder: String = "") async throws {
         guard isStorageConfigured else {
@@ -1488,6 +1743,18 @@ public final class ReaderStore {
     /// The configured offline auto-expiry (defaults to two weeks).
     public var offlineExpiry: OfflineExpiry {
         (UserDefaults.standard.string(forKey: Self.offlineExpiryKey)).flatMap(OfflineExpiry.init(rawValue:)) ?? .twoWeeks
+    }
+
+    /// `UserDefaults` key for whether AI-based categorization is enabled (opt-in,
+    /// default off). Keyword rules apply regardless; only AI classification is
+    /// gated by this.
+    public static let aiCategorizationEnabledKey = "aiCategorizationEnabled"
+
+    /// Whether AI categorization is on AND its provider is actually usable
+    /// (on-device model available, or a Gemini key stored).
+    public var isAICategorizationActive: Bool {
+        UserDefaults.standard.bool(forKey: Self.aiCategorizationEnabledKey)
+            && NaturalTranslator.isAvailable(for: TranslationSettings.categoryProvider())
     }
 
     /// How many currently-loaded articles a single filter would hide, for the live
@@ -2408,11 +2675,16 @@ public final class ReaderStore {
         var existingArticlesByID = Dictionary(articles.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         let knownIDs = Set(existingArticlesByID.keys)
         var hasNewArticles = false
+        // Genuinely-new article ids to hand to the background AI categorizer.
+        var newlyArrivedIDs: [Article.ID] = []
         for newArticle in parsedFeed.articles {
             var article = newArticle
             if let existing = existingArticlesByID[article.id] {
                 article.isRead = existing.isRead
                 article.isStarred = existing.isStarred
+                // A freshly parsed article has no categories; keep the ones already
+                // assigned (keyword/AI/manual) so a refresh never wipes them.
+                article.categories = existing.categories
                 // Only pin the timestamp when the feed gave no real date (we
                 // stamped a synthetic first-seen time): re-stamping it each
                 // refresh would jump the article to "now" and reshuffle the list.
@@ -2424,6 +2696,10 @@ public final class ReaderStore {
                 }
             } else {
                 hasNewArticles = true
+                // Auto-classify new articles: keyword rules apply immediately
+                // (cheap, priority); AI runs later in the background queue.
+                article.categories = keywordAutoCategories(for: article)
+                newlyArrivedIDs.append(article.id)
             }
             // Track feed items that shipped no date so a background pass can try
             // to recover the real one from the article page.
@@ -2444,6 +2720,21 @@ public final class ReaderStore {
             }
         } else {
             articles = merged
+        }
+
+        // Persist the keyword categories just assigned to new articles (so they
+        // sync), and queue those articles for background AI categorization (a
+        // no-op unless AI is enabled).
+        if !newlyArrivedIDs.isEmpty {
+            var wroteCategories = false
+            for id in newlyArrivedIDs {
+                if let cats = existingArticlesByID[id]?.categories, !cats.isEmpty {
+                    recordArticleCategories(id, cats)
+                    wroteCategories = true
+                }
+                enqueueAICategorization(id)
+            }
+            if wroteCategories { scheduleShardSave() }
         }
 
         // Flash the feed in the sidebar when a refresh actually brought in new
@@ -2522,6 +2813,9 @@ public final class ReaderStore {
         // the engine — so the merged filters must already be compiled in place (a
         // peer's filter edit reclassifies).
         filters = library.filters
+        // Categories drive both the badge display and (hidden ones) the filtered
+        // set, so set them before `articles` for the didSet recompute.
+        categories = library.categories
         rebuildFilterEngine()
         articles = library.articles
         lastRefreshedAt = library.lastRefreshedAt
@@ -2770,6 +3064,18 @@ public final class ReaderStore {
     /// Records a filter deletion as a tombstone so it syncs and converges.
     private func recordFilterRemoval(_ id: ArticleFilter.ID) {
         ownShard.setFilterTombstone(id, true, hlc: nextHLC())
+    }
+
+    private func recordArticleCategories(_ id: Article.ID, _ value: [String]) {
+        ownShard.setArticleCategories(id, value, hlc: nextHLC())
+    }
+
+    private func recordCategoryDefinition(_ category: ArticleCategory) {
+        ownShard.setCategory(category.id, category, hlc: nextHLC())
+    }
+
+    private func recordCategoryRemoval(_ id: String) {
+        ownShard.setCategoryTombstone(id, true, hlc: nextHLC())
     }
 
     /// Schedules a coalesced background write of this device's shard. Runs off

@@ -1596,6 +1596,11 @@ private struct ArticleList: View {
                             Label("Remove Download", systemImage: "arrow.down.circle.fill")
                         }
                     }
+                    Menu {
+                        CategoryMenuItems(store: store, article: article)
+                    } label: {
+                        Label("Categories", systemImage: "tag")
+                    }
                     Button {
                         store.selectedArticleID = article.id
                         store.browserMode = store.feed(for: article.feedID)?.preferredViewMode ?? readerViewMode
@@ -1745,6 +1750,8 @@ private struct ArticleList: View {
             }
             .font(.caption)
             .foregroundStyle(.tertiary)
+
+            CategoryBadges(store.categories(forArticle: article))
         }
     }
 }

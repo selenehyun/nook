@@ -436,6 +436,11 @@ struct ReaderDetailView: View {
                         } label: {
                             Label("Article Info", systemImage: "info.circle")
                         }
+                        Menu {
+                            CategoryMenuItems(store: store, article: article)
+                        } label: {
+                            Label("Categories", systemImage: "tag")
+                        }
                         Link(destination: article.url) {
                             Label("Open Original", systemImage: "safari")
                         }

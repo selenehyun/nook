@@ -98,6 +98,16 @@
         }
       }
     },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "1 article downloaded" : {
       "localizations" : {
         "en" : {
@@ -176,6 +186,34 @@
         }
       }
     },
+    "Add Category" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Category"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리 추가"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加类别"
+          }
+        }
+      }
+    },
     "Add Filter" : {
       "localizations" : {
         "en" : {
@@ -200,6 +238,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加过滤器"
+          }
+        }
+      }
+    },
+    "Add keywords to a category to auto-tag matching articles (e.g. \"WWDC\" → Apple). Turn on AI below to also classify by meaning. Only new articles are tagged automatically; use Classify Existing Articles for the rest." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add keywords to a category to auto-tag matching articles (e.g. \"WWDC\" → Apple). Turn on AI below to also classify by meaning. Only new articles are tagged automatically; use Classify Existing Articles for the rest."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリにキーワードを追加すると、一致する記事に自動でタグ付けされます（例：「WWDC」→ Apple）。下でAIをオンにすると意味でも分類します。自動タグは新着記事のみで、既存の記事は「既存の記事を分類」を使ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리에 키워드를 추가하면 일치하는 글에 자동 태그됩니다(예: \"WWDC\" → Apple). 아래에서 AI를 켜면 의미 기반으로도 분류합니다. 자동 태그는 새 글에만 적용되며, 기존 글은 '기존 글 분류'를 사용하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为类别添加关键词可自动为匹配的文章打标签（例如“WWDC”→ Apple）。在下方开启 AI 还能按含义分类。仅新文章会被自动打标签；其余请使用“分类现有文章”。"
           }
         }
       }
@@ -284,6 +350,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "2周后"
+          }
+        }
+      }
+    },
+    "AI provider" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI provider"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIプロバイダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 제공자"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 提供方"
           }
         }
       }
@@ -391,6 +485,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文章"
+          }
+        }
+      }
+    },
+    "Articles tagged with a hidden category are filtered out too." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Articles tagged with a hidden category are filtered out too."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非表示カテゴリが付いた記事も除外されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨긴 카테고리가 지정된 글도 함께 걸러집니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "带有隐藏类别的文章也会被过滤掉。"
           }
         }
       }
@@ -529,6 +651,118 @@
         }
       }
     },
+    "Categories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Categories"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "类别"
+          }
+        }
+      }
+    },
+    "Categorize with AI" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Categorize with AI"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIで分類"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI로 분류"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 AI 分类"
+          }
+        }
+      }
+    },
+    "Category color" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category color"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリの色"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리 색"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "类别颜色"
+          }
+        }
+      }
+    },
+    "Category name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリ名"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리 이름"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "类别名称"
+          }
+        }
+      }
+    },
     "Choose an iCloud Drive folder before adding feeds." : {
       "localizations" : {
         "en" : {
@@ -581,6 +815,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择检查范围"
+          }
+        }
+      }
+    },
+    "Classifies articles into your categories by meaning, on top of keyword rules." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classifies articles into your categories by meaning, on top of keyword rules."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーワード規則に加えて、記事を意味でカテゴリに分類します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키워드 규칙에 더해, 글을 의미 기반으로 카테고리에 분류합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在关键词规则之外，按含义将文章归入你的类别。"
+          }
+        }
+      }
+    },
+    "Classify" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classify"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分類"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분류"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分类"
+          }
+        }
+      }
+    },
+    "Classify Existing Articles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classify Existing Articles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存の記事を分類"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기존 글 분류"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分类现有文章"
           }
         }
       }
@@ -663,6 +981,34 @@
         }
       }
     },
+    "Copy as Markdown" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy as Markdown"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdownとしてコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown으로 복사"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制为 Markdown"
+          }
+        }
+      }
+    },
     "Couldn't add %lld feeds" : {
       "localizations" : {
         "en" : {
@@ -732,6 +1078,34 @@
         }
       }
     },
+    "Couldn’t Save Markdown" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t Save Markdown"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdownを保存できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown을 저장할 수 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存 Markdown"
+          }
+        }
+      }
+    },
     "Custom" : {
       "localizations" : {
         "en" : {
@@ -778,6 +1152,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除文章"
+          }
+        }
+      }
+    },
+    "Delete category" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete category"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리 삭제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除类别"
           }
         }
       }
@@ -866,7 +1268,34 @@
         }
       }
     },
-    "Done" : {},
+    "Done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
     "Download %lld" : {
       "localizations" : {
         "en" : {
@@ -1276,6 +1705,62 @@
         }
       }
     },
+    "Gemini classifies over the network and may cost money; article text is sent to Google. Apple Intelligence stays on device and free." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini classifies over the network and may cost money; article text is sent to Google. Apple Intelligence stays on device and free."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geminiはネットワークで分類し、費用が発生する場合があり、記事の内容がGoogleに送信されます。Apple Intelligenceは端末内で無料で動作します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini는 네트워크로 분류하며 비용이 발생할 수 있고, 글 내용이 Google로 전송됩니다. Apple Intelligence는 기기 내에서 무료로 동작합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini 通过网络分类，可能产生费用，文章内容会发送给 Google。Apple Intelligence 在设备本地运行且免费。"
+          }
+        }
+      }
+    },
+    "Gemini runs over the network and may incur cost. Article text is sent to Google. Your key is stored only on this device." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini runs over the network and may incur cost. Article text is sent to Google. Your key is stored only on this device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geminiはネットワークで動作し費用が発生する場合があります。記事の内容がGoogleに送信されます。キーはこの端末にのみ保存されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini는 네트워크로 동작해 비용이 발생할 수 있습니다. 글 내용이 Google로 전송됩니다. 키는 이 기기에만 저장됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini 通过网络运行，可能产生费用。文章内容会发送给 Google。密钥仅保存在此设备上。"
+          }
+        }
+      }
+    },
     "Got It" : {
       "localizations" : {
         "en" : {
@@ -1300,6 +1785,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "知道了"
+          }
+        }
+      }
+    },
+    "Hide" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨김"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏"
+          }
+        }
+      }
+    },
+    "Hide articles in this category" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide articles in this category"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このカテゴリの記事を非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 카테고리의 글 숨기기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏此类别的文章"
+          }
+        }
+      }
+    },
+    "Hide categories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide categories"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリを非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리 숨기기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏类别"
           }
         }
       }
@@ -1500,6 +2069,62 @@
         }
       }
     },
+    "Keywords" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keywords"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーワード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키워드"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关键词"
+          }
+        }
+      }
+    },
+    "Keywords, comma-separated" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keywords, comma-separated"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーワード（カンマ区切り）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키워드(쉼표로 구분)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关键词（用逗号分隔）"
+          }
+        }
+      }
+    },
     "Loading reader view…" : {
       "localizations" : {
         "ja" : {
@@ -1578,6 +2203,7 @@
         }
       }
     },
+    "Match in" : {},
     "matches a or b" : {
       "localizations" : {
         "en" : {
@@ -1690,6 +2316,34 @@
         }
       }
     },
+    "Name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이름"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称"
+          }
+        }
+      }
+    },
     "Never" : {
       "localizations" : {
         "en" : {
@@ -1742,6 +2396,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没有匹配的文章。"
+          }
+        }
+      }
+    },
+    "No categories — add some in Article Rules" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No categories — add some in Article Rules"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カテゴリなし — Article Rules で追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "카테고리 없음 — Article Rules에서 추가"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无类别 — 在 Article Rules 中添加"
+          }
+        }
+      }
+    },
+    "No categories yet. Add some in Settings › Article Rules." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No categories yet. Add some in Settings › Article Rules."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだカテゴリがありません。設定 › Article Rules で追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 카테고리가 없습니다. 설정 › Article Rules에서 추가하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有类别。请在设置 › Article Rules 中添加。"
           }
         }
       }
@@ -1925,6 +2635,34 @@
       }
     },
     "OK" : {},
+    "Only new articles are tagged automatically. Use this to catch up your existing articles." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only new articles are tagged automatically. Use this to catch up your existing articles."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新着記事のみ自動でタグ付けされます。既存の記事はこれで追いつけます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 글만 자동으로 태그됩니다. 기존 글은 이 기능으로 채우세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅新文章会被自动打标签。用它来处理现有文章。"
+          }
+        }
+      }
+    },
     "Open Embedded Content" : {
       "localizations" : {
         "en" : {
@@ -2308,62 +3046,6 @@
         }
       }
     },
-    "Copy as Markdown" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy as Markdown"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdownとしてコピー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdown으로 복사"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "复制为 Markdown"
-          }
-        }
-      }
-    },
-    "Couldn’t Save Markdown" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn’t Save Markdown"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdownを保存できませんでした"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdown을 저장할 수 없습니다"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法保存 Markdown"
-          }
-        }
-      }
-    },
     "Remove All Downloads" : {
       "localizations" : {
         "en" : {
@@ -2392,62 +3074,6 @@
         }
       }
     },
-    "Save as Markdown" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save as Markdown"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdownとして保存"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdown으로 저장"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存储为 Markdown"
-          }
-        }
-      }
-    },
-    "Share Link" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share Link"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リンクを共有"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "링크 공유"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享链接"
-          }
-        }
-      }
-    },
     "Save" : {
       "localizations" : {
         "en" : {
@@ -2472,6 +3098,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存"
+          }
+        }
+      }
+    },
+    "Save as Markdown" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save as Markdown"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdownとして保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown으로 저장"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储为 Markdown"
           }
         }
       }
@@ -2582,6 +3236,34 @@
         }
       }
     },
+    "Share Link" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを共有"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "링크 공유"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享链接"
+          }
+        }
+      }
+    },
     "Showing original content" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2651,6 +3333,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已加星标"
+          }
+        }
+      }
+    },
+    "Stop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중지"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
           }
         }
       }
@@ -2735,6 +3445,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "系统默认"
+          }
+        }
+      }
+    },
+    "Tags your existing articles with keyword rules and AI. With many articles it can take a while; Gemini may cost money." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags your existing articles with keyword rules and AI. With many articles it can take a while; Gemini may cost money."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存の記事をキーワード規則とAIでタグ付けします。記事が多いと時間がかかることがあり、Geminiは費用が発生する場合があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기존 글을 키워드 규칙과 AI로 태그합니다. 글이 많으면 시간이 걸릴 수 있고, Gemini는 비용이 발생할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用关键词规则和 AI 为现有文章打标签。文章较多时可能耗时，Gemini 可能产生费用。"
           }
         }
       }
@@ -3142,6 +3880,34 @@
         }
       }
     },
+    "Untitled" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無題"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제목 없음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名"
+          }
+        }
+      }
+    },
     "Use a regular expression" : {
       "localizations" : {
         "en" : {
@@ -3166,6 +3932,146 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用正则表达式"
+          }
+        }
+      }
+    },
+    "Use Apple Intelligence" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Apple Intelligence"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence を使う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence 사용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apple Intelligence"
+          }
+        }
+      }
+    },
+    "Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「記事をダウンロード」で保存する記事を選べます。保存した記事は接続なしで即座に開き、この端末にのみ保存されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘글 다운로드’로 저장할 글을 선택하세요. 저장된 글은 연결 없이도 즉시 열리며 이 기기에만 보관됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用“下载文章”选择要保存的文章。已保存的文章无需联网即可立即打开，且仅保存在此设备上。"
+          }
+        }
+      }
+    },
+    "Use Gemini" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Gemini"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini を使う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini 사용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Gemini"
+          }
+        }
+      }
+    },
+    "Use Gemini (may cost)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Gemini (may cost)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini を使う（費用の可能性）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini 사용 (비용 발생 가능)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Gemini（可能付费）"
+          }
+        }
+      }
+    },
+    "Use Gemini for categorization?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Gemini for categorization?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分類にGeminiを使いますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분류에 Gemini를 사용할까요?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Gemini 进行分类？"
           }
         }
       }
@@ -3338,34 +4244,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密钥仅存储在此设备上，绝不同步。选择 Gemini 时，文章文本会发送给 Google 进行翻译。"
-          }
-        }
-      }
-    },
-    "Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Download Articles to choose which stories to save. Saved articles open instantly without a connection and are kept on this device only."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「記事をダウンロード」で保存する記事を選べます。保存した記事は接続なしで即座に開き、この端末にのみ保存されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‘글 다운로드’로 저장할 글을 선택하세요. 저장된 글은 연결 없이도 즉시 열리며 이 기기에만 보관됩니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用“下载文章”选择要保存的文章。已保存的文章无需联网即可立即打开，且仅保存在此设备上。"
           }
         }
       }

@@ -18,6 +18,8 @@ public enum TranslationSettings {
     public static let readerProviderKey = "readerTranslationProvider"
     /// Provider for the article-list title auto-translation.
     public static let titleProviderKey = "titleTranslationProvider"
+    /// Provider for AI-based article categorization.
+    public static let categoryProviderKey = "categoryClassificationProvider"
     /// A non-secret mirror of "a Gemini key is stored", in `UserDefaults` so
     /// SwiftUI (`@AppStorage`) can react when the key is saved/cleared. The key
     /// itself stays in the Keychain (`GeminiCredential`).
@@ -25,6 +27,7 @@ public enum TranslationSettings {
 
     public static func readerProvider() -> TranslationProvider { provider(forKey: readerProviderKey) }
     public static func titleProvider() -> TranslationProvider { provider(forKey: titleProviderKey) }
+    public static func categoryProvider() -> TranslationProvider { provider(forKey: categoryProviderKey) }
 
     private static func provider(forKey key: String) -> TranslationProvider {
         TranslationProvider(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .appleIntelligence

@@ -1226,6 +1226,9 @@ private struct ArticleListView: View {
                                         store.saveOffline(article)
                                     }
                                 }
+                                Menu("Categories") {
+                                    CategoryMenuItems(store: store, article: article)
+                                }
                                 Divider()
                                 Link("Open in Browser", destination: article.url)
                             }
@@ -1396,6 +1399,8 @@ private struct ArticleRow: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
+
+                CategoryBadges(ReaderStore.shared.categories(forArticle: article))
             }
         }
         .padding(.vertical, 8)
@@ -2308,6 +2313,13 @@ private struct ReaderDetailView: View {
                     }
                     .disabled(translationBusy)
                 }
+
+                Menu {
+                    CategoryMenuItems(store: store, article: article)
+                } label: {
+                    Label("Categories", systemImage: "tag")
+                }
+                .fixedSize()
             }
             .buttonStyle(.bordered)
         }
@@ -2726,6 +2738,8 @@ struct ReaderSettingsView: View {
                 .tabItem { Label("Reader", systemImage: "textformat") }
             FeedsSettingsTab()
                 .tabItem { Label("Feeds", systemImage: "dot.radiowaves.up.forward") }
+            ArticleRulesSettingsTab()
+                .tabItem { Label("Article Rules", systemImage: "tag") }
             FiltersSettingsTab()
                 .tabItem { Label("Filters", systemImage: "line.3.horizontal.decrease.circle") }
             OfflineSettingsTab()
@@ -2736,6 +2750,17 @@ struct ReaderSettingsView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 540, height: 430)
+    }
+}
+
+private struct ArticleRulesSettingsTab: View {
+    var body: some View {
+        Form {
+            Section("Article Rules") {
+                ArticleRulesSettingsContent(store: .shared)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

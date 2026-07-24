@@ -55,6 +55,11 @@ struct SettingsView: View {
                         Label("Feeds", systemImage: "dot.radiowaves.up.forward")
                     }
                     NavigationLink {
+                        ArticleRulesSettingsScreen(store: store)
+                    } label: {
+                        Label("Article Rules", systemImage: "tag")
+                    }
+                    NavigationLink {
                         FiltersSettingsScreen(store: store)
                     } label: {
                         Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
@@ -514,6 +519,22 @@ private struct FeedsSettingsScreen: View {
 }
 
 // MARK: - Experimental
+
+private struct ArticleRulesSettingsScreen: View {
+    let store: ReaderStore
+
+    var body: some View {
+        List {
+            Section("Article Rules") {
+                ArticleRulesSettingsContent(store: store)
+            }
+            .warmRows()
+        }
+        .warmListBackground()
+        .navigationTitle("Article Rules")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
 
 private struct OfflineSettingsScreen: View {
     let store: ReaderStore

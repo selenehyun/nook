@@ -41,6 +41,36 @@ public struct FilterSettingsContent: View {
         Text("Matching stories are hidden from every list and unread count, and collected under Filtered. Filters sync across your devices.", bundle: .module)
             .font(.caption)
             .foregroundStyle(.secondary)
+
+        if !store.categories.isEmpty {
+            Text("Hide categories", bundle: .module)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ForEach(store.categories) { category in
+                Toggle(isOn: hiddenBinding(for: category)) {
+                    HStack(spacing: 8) {
+                        Circle().fill(Color(nookHex: category.colorHex)).frame(width: 10, height: 10)
+                        Text(category.name.isEmpty ? String(localized: "Untitled", bundle: .module) : category.name)
+                    }
+                }
+            }
+
+            Text("Articles tagged with a hidden category are filtered out too.", bundle: .module)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func hiddenBinding(for category: ArticleCategory) -> Binding<Bool> {
+        Binding(
+            get: { category.hidden },
+            set: { newValue in
+                var updated = category
+                updated.hidden = newValue
+                store.updateCategory(updated)
+            }
+        )
     }
 }
 
