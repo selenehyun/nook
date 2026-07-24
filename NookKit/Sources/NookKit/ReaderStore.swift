@@ -1456,6 +1456,13 @@ public final class ReaderStore {
     /// — seeing the guide is per-install UI state. Defaults false.
     public static let filterGuideSeenKey = "filterGuideSeen"
 
+    /// `UserDefaults` key for whether the filter UI offers regular expressions.
+    /// Off by default — most people just want to hide a word or phrase and
+    /// needn't meet regex. Device-local UI preference: matching always honors a
+    /// filter's own kind, so a regex filter synced from another device still
+    /// works here regardless of this toggle. Defaults false.
+    public static let filterRegexEnabledKey = "filterRegexEnabled"
+
     /// How many currently-loaded articles a single filter would hide, for the live
     /// feedback shown next to it in settings. Computed off the main actor so a big
     /// library doesn't hitch typing; returns 0 for a disabled/empty/invalid filter.

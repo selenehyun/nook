@@ -2612,6 +2612,90 @@
           }
         }
       }
+    },
+    "Enable regular expressions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable regular expressions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規表現を使う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정규식 사용"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用正则表达式"
+          }
+        }
+      }
+    },
+    "For advanced pattern matching. Off by default — a plain word or phrase is all most filters need." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For advanced pattern matching. Off by default — a plain word or phrase is all most filters need."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高度なパターンマッチング用です。既定はオフ — ほとんどのフィルタは単語やフレーズで十分です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "고급 패턴 매칭용입니다. 기본은 꺼짐 — 대부분의 필터는 단어나 구절이면 충분합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用于高级模式匹配。默认关闭——大多数过滤器用一个单词或短语就够了。"
+          }
+        }
+      }
+    },
+    "A filter hides any story that contains the word or phrase you type. Matches ignore case unless you turn on **Aa**." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A filter hides any story that contains the word or phrase you type. Matches ignore case unless you turn on **Aa**."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタは入力した単語やフレーズを含む記事を隠します。**Aa** をオンにしない限り、大文字と小文字は区別されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터는 입력한 단어나 구절이 들어간 글을 숨깁니다. **Aa**를 켜지 않으면 대소문자를 구분하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过滤器会隐藏包含你输入的单词或短语的文章。除非开启 **Aa**，否则匹配不区分大小写。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

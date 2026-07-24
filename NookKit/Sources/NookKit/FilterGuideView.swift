@@ -7,6 +7,7 @@ import SwiftUI
 /// and iOS. Localised in NookKit (`.module`).
 public struct FilterGuideView: View {
     private let onDone: () -> Void
+    @AppStorage(ReaderStore.filterRegexEnabledKey) private var regexEnabled = false
 
     public init(onDone: @escaping () -> Void) {
         self.onDone = onDone
@@ -22,11 +23,15 @@ public struct FilterGuideView: View {
                         number: 1,
                         systemImage: "character.cursor.ibeam",
                         title: "Write a rule",
-                        message: "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern. Matches ignore case unless you turn on **Aa**.",
-                        examples: [
-                            .init(label: "Text", value: "cryptocurrency"),
-                            .init(label: "Regex", value: #"(?i)\bads?\b"#),
-                        ]
+                        message: regexEnabled
+                            ? "A filter hides any story that matches it. Use plain **Text** for a word or phrase, or a **Regex** for a pattern. Matches ignore case unless you turn on **Aa**."
+                            : "A filter hides any story that contains the word or phrase you type. Matches ignore case unless you turn on **Aa**.",
+                        examples: regexEnabled
+                            ? [
+                                .init(label: "Text", value: "cryptocurrency"),
+                                .init(label: "Regex", value: #"(?i)\bads?\b"#),
+                            ]
+                            : [.init(label: nil, value: "cryptocurrency")]
                     )
 
                     GuideStep(
@@ -53,7 +58,7 @@ public struct FilterGuideView: View {
                         examples: []
                     )
 
-                    regexTips
+                    if regexEnabled { regexTips }
                 }
                 .padding(24)
             }
@@ -106,7 +111,7 @@ public struct FilterGuideView: View {
 /// chips (e.g. a sample plain-text word and a sample regex).
 private struct GuideStep: View {
     struct Example: Identifiable {
-        let label: LocalizedStringKey
+        let label: LocalizedStringKey?
         let value: String
         var id: String { value }
     }
@@ -137,9 +142,11 @@ private struct GuideStep: View {
                     HStack(spacing: 8) {
                         ForEach(examples) { example in
                             HStack(spacing: 6) {
-                                Text(example.label, bundle: .module)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                if let label = example.label {
+                                    Text(label, bundle: .module)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
                                 Text(example.value)
                                     .font(.caption.monospaced())
                             }
