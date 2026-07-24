@@ -58,6 +58,12 @@ private struct FilterRow: View {
     let matchCount: (ArticleFilter) async -> Int
 
     @State private var draft: ArticleFilter
+    /// The committed value the draft was last synced to (initial mount, an adopted
+    /// external update, or the user's own Save). "Unsaved edits" is measured
+    /// against THIS, not the live `filter` prop — so an external change arriving
+    /// via sync isn't mistaken for a local edit (which would otherwise block the
+    /// new value from ever showing until the row was rebuilt).
+    @State private var baseline: ArticleFilter
     @State private var liveCount: Int?
 
     init(
@@ -71,6 +77,7 @@ private struct FilterRow: View {
         self.onDelete = onDelete
         self.matchCount = matchCount
         _draft = State(initialValue: filter)
+        _baseline = State(initialValue: filter)
     }
 
     private var invalidRegex: Bool {
@@ -79,8 +86,8 @@ private struct FilterRow: View {
             && (try? NSRegularExpression(pattern: draft.pattern)) == nil
     }
 
-    /// Whether the draft has edits not yet applied/saved.
-    private var isDirty: Bool { draft != filter }
+    /// Whether the draft has edits not yet applied/saved (vs the synced baseline).
+    private var isDirty: Bool { draft != baseline }
 
     private var placeholder: Text {
         switch draft.kind {
@@ -129,10 +136,14 @@ private struct FilterRow: View {
             footer
         }
         .padding(.vertical, 2)
-        // Adopt an external update (a peer sync) only when we have nothing
-        // unsaved, so it never discards edits the user is in the middle of.
+        // An external update (a peer sync, or our own Save landing back through
+        // the store) moves the baseline. Adopt it into the draft when the user
+        // has no unsaved edits — this is what fills in a filter another device
+        // just added/edited, live, without needing the row rebuilt. If the user
+        // IS mid-edit, keep their draft (they'll Save it; last write wins).
         .onChange(of: filter) { _, new in
             if !isDirty { draft = new }
+            baseline = new
         }
         // Live-count preview ONLY — never commits. Recomputes off the main actor
         // when the draft settles, so it previews a rule's effect without ever
