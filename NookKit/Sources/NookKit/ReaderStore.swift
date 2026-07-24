@@ -99,11 +99,13 @@ public final class ReaderStore {
     /// the view) so the Dock badge is a deterministic function of store state
     /// rather than of SwiftUI view-lifecycle timing.
     public var showsUnreadBadge = true { didSet { updateUnreadBadge() } }
-    /// Whether the app is currently foreground-active, set by each platform app
-    /// on scene/activation changes. While active, articles surfaced in the list
-    /// are marked "seen" so they never fire a later "new article" notification
-    /// (on this device or, via shard sync, any other). Defaults `false` so a
-    /// background refresh — the one path that *should* notify — never marks seen.
+    /// Whether the reading surface is currently being attended, set by each
+    /// platform app from its scene/activity signals. macOS intentionally requires
+    /// more than a frontmost process: its reader window must be visible and the
+    /// Mac recently used. While active, articles surfaced in the list are marked
+    /// "seen" so they never fire a later "new article" notification (on this
+    /// device or, via shard sync, any other). Defaults `false` so a background
+    /// refresh — the one path that *should* notify — never marks seen.
     public private(set) var isForegroundActive = false
     public private(set) var syncFolderDisplayPath: String?
     private(set) var feedIcons: [Feed.ID: PlatformImage] = [:]
@@ -1478,10 +1480,10 @@ public final class ReaderStore {
 
     // MARK: - "Seen" tracking (notification suppression)
 
-    /// Called by the platform app when foreground-active state changes. Becoming
-    /// active marks the articles already on screen as seen (the user is looking
-    /// at the synced list right now), so a later background refresh won't
-    /// re-announce them.
+    /// Called by the platform app when attended-foreground state changes. Becoming
+    /// active marks the articles already on screen as seen (the user is looking at
+    /// the synced list right now), so a later background refresh won't re-announce
+    /// them.
     public func setForegroundActive(_ active: Bool) {
         guard active != isForegroundActive else { return }
         isForegroundActive = active
