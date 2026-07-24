@@ -145,8 +145,11 @@ enum MarkdownTranslationStream {
 
     static func parse(_ raw: String, expectedIDs: Set<String>) -> Snapshot {
         let text = stripOuterFence(raw)
-        let beginPattern = #"<!--\s*NOOK:BEGIN:([a-zA-Z0-9-]+)\s*-->"#
-        guard let regex = try? NSRegularExpression(pattern: beginPattern) else {
+        let beginPattern = #"<!--\s*NOOK\s*:\s*BEGIN\s*:\s*([a-zA-Z0-9-]+)\s*-->"#
+        guard let regex = try? NSRegularExpression(
+            pattern: beginPattern,
+            options: [.caseInsensitive]
+        ) else {
             return Snapshot(completed: [:], activeID: nil, activeText: "", order: [])
         }
         let ns = text as NSString
@@ -154,22 +157,43 @@ enum MarkdownTranslationStream {
         var result = Snapshot(completed: [:], activeID: nil, activeText: "", order: [])
         var seen = Set<String>()
 
-        for match in matches {
+        for (matchIndex, match) in matches.enumerated() {
             guard let idRange = Range(match.range(at: 1), in: text) else { continue }
-            let id = String(text[idRange])
-            guard expectedIDs.contains(id) else { continue }
+            let capturedID = String(text[idRange])
+            guard let id = expectedIDs.first(where: {
+                $0.caseInsensitiveCompare(capturedID) == .orderedSame
+            }) else { continue }
             if !seen.insert(id).inserted { result.hasDuplicate = true }
             result.order.append(id)
 
             let contentStart = match.range.location + match.range.length
-            let end = MarkdownTranslationTemplate.endMarker(id)
-            let searchRange = NSRange(location: contentStart, length: ns.length - contentStart)
-            let endRange = ns.range(of: end, options: [], range: searchRange)
+            // A later BEGIN is a hard transport boundary even if this unit's END
+            // was omitted. Never let one malformed unit absorb another block.
+            let nextBegin = matches.indices.contains(matchIndex + 1)
+                ? matches[matchIndex + 1].range.location
+                : ns.length
+            let searchRange = NSRange(
+                location: contentStart,
+                length: max(0, nextBegin - contentStart)
+            )
+            let escapedID = NSRegularExpression.escapedPattern(for: id)
+            let endPattern = #"<!--\s*NOOK\s*:\s*END\s*:\s*\#(escapedID)\s*-->"#
+            let endRange = (try? NSRegularExpression(
+                pattern: endPattern,
+                options: [.caseInsensitive]
+            ))?.firstMatch(in: text, range: searchRange)?.range
+                ?? NSRange(location: NSNotFound, length: 0)
             let value: String
             if endRange.location == NSNotFound {
-                value = ns.substring(from: contentStart)
+                // Once another block has begun, this unit is malformed rather
+                // than active. Keep its previous safe UI projection untouched;
+                // final validation will retry the batch with the stronger model.
+                guard nextBegin == ns.length else { continue }
+                value = ns.substring(
+                    with: NSRange(location: contentStart, length: nextBegin - contentStart)
+                )
                 result.activeID = id
-                result.activeText = cleaned(value)
+                result.activeText = cleaned(displaySafe(value))
             } else {
                 value = ns.substring(with: NSRange(
                     location: contentStart,
@@ -182,8 +206,7 @@ enum MarkdownTranslationStream {
     }
 
     static func plainProjection(_ markdown: String) -> String {
-        markdown
-            .replacingOccurrences(of: #"<!--.*?-->"#, with: "", options: [.regularExpression])
+        displaySafe(markdown)
             .replacingOccurrences(of: #"!\[([^\]]*)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
             .replacingOccurrences(of: #"\[([^\]]+)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
             .replacingOccurrences(of: #"(?m)^\s{0,3}(#{1,6}|>|[-+*]|\d+\.)\s+"#, with: "", options: .regularExpression)
@@ -191,8 +214,50 @@ enum MarkdownTranslationStream {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Bounds a live projection to the source block's visual shape. In
+    /// particular, a heading can never temporarily render later prose as part of
+    /// itself while its Markdown is still incomplete.
+    static func liveProjection(_ markdown: String, matching source: String) -> String {
+        plainProjection(liveMarkdownProjection(markdown, matching: source))
+    }
+
+    static func liveMarkdownProjection(_ markdown: String, matching source: String) -> String {
+        let safe = displaySafe(markdown)
+        let sourceDocument = Document(parsing: source)
+        guard Array(sourceDocument.children).first is Heading else {
+            return safe.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return safe
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+    }
+
     private static func cleaned(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Protocol comments are transport framing, never article content. A stream
+    /// snapshot can end at any byte of `<!--NOOK:END:…-->`, so removing only
+    /// complete comments still flashes partial markers in the reader. Strip every
+    /// complete HTML comment, truncate an unfinished one, and withhold the three
+    /// ambiguous trailing prefixes until the next snapshot resolves them.
+    private static func displaySafe(_ value: String) -> String {
+        var safe = value.replacingOccurrences(
+            of: #"(?s)<!--.*?-->"#,
+            with: "",
+            options: [.regularExpression]
+        )
+        if let unfinished = safe.range(of: "<!--") {
+            safe.removeSubrange(unfinished.lowerBound...)
+        }
+        for suffix in ["<!-", "<!", "<"] where safe.hasSuffix(suffix) {
+            safe.removeLast(suffix.count)
+            break
+        }
+        return safe
     }
 
     private static func stripOuterFence(_ value: String) -> String {
@@ -303,6 +368,39 @@ enum MarkdownTranslationValidator {
     }
 }
 
+/// Separates trustworthy completed units from the part of a cumulative stream
+/// that still needs recovery. A malformed tail must not discard earlier blocks.
+enum MarkdownTranslationRecovery {
+    struct Partition: Equatable {
+        var translations: [String: String]
+        var unresolved: [MarkdownTranslationTemplate.Unit]
+    }
+
+    static func partition(
+        units: [MarkdownTranslationTemplate.Unit],
+        snapshot: MarkdownTranslationStream.Snapshot,
+        language: String
+    ) -> Partition {
+        var accepted: [String: String] = [:]
+        if !snapshot.hasDuplicate {
+            for unit in units {
+                guard let output = snapshot.completed[unit.id],
+                      MarkdownTranslationValidator.accepts(
+                        source: unit.source,
+                        output: output,
+                        language: language
+                      )
+                else { continue }
+                accepted[unit.id] = output
+            }
+        }
+        return Partition(
+            translations: accepted,
+            unresolved: units.filter { accepted[$0.id] == nil }
+        )
+    }
+}
+
 /// Parses CommonMark/GFM directly into Nook's native reader block model.
 /// Inline Markdown is converted only to the safe HTML subset already consumed by
 /// the native attributed-string renderer; block structure never goes through HTML.
@@ -389,11 +487,16 @@ enum MarkdownNativeParser {
 
         case let html as HTMLBlock:
             let raw = html.rawHTML.trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw.hasPrefix("<!--NOOK:BEGIN:") || raw.hasPrefix("<!--NOOK:END:") {
-                return nil
-            }
             if let index = protectedIndex(raw), let protected = protectedBlocks[index] {
                 return protected
+            }
+            // Translation framing is never renderable, even if a model changes
+            // case or whitespace around the marker fields.
+            if raw.range(
+                of: #"<!--\s*NOOK\s*:"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) != nil {
+                return nil
             }
             let lower = raw.lowercased()
             guard !lower.contains("<script"), !lower.contains("<style"), !lower.contains("<iframe") else {

@@ -1,4 +1,5 @@
 import AVKit
+import Markdown
 import SwiftUI
 
 #if canImport(AppKit)
@@ -146,6 +147,9 @@ indirect enum HTMLContentBlock: Equatable, Sendable {
         /// erased in proportion to how much has streamed — so the block never
         /// blanks and the translation visibly overlays and replaces it in place.
         case streaming(original: String, text: String)
+        /// Gemini's cumulative Markdown stream. Syntactically complete inline
+        /// markup is rendered immediately while incomplete delimiters stay hidden.
+        case streamingMarkdown(original: String, markdown: String)
     }
 }
 
@@ -1424,6 +1428,14 @@ private struct NativeMixedText: View {
                     // once done): dimmed original underneath, translation typing on
                     // top, original erased as the translation streams.
                     StreamingText(original: original, text: text, selectable: selectable, baseSize: baseSize, bold: bold)
+                case .streamingMarkdown(let original, let markdown):
+                    StreamingMarkdownText(
+                        original: original,
+                        markdown: markdown,
+                        selectable: selectable,
+                        baseSize: baseSize,
+                        bold: bold
+                    )
                 }
             }
         }
@@ -1501,6 +1513,327 @@ private struct StreamingText: View {
         } else {
             rendered.textSelection(.disabled)
         }
+    }
+}
+
+/// Markdown-aware counterpart to `StreamingText`. The reveal cursor still
+/// advances through the raw stream, but Markdown delimiters themselves are
+/// withheld and every complete inline construct is styled synchronously.
+private struct StreamingMarkdownText: View {
+    let original: String
+    let markdown: String
+    let selectable: Bool
+    var baseSize = HTMLContentText.platformBodySize
+    var bold = false
+    @State private var shown = 0
+
+    private let caret = "\u{2588}"
+    private let blinkPeriod = 0.55
+    private let originalDim = 0.4
+
+    var body: some View {
+        let progress = markdown.isEmpty
+            ? 0
+            : min(1, Double(shown) / Double(max(markdown.count, 1)))
+        TimelineView(.periodic(from: .now, by: blinkPeriod)) { context in
+            let caretOn = Int(context.date.timeIntervalSinceReferenceDate / blinkPeriod)
+                .isMultiple(of: 2)
+            ZStack(alignment: .topLeading) {
+                if !original.isEmpty {
+                    Text(original)
+                        .font(.system(size: baseSize, weight: bold ? .semibold : .regular))
+                        .lineSpacing(4)
+                        .foregroundStyle(.secondary)
+                        .opacity(originalDim * (1 - progress))
+                }
+                content(
+                    visible: String(markdown.prefix(shown)),
+                    caretOn: caretOn
+                )
+            }
+        }
+        .task(id: markdown) { await reveal() }
+    }
+
+    private func reveal() async {
+        if shown > markdown.count { shown = markdown.count }
+        while shown < markdown.count {
+            let backlog = markdown.count - shown
+            let step = backlog > 160 ? 6 : (backlog > 60 ? 3 : 1)
+            let delayMS: UInt64 = backlog > 160 ? 5 : (backlog > 60 ? 10 : 22)
+            shown = min(markdown.count, shown + step)
+            try? await Task.sleep(nanoseconds: delayMS * 1_000_000)
+            if Task.isCancelled { return }
+        }
+    }
+
+    @ViewBuilder
+    private func content(visible: String, caretOn: Bool) -> some View {
+        let attributed = StreamingMarkdownFormatter.attributed(
+            visible,
+            baseSize: baseSize,
+            baseBold: bold
+        )
+        let caretText = Text(caret).foregroundColor(caretOn ? .primary : .clear)
+        let rendered = Text("\(Text(attributed))\(caretText)").lineSpacing(4)
+        if selectable {
+            rendered.textSelection(.enabled)
+        } else {
+            rendered.textSelection(.disabled)
+        }
+    }
+}
+
+/// Small, synchronous renderer for an incomplete Markdown snapshot. It avoids
+/// the asynchronous HTML importer on every token and deliberately supports only
+/// reader-safe inline HTML.
+enum StreamingMarkdownFormatter {
+    private struct Style {
+        var bold = false
+        var italic = false
+        var underline = false
+        var strike = false
+        var code = false
+        var highlight = false
+        var baseline: CGFloat = 0
+        var scale: CGFloat = 1
+        var link: URL?
+    }
+
+    private struct Renderer {
+        let baseSize: CGFloat
+        let baseBold: Bool
+        var output = NSMutableAttributedString()
+
+        mutating func render(document: Document) {
+            for (index, block) in Array(document.children).enumerated() {
+                if index > 0 { append("\n", style: Style()) }
+                renderBlock(block)
+            }
+        }
+
+        mutating func renderBlock(_ block: Markup) {
+            switch block {
+            case let list as UnorderedList:
+                renderList(Array(list.listItems), ordered: false)
+            case let list as OrderedList:
+                renderList(Array(list.listItems), ordered: true)
+            case let quote as BlockQuote:
+                append("› ", style: Style())
+                renderBlocks(Array(quote.children))
+            case let table as Markdown.Table:
+                renderTable(table)
+            case is ThematicBreak:
+                append("────────", style: Style())
+            case let code as CodeBlock:
+                var style = Style()
+                style.code = true
+                append(code.code, style: style)
+            default:
+                var style = Style()
+                renderInline(Array(block.children), style: &style)
+            }
+        }
+
+        mutating func renderBlocks(_ blocks: [Markup]) {
+            for (index, block) in blocks.enumerated() {
+                if index > 0 { append("\n", style: Style()) }
+                renderBlock(block)
+            }
+        }
+
+        mutating func renderList(_ items: [ListItem], ordered: Bool) {
+            for (index, item) in items.enumerated() {
+                if index > 0 { append("\n", style: Style()) }
+                append(ordered ? "\(index + 1). " : "• ", style: Style())
+                renderBlocks(Array(item.children))
+            }
+        }
+
+        mutating func renderTable(_ table: Markdown.Table) {
+            let header = Array(table.head.children).compactMap { $0 as? Markdown.Table.Cell }
+            renderCells(header)
+            for row in table.body.rows {
+                append("\n", style: Style())
+                renderCells(Array(row.children).compactMap { $0 as? Markdown.Table.Cell })
+            }
+        }
+
+        mutating func renderCells(_ cells: [Markdown.Table.Cell]) {
+            for (index, cell) in cells.enumerated() {
+                if index > 0 { append("  ·  ", style: Style()) }
+                var style = Style()
+                renderInline(Array(cell.children), style: &style)
+            }
+        }
+
+        mutating func renderInline(_ nodes: [Markup], style: inout Style) {
+            for node in nodes {
+                switch node {
+                case let text as Markdown.Text:
+                    append(Self.visibleText(text.string), style: style)
+                case is SoftBreak:
+                    append(" ", style: style)
+                case is LineBreak:
+                    append("\n", style: style)
+                case let strong as Strong:
+                    var nested = style
+                    nested.bold = true
+                    renderInline(Array(strong.children), style: &nested)
+                case let emphasis as Emphasis:
+                    var nested = style
+                    nested.italic = true
+                    renderInline(Array(emphasis.children), style: &nested)
+                case let strike as Strikethrough:
+                    var nested = style
+                    nested.strike = true
+                    renderInline(Array(strike.children), style: &nested)
+                case let code as InlineCode:
+                    var nested = style
+                    nested.code = true
+                    append(code.code, style: nested)
+                case let link as Markdown.Link:
+                    var nested = style
+                    nested.link = link.destination.flatMap(URL.init(string:))
+                    renderInline(Array(link.children), style: &nested)
+                case let image as Markdown.Image:
+                    append(Self.plainText(Array(image.children)), style: style)
+                case let html as InlineHTML:
+                    Self.apply(html: html.rawHTML, to: &style)
+                default:
+                    var nested = style
+                    renderInline(Array(node.children), style: &nested)
+                }
+            }
+        }
+
+        mutating func append(_ text: String, style: Style) {
+            guard !text.isEmpty else { return }
+            let range = NSRange(location: output.length, length: (text as NSString).length)
+            output.append(NSAttributedString(string: text))
+            output.addAttributes(attributes(for: style), range: range)
+        }
+
+        func attributes(for style: Style) -> [NSAttributedString.Key: Any] {
+            var attributes: [NSAttributedString.Key: Any] = [
+                .font: Self.font(
+                    size: baseSize * style.scale,
+                    bold: baseBold || style.bold,
+                    italic: style.italic,
+                    monospaced: style.code
+                ),
+            ]
+            if style.underline { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+            if style.strike { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+            if let link = style.link {
+                attributes[.link] = link
+                attributes[.foregroundColor] = Self.linkColor
+            }
+            if style.highlight {
+                attributes[.backgroundColor] = PlatformColor.systemYellow.withAlphaComponent(0.28)
+            }
+            if style.baseline != 0 { attributes[.baselineOffset] = style.baseline }
+            return attributes
+        }
+
+        static func apply(html: String, to style: inout Style) {
+            let tag = html
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            switch tag {
+            case "<u>": style.underline = true
+            case "</u>": style.underline = false
+            case "<mark>": style.highlight = true
+            case "</mark>": style.highlight = false
+            case "<sub>":
+                style.baseline = -2
+                style.scale = 0.82
+            case "</sub>":
+                style.baseline = 0
+                style.scale = 1
+            case "<sup>":
+                style.baseline = 4
+                style.scale = 0.82
+            case "</sup>":
+                style.baseline = 0
+                style.scale = 1
+            case "<kbd>": style.code = true
+            case "</kbd>": style.code = false
+            default: break
+            }
+        }
+
+        static func visibleText(_ raw: String) -> String {
+            raw
+                .replacingOccurrences(
+                    of: #"(?<!\\)(\*\*|__|~~|[*_`])"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                .replacingOccurrences(
+                    of: #"<[!/a-zA-Z][^>]*$"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                .replacingOccurrences(
+                    of: #"\\([\\`*_[\]{}()#+\-.!])"#,
+                    with: "$1",
+                    options: .regularExpression
+                )
+        }
+
+        static func plainText(_ nodes: [Markup]) -> String {
+            nodes.map { node in
+                if let text = node as? Markdown.Text { return visibleText(text.string) }
+                if let code = node as? InlineCode { return code.code }
+                return plainText(Array(node.children))
+            }.joined()
+        }
+
+        #if canImport(AppKit)
+        typealias PlatformColor = NSColor
+        static var linkColor: NSColor { .linkColor }
+
+        static func font(size: CGFloat, bold: Bool, italic: Bool, monospaced: Bool) -> NSFont {
+            var font = monospaced
+                ? NSFont.monospacedSystemFont(ofSize: size, weight: bold ? .semibold : .regular)
+                : NSFont.systemFont(ofSize: size, weight: bold ? .semibold : .regular)
+            if italic { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
+            return font
+        }
+        #else
+        typealias PlatformColor = UIColor
+        static var linkColor: UIColor { .link }
+
+        static func font(size: CGFloat, bold: Bool, italic: Bool, monospaced: Bool) -> UIFont {
+            if monospaced {
+                return UIFont.monospacedSystemFont(ofSize: size, weight: bold ? .semibold : .regular)
+            }
+            var traits: UIFontDescriptor.SymbolicTraits = []
+            if bold { traits.insert(.traitBold) }
+            if italic { traits.insert(.traitItalic) }
+            let descriptor = UIFont.systemFont(ofSize: size).fontDescriptor
+                .withSymbolicTraits(traits)
+                ?? UIFont.systemFont(ofSize: size).fontDescriptor
+            return UIFont(descriptor: descriptor, size: size)
+        }
+        #endif
+    }
+
+    static func attributed(
+        _ markdown: String,
+        baseSize: CGFloat,
+        baseBold: Bool = false
+    ) -> AttributedString {
+        var renderer = Renderer(baseSize: baseSize, baseBold: baseBold)
+        renderer.render(document: Document(parsing: markdown))
+        #if canImport(AppKit)
+        return (try? AttributedString(renderer.output, including: \.appKit))
+            ?? AttributedString(renderer.output.string)
+        #else
+        return (try? AttributedString(renderer.output, including: \.uiKit))
+            ?? AttributedString(renderer.output.string)
+        #endif
     }
 }
 

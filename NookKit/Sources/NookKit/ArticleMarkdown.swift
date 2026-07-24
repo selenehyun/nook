@@ -91,6 +91,8 @@ public enum ArticleMarkdown {
                     inlineFragment(html, baseURL: baseURL)
                 case .streaming(_, let text):
                     escapePlainText(text)
+                case .streamingMarkdown(_, let markdown):
+                    markdown
                 }
             }.joined()
             return normalizeInline(text)

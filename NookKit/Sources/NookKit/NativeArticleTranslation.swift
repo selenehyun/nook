@@ -508,7 +508,7 @@ public final class NativeArticleTranslator {
                         headingLevel = nil
                     }
                     overrides[index] = .mixedText(
-                        parts: [.streaming(original: original, text: partial)],
+                        parts: [.streamingMarkdown(original: original, markdown: partial)],
                         headingLevel: headingLevel
                     )
                 },
@@ -527,18 +527,10 @@ public final class NativeArticleTranslator {
             return
         } catch {
             guard token == generation, isActive else { return }
-            // The direct Markdown path is an optimization. Clear its transient
-            // projection, then use the battle-tested per-block Gemini translator.
-            overrides = [:]
-            markdownBlocks = nil
-            translatedMarkdown = nil
-            translatedTitle = nil
-            await run(
-                title: template.title,
-                blocks: template.originalBlocks,
-                language: language,
-                token: token
-            )
+            // Gemini reader translation remains Markdown-only. Keep every
+            // successfully streamed block visible instead of falling back to
+            // per-cell/per-item requests that lose document context.
+            isTranslating = false
         }
     }
 
